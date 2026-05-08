@@ -49,8 +49,16 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
   }, [creator]);
 
   return (
-    <article className="group relative aspect-[9/16] w-[78vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-zinc-800">
+    <article className="group relative aspect-[9/16] w-[78vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 hover:-translate-y-0.5 hover:ring-zinc-600">
       <Link to={watchHref} state={{ item }} className="absolute inset-0 block">
+        <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
+          <span className="rounded-full border border-emerald-300/45 bg-emerald-300/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100">
+            Free
+          </span>
+          <span className="rounded-full border border-cyan-300/35 bg-cyan-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
+            Lightning
+          </span>
+        </div>
         {canShowVideo ? (
           <video
             src={item.previewUrl}
@@ -74,7 +82,7 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-zinc-500">No media</div>
         )}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/95 via-black/55 to-transparent" />
       </Link>
 
       <div className="absolute inset-x-0 bottom-0 z-10 p-4">

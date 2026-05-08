@@ -17,9 +17,9 @@ export default defineConfig({
         navigateFallback: `${BASE}index.html`,
       },
       manifest: {
-        name: 'Certifyd Fan',
-        short_name: 'Certifyd Fan',
-        description: 'Public discovery app for Certifyd Creator nodes',
+        name: 'Certifyd Discovery',
+        short_name: 'Discovery',
+        description: 'Discover creators and drops across the Certifyd network',
         theme_color: '#09090b',
         background_color: '#09090b',
         display: 'standalone',

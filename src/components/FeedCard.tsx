@@ -13,6 +13,12 @@ function ctaLabel(mode: DiscoverableItem['accessMode']) {
   return 'Open on Creator';
 }
 
+function primaryLabel(item: DiscoverableItem): string {
+  if (item.accessMode === 'locked') return 'Premium';
+  if (item.accessMode === 'owned') return 'Owned';
+  return 'Free';
+}
+
 function avatarInitials(handle: string | null): string {
   const raw = String(handle || '').replace(/^@+/, '').trim();
   if (!raw) return 'CF';
@@ -59,7 +65,19 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
   return (
     <article className="group overflow-hidden">
       <Link to={watchHref} state={{ item }} className="block">
-        <div className="aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800 transition group-hover:ring-zinc-700">
+        <div className="relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5 group-hover:ring-zinc-600">
+          <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+              item.accessMode === 'locked'
+                ? 'border border-amber-300/45 bg-amber-300/15 text-amber-100'
+                : 'border border-emerald-300/45 bg-emerald-300/15 text-emerald-100'
+            }`}>
+              {primaryLabel(item)}
+            </span>
+            <span className="rounded-full border border-cyan-300/35 bg-cyan-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
+              Lightning
+            </span>
+          </div>
           {hasMedia ? (
             canShowVideo ? (
               <video
@@ -97,6 +115,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
               </p>
             </div>
           )}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
         </div>
       </Link>
       <div className="mt-2 flex gap-2.5">

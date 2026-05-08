@@ -149,23 +149,31 @@ export function HomePage() {
   );
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur">
+    <main className="app-shell min-h-screen text-zinc-100">
+      <header className="sticky top-0 z-30 border-b border-zinc-800/70 bg-zinc-950/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-4">
-          <img
-            src={logoSrc}
-            alt="Certifyd Fan"
-            className="h-24 w-auto object-contain sm:h-28"
-            loading="eager"
-          />
+          <div className="shrink-0">
+            <img
+              src={logoSrc}
+              alt="Certifyd Discovery"
+              className="h-24 w-auto object-contain sm:h-28"
+              loading="eager"
+            />
+            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Discover on Certifyd</p>
+          </div>
           <div className="ml-auto w-full max-w-xl">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search"
-              className="w-full rounded-full border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm outline-none placeholder:text-zinc-500 focus:border-zinc-500"
+              placeholder="Search creators, drops, music, stories..."
+              className="search-input w-full rounded-full border border-zinc-700/80 bg-zinc-900/80 px-5 py-2.5 text-sm outline-none placeholder:text-zinc-500 focus:border-amber-300/70"
             />
           </div>
+        </div>
+        <div className="mx-auto max-w-7xl px-4 pb-2">
+          <p className="network-microcopy text-xs text-zinc-300/90">
+            Creators publishing across the Certifyd network. Free drops, premium unlocks, sovereign creator nodes.
+          </p>
         </div>
         <TopicRail active={topic} onChange={onTopicChange} />
       </header>
@@ -192,8 +200,16 @@ export function HomePage() {
         <div className="space-y-6">
           {freeItems.length > 0 ? (
             <section className="space-y-3">
-              <div className="px-1 text-sm font-semibold uppercase tracking-wide text-zinc-300">Freebies</div>
-              <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+              <div className="flex items-center justify-between px-1">
+                <div>
+                  <h2 className="section-title text-sm font-semibold uppercase tracking-[0.2em] text-zinc-100">Freebies</h2>
+                  <p className="section-subtitle mt-1 text-xs text-zinc-400">Open and playable drops from across the network</p>
+                </div>
+                <span className="rounded-full border border-emerald-400/35 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-300">
+                  Open
+                </span>
+              </div>
+              <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
                 {freeItems.map((item) => {
                   const watchParams = new URLSearchParams({
                     origin: item.publicOrigin,
@@ -210,7 +226,15 @@ export function HomePage() {
 
           {lockedItems.length > 0 ? (
             <section className="space-y-3">
-              <div className="px-1 text-sm font-semibold uppercase tracking-wide text-zinc-300">Premium</div>
+              <div className="flex items-center justify-between px-1">
+                <div>
+                  <h2 className="section-title text-sm font-semibold uppercase tracking-[0.2em] text-zinc-100">Premium</h2>
+                  <p className="section-subtitle mt-1 text-xs text-zinc-400">Unlock paid releases and premium creator access</p>
+                </div>
+                <span className="rounded-full border border-amber-300/35 bg-amber-300/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-200">
+                  Lightning
+                </span>
+              </div>
               <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {lockedItems.map((item) => (
                   <FeedCard key={`${item.publicOrigin}:${item.contentId}`} item={item} />
