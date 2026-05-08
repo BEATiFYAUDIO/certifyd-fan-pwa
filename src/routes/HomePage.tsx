@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FeedCard } from '../components/FeedCard';
 import { TopicRail } from '../components/TopicRail';
 import { fetchDiscoverablePage } from '../lib/api';
@@ -35,6 +35,8 @@ export function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feeds, setFeeds] = useState<OriginFeedState[]>([]);
+  const requestIdRef = useRef(0);
+  const loadingRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -54,13 +56,12 @@ export function HomePage() {
 
   function onTopicChange(next: Topic) {
     setTopic(next);
-    setItems([]);
-    setError(null);
-    setFeeds(origins.map((origin) => ({ origin, cursor: null, done: false, loading: false, error: null })));
   }
 
-  async function loadMore(currentFeeds: OriginFeedState[] = feeds, currentItems: DiscoverableItem[] = items) {
-    if (origins.length === 0) return;
+  const loadMore = useCallback(async (currentFeeds: OriginFeedState[], currentItems: DiscoverableItem[]) => {
+    if (origins.length === 0 || loadingRef.current) return;
+    const requestId = ++requestIdRef.current;
+    loadingRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -89,6 +90,11 @@ export function HomePage() {
       }
     }
 
+    if (requestId !== requestIdRef.current) {
+      loadingRef.current = false;
+      setLoading(false);
+      return;
+    }
     setFeeds(nextFeeds);
     const nextItems = dedupe([...currentItems, ...updates]);
     setItems(nextItems);
@@ -98,14 +104,32 @@ export function HomePage() {
       setError(errors[0]);
     }
     setLoading(false);
-  }
+    loadingRef.current = false;
+  }, [origins.length, topic]);
 
   useEffect(() => {
-    if (origins.length === 0 || items.length > 0 || loading) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadMore(feeds, items);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origins, items.length, loading, feeds]);
+    if (origins.length === 0) return;
+    const initialFeeds = origins.map((origin) => ({ origin, cursor: null, done: false, loading: false, error: null }));
+    setFeeds(initialFeeds);
+    setItems([]);
+    setError(null);
+    void loadMore(initialFeeds, []);
+  }, [loadMore, origins, topic]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || loading) return;
+      if (items.length === 0 && feeds.length > 0) {
+        void loadMore(feeds, items);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [feeds, items, loadMore, loading]);
 
   const allDone = feeds.length > 0 && feeds.every((f) => f.done);
   const filtered: DiscoverableItem[] = useMemo(() => {
@@ -174,7 +198,7 @@ export function HomePage() {
 
         {origins.length > 0 && !allDone ? (
           <button
-            onClick={() => void loadMore()}
+            onClick={() => void loadMore(feeds, items)}
             disabled={loading}
             className="w-full rounded-xl border border-zinc-700 bg-zinc-900 py-2 text-sm font-semibold text-zinc-100 hover:bg-zinc-800 disabled:opacity-50"
           >
