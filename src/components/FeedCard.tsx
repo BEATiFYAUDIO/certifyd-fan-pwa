@@ -28,7 +28,9 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
   const watchHref = `/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`;
   const creator = item.creatorHandle || 'creator';
   const metadata = `${item.primaryTopic || 'topic'} · ${item.contentType} · ${modeMetaText(item.accessMode, item.priceSats)}`;
-  const canShowVideo = Boolean(item.previewUrl) && !videoFailed;
+  const normalizedType = String(item.contentType || '').toLowerCase();
+  const prefersPreviewFirst = normalizedType === 'video';
+  const canShowVideo = prefersPreviewFirst && Boolean(item.previewUrl) && !videoFailed;
   const canShowImage = Boolean(item.coverUrl) && !imageFailed;
   const hasMedia = canShowVideo || canShowImage;
   const avatarUrl =
