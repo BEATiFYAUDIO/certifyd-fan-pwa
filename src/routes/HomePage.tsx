@@ -152,11 +152,11 @@ export function HomePage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
       <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3.5">
           <img
             src={logoSrc}
             alt="Certifyd Fan"
-            className="h-16 w-auto object-contain sm:h-20"
+            className="h-20 w-auto object-contain sm:h-24"
             loading="eager"
           />
           <div className="ml-auto w-full max-w-xl">
