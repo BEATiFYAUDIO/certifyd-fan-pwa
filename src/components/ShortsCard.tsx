@@ -31,8 +31,10 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
     item.avatarUrl ||
     '';
   const canShowAvatar = Boolean(avatarUrl) && !avatarFailed;
+  const normalizedType = String(item.contentType || '').toLowerCase();
+  const isVideo = normalizedType === 'video';
 
-  const canShowVideo = Boolean(item.previewUrl) && !videoFailed;
+  const canShowVideo = isVideo && Boolean(item.previewUrl) && !videoFailed;
   const canShowImage = Boolean(item.coverUrl) && !imageFailed;
 
   const avatarGradient = useMemo(() => {

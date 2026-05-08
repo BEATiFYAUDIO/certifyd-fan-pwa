@@ -148,14 +148,15 @@ function FreebiesWatch({
       {!loading && !error ? (
         <div className="h-screen snap-y snap-mandatory overflow-y-auto overscroll-y-contain">
           {items.map((it, index) => {
-            const media = it.previewUrl || it.coverUrl || '';
-            const isVideo = Boolean(it.previewUrl) && String(it.contentType || '').toLowerCase() === 'video';
+            const normalizedType = String(it.contentType || '').toLowerCase();
+            const isVideo = normalizedType === 'video' && Boolean(it.previewUrl);
+            const visualSrc = isVideo ? (it.previewUrl || it.coverUrl || '') : (it.coverUrl || '');
             return (
               <section key={`${it.publicOrigin}:${it.contentId}:${index}`} className="relative h-screen snap-start bg-black">
-                {media ? (
+                {visualSrc ? (
                   isVideo ? (
                     <video
-                      src={it.previewUrl}
+                      src={visualSrc}
                       className="h-full w-full object-cover"
                       controls
                       playsInline
@@ -163,7 +164,7 @@ function FreebiesWatch({
                       preload="metadata"
                     />
                   ) : (
-                    <img src={media} alt={it.title || 'content'} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+                    <img src={visualSrc} alt={it.title || 'content'} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
                   )
                 ) : (
                   <div className="flex h-full items-center justify-center text-zinc-500">No media</div>
