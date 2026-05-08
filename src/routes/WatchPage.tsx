@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
@@ -96,6 +96,9 @@ function FreebiesWatch({
   const [items, setItems] = useState<DiscoverableItem[]>(stateItem ? [stateItem] : []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const sectionRefs = useRef<Array<HTMLElement | null>>([]);
 
   useEffect(() => {
     let active = true;
@@ -134,6 +137,44 @@ function FreebiesWatch({
     };
   }, [contentId, originHint, stateItem, topic]);
 
+  useEffect(() => {
+    const root = scrollerRef.current;
+    if (!root) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const best = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!best) return;
+        const idx = Number((best.target as HTMLElement).dataset.index || 0);
+        setActiveIndex(idx);
+      },
+      { root, threshold: [0.5, 0.7, 0.9] },
+    );
+    sectionRefs.current.forEach((el) => {
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [items]);
+
+  useEffect(() => {
+    sectionRefs.current.forEach((section, index) => {
+      if (!section) return;
+      const videos = section.querySelectorAll('video');
+      videos.forEach((video) => {
+        if (index !== activeIndex) {
+          video.pause();
+          return;
+        }
+        if (video.paused) {
+          void video.play().catch(() => {
+            // autoplay can be blocked by browser policy
+          });
+        }
+      });
+    });
+  }, [activeIndex, items]);
+
   return (
     <main className="h-screen overflow-hidden bg-black text-white">
       <div className="fixed left-3 top-3 z-40">
@@ -146,13 +187,20 @@ function FreebiesWatch({
       {error ? <div className="flex h-screen items-center justify-center p-4 text-red-300">{error}</div> : null}
 
       {!loading && !error ? (
-        <div className="h-screen snap-y snap-mandatory overflow-y-auto overscroll-y-contain">
+        <div ref={scrollerRef} className="h-screen snap-y snap-mandatory overflow-y-auto overscroll-y-contain">
           {items.map((it, index) => {
             const normalizedType = String(it.contentType || '').toLowerCase();
             const isVideo = normalizedType === 'video' && Boolean(it.previewUrl);
             const visualSrc = isVideo ? (it.previewUrl || it.coverUrl || '') : (it.coverUrl || '');
             return (
-              <section key={`${it.publicOrigin}:${it.contentId}:${index}`} className="relative h-screen snap-start bg-black">
+              <section
+                key={`${it.publicOrigin}:${it.contentId}:${index}`}
+                className="relative h-screen snap-start bg-black"
+                data-index={index}
+                ref={(el) => {
+                  sectionRefs.current[index] = el;
+                }}
+              >
                 {visualSrc ? (
                   isVideo ? (
                     <video
@@ -160,7 +208,7 @@ function FreebiesWatch({
                       className="h-full w-full object-cover"
                       controls
                       playsInline
-                      autoPlay={index === 0}
+                      autoPlay={index === activeIndex}
                       preload="metadata"
                     />
                   ) : (
