@@ -91,7 +91,7 @@ export function HomePage() {
       return;
     }
     setFeeds(nextFeeds);
-    const nextItems = dedupe([...currentItems, ...updates]);
+    const nextItems = dedupe([...updates, ...currentItems]);
     setItems(nextItems);
 
     const errors = nextFeeds.map((f) => f.error).filter(Boolean) as string[];
