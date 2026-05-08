@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
-import type { DiscoverableItem } from '../lib/types';
+import type { DiscoverableItem, Topic } from '../lib/types';
 
 function ctaLabel(mode: DiscoverableItem['accessMode']) {
   if (mode === 'locked') return 'Unlock on Creator';
@@ -48,14 +48,160 @@ async function loadCredits(item: DiscoverableItem): Promise<CreditItem[]> {
   return Array.isArray(data) ? (data as CreditItem[]) : [];
 }
 
-export function WatchPage() {
-  const params = useParams();
-  const [search] = useSearchParams();
-  const location = useLocation();
-  const stateItem = (location.state as { item?: DiscoverableItem } | null)?.item;
-  const contentId = String(params.contentId || '').trim();
-  const originHint = search.get('origin');
+function normalizeTopic(value: string): Topic {
+  const raw = String(value || 'all').toLowerCase();
+  if (raw === 'entertainment' || raw === 'music' || raw === 'news' || raw === 'gaming' || raw === 'sports' || raw === 'technology') {
+    return raw;
+  }
+  return 'all';
+}
 
+async function loadFreebies(topic: Topic): Promise<DiscoverableItem[]> {
+  const origins = await loadConfiguredOrigins();
+  const rows: DiscoverableItem[] = [];
+  for (const origin of origins) {
+    let cursor: string | null = null;
+    for (let page = 0; page < 4; page += 1) {
+      const response = await fetchDiscoverablePage({
+        origin,
+        topic,
+        limit: 18,
+        cursor,
+      });
+      rows.push(...response.items);
+      if (!response.cursor) break;
+      cursor = response.cursor;
+    }
+  }
+  const seen = new Map<string, DiscoverableItem>();
+  for (const it of rows) {
+    if (!(it.accessMode === 'unlocked' || it.accessMode === 'owned')) continue;
+    const key = `${it.publicOrigin}::${it.contentId}`;
+    if (!seen.has(key)) seen.set(key, it);
+  }
+  return [...seen.values()];
+}
+
+function FreebiesWatch({
+  contentId,
+  topic,
+  originHint,
+  stateItem,
+}: {
+  contentId: string;
+  topic: Topic;
+  originHint: string | null;
+  stateItem: DiscoverableItem | null;
+}) {
+  const [items, setItems] = useState<DiscoverableItem[]>(stateItem ? [stateItem] : []);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const feed = await loadFreebies(topic);
+        if (!active) return;
+        const map = new Map<string, DiscoverableItem>();
+        for (const it of feed) map.set(`${it.publicOrigin}::${it.contentId}`, it);
+        if (stateItem) map.set(`${stateItem.publicOrigin}::${stateItem.contentId}`, stateItem);
+        let merged = [...map.values()];
+        const selectedKey = stateItem
+          ? `${stateItem.publicOrigin}::${stateItem.contentId}`
+          : `${originHint || ''}::${contentId}`;
+        const selectedIndex = merged.findIndex(
+          (it) => `${it.publicOrigin}::${it.contentId}` === selectedKey || it.contentId === contentId,
+        );
+        if (selectedIndex > 0) {
+          const selected = merged[selectedIndex];
+          merged.splice(selectedIndex, 1);
+          merged = [selected, ...merged];
+        }
+        setItems(merged);
+      } catch (e: unknown) {
+        if (!active) return;
+        setError(toErrorMessage(e));
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void run();
+    return () => {
+      active = false;
+    };
+  }, [contentId, originHint, stateItem, topic]);
+
+  return (
+    <main className="h-screen overflow-hidden bg-black text-white">
+      <div className="fixed left-3 top-3 z-40">
+        <Link to="/" className="rounded-full bg-black/50 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-black/70">
+          ← Back
+        </Link>
+      </div>
+
+      {loading ? <div className="flex h-screen items-center justify-center text-zinc-300">Loading freebies…</div> : null}
+      {error ? <div className="flex h-screen items-center justify-center p-4 text-red-300">{error}</div> : null}
+
+      {!loading && !error ? (
+        <div className="h-screen snap-y snap-mandatory overflow-y-auto overscroll-y-contain">
+          {items.map((it, index) => {
+            const media = it.previewUrl || it.coverUrl || '';
+            const isVideo = Boolean(it.previewUrl) && String(it.contentType || '').toLowerCase() === 'video';
+            return (
+              <section key={`${it.publicOrigin}:${it.contentId}:${index}`} className="relative h-screen snap-start bg-black">
+                {media ? (
+                  isVideo ? (
+                    <video
+                      src={it.previewUrl}
+                      className="h-full w-full object-cover"
+                      controls
+                      playsInline
+                      autoPlay={index === 0}
+                      preload="metadata"
+                    />
+                  ) : (
+                    <img src={media} alt={it.title || 'content'} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+                  )
+                ) : (
+                  <div className="flex h-full items-center justify-center text-zinc-500">No media</div>
+                )}
+
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/55 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-4 p-4 pb-8">
+                  <div className="min-w-0">
+                    <h1 className="line-clamp-2 text-2xl font-bold">{it.title || 'Untitled'}</h1>
+                    <p className="mt-1 text-sm text-zinc-200">@{it.creatorHandle || 'creator'} • {it.primaryTopic || 'topic'} • {it.contentType}</p>
+                  </div>
+                  <a
+                    href={it.buyUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="shrink-0 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-bold text-zinc-950 hover:bg-cyan-400"
+                  >
+                    {ctaLabel(it.accessMode)}
+                  </a>
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      ) : null}
+    </main>
+  );
+}
+
+function StandardWatch({
+  contentId,
+  originHint,
+  stateItem,
+}: {
+  contentId: string;
+  originHint: string | null;
+  stateItem: DiscoverableItem | null;
+}) {
   const [item, setItem] = useState<DiscoverableItem | null>(stateItem || null);
   const [loading, setLoading] = useState(!stateItem);
   const [error, setError] = useState<string | null>(null);
@@ -237,4 +383,21 @@ export function WatchPage() {
       </div>
     </main>
   );
+}
+
+export function WatchPage() {
+  const params = useParams();
+  const [search] = useSearchParams();
+  const location = useLocation();
+  const stateItem = (location.state as { item?: DiscoverableItem } | null)?.item || null;
+  const contentId = String(params.contentId || '').trim();
+  const originHint = search.get('origin');
+  const mode = String(search.get('mode') || '').toLowerCase();
+  const topic = normalizeTopic(search.get('topic') || 'all');
+
+  if (mode === 'freebies') {
+    return <FreebiesWatch contentId={contentId} originHint={originHint} topic={topic} stateItem={stateItem} />;
+  }
+
+  return <StandardWatch contentId={contentId} originHint={originHint} stateItem={stateItem} />;
 }

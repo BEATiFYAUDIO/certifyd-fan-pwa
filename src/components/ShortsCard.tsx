@@ -10,12 +10,13 @@ function avatarInitials(handle: string | null): string {
   return raw.slice(0, 2).toUpperCase();
 }
 
-export function ShortsCard({ item }: { item: DiscoverableItem }) {
+export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watchParams?: string }) {
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
 
-  const watchHref = `/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`;
+  const query = watchParams || `origin=${encodeURIComponent(item.publicOrigin)}&mode=freebies&topic=all`;
+  const watchHref = `/watch/${encodeURIComponent(item.contentId)}?${query}`;
   const creator = item.creatorHandle || 'creator';
   const creatorHandleClean = String(item.creatorHandle || '').trim().replace(/^@+/, '');
   const creatorProfileUrl =

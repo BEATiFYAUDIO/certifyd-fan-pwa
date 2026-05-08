@@ -194,9 +194,16 @@ export function HomePage() {
             <section className="space-y-3">
               <div className="px-1 text-sm font-semibold uppercase tracking-wide text-zinc-300">Freebies</div>
               <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
-                {freeItems.map((item) => (
-                  <ShortsCard key={`shorts:${item.publicOrigin}:${item.contentId}`} item={item} />
-                ))}
+                {freeItems.map((item) => {
+                  const watchParams = new URLSearchParams({
+                    origin: item.publicOrigin,
+                    mode: 'freebies',
+                    topic,
+                  }).toString();
+                  return (
+                    <ShortsCard key={`shorts:${item.publicOrigin}:${item.contentId}`} item={item} watchParams={watchParams} />
+                  );
+                })}
               </div>
             </section>
           ) : null}
