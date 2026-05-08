@@ -5,11 +5,33 @@ import { registerSW } from 'virtual:pwa-register';
 import './index.css';
 import App from './App';
 
-registerSW({ immediate: true });
+const BASE = import.meta.env.BASE_URL;
+
+async function cleanupLegacyServiceWorkers() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    const allowedScopePrefix = `${window.location.origin}${BASE}`;
+    await Promise.all(
+      regs.map(async (reg) => {
+        const scope = String(reg.scope || '');
+        if (!scope.startsWith(allowedScopePrefix)) {
+          await reg.unregister();
+        }
+      }),
+    );
+  } catch {
+    // ignore
+  }
+}
+
+void cleanupLegacyServiceWorkers().finally(() => {
+  registerSW({ immediate: true });
+});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter basename={import.meta.env.BASE_URL}>
+    <BrowserRouter basename={BASE}>
       <App />
     </BrowserRouter>
   </StrictMode>,
