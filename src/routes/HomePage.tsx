@@ -210,7 +210,7 @@ export function HomePage() {
 
           {lockedItems.length > 0 ? (
             <section className="space-y-3">
-              <div className="px-1 text-sm font-semibold uppercase tracking-wide text-zinc-300">More to unlock</div>
+              <div className="px-1 text-sm font-semibold uppercase tracking-wide text-zinc-300">Premium</div>
               <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {lockedItems.map((item) => (
                   <FeedCard key={`${item.publicOrigin}:${item.contentId}`} item={item} />
