@@ -26,6 +26,7 @@ function toErrorMessage(error: unknown): string {
 }
 
 export function HomePage() {
+  const logoSrc = `${import.meta.env.BASE_URL}header-logo.png`;
   const [origins, setOrigins] = useState<string[]>([]);
   const [originsLoaded, setOriginsLoaded] = useState(false);
   const [topic, setTopic] = useState<Topic>('all');
@@ -129,8 +130,8 @@ export function HomePage() {
       <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
           <img
-            src="/header-logo.png"
-            alt="Certifyd"
+            src={logoSrc}
+            alt="Certifyd Fan"
             className="h-10 w-auto object-contain sm:h-11"
             loading="eager"
           />

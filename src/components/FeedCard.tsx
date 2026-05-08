@@ -24,12 +24,20 @@ function avatarInitials(handle: string | null): string {
 export function FeedCard({ item }: { item: DiscoverableItem }) {
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const watchHref = `/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`;
   const creator = item.creatorHandle || 'creator';
   const metadata = `${item.primaryTopic || 'topic'} · ${item.contentType} · ${modeMetaText(item.accessMode, item.priceSats)}`;
   const canShowVideo = Boolean(item.previewUrl) && !videoFailed;
   const canShowImage = Boolean(item.coverUrl) && !imageFailed;
   const hasMedia = canShowVideo || canShowImage;
+  const avatarUrl =
+    item.creatorAvatarUrl ||
+    item.creatorProfileImageUrl ||
+    item.profileImageUrl ||
+    item.avatarUrl ||
+    '';
+  const canShowAvatar = Boolean(avatarUrl) && !avatarFailed;
   const avatarGradient = useMemo(() => {
     const seed = creator.toLowerCase().charCodeAt(0) || 0;
     const gradients = [
@@ -67,20 +75,41 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
                 onError={() => setImageFailed(true)}
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-sm text-zinc-500">No media</div>
+              <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
+                <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
+                <p className="mt-1 text-xs text-zinc-400">
+                  {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
+                </p>
+              </div>
             )
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-zinc-500">No media</div>
+            <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
+              <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
+              <p className="mt-1 text-xs text-zinc-400">
+                {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
+              </p>
+            </div>
           )}
         </div>
       </Link>
       <div className="mt-2 flex gap-2.5">
-        <div
-          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[11px] font-semibold text-zinc-100 ring-1 ring-white/15 ${avatarGradient}`}
-          aria-hidden="true"
-        >
-          {avatarInitials(creator)}
-        </div>
+        {canShowAvatar ? (
+          <img
+            src={avatarUrl}
+            alt={`${creator} avatar`}
+            className="mt-0.5 h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-white/15"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={() => setAvatarFailed(true)}
+          />
+        ) : (
+          <div
+            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[11px] font-semibold text-zinc-100 ring-1 ring-white/15 ${avatarGradient}`}
+            aria-hidden="true"
+          >
+            {avatarInitials(creator)}
+          </div>
+        )}
         <div className="min-w-0">
           <Link to={watchHref} state={{ item }} className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100 hover:underline">
             {item.title || 'Untitled'}

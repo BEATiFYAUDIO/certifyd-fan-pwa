@@ -23,6 +23,10 @@ export type DiscoverableItem = {
   priceSats: number;
   accessMode: AccessMode;
   publicOrigin: string;
+  creatorAvatarUrl?: string | null;
+  creatorProfileImageUrl?: string | null;
+  profileImageUrl?: string | null;
+  avatarUrl?: string | null;
 };
 
 export type DiscoverableResponse = {
