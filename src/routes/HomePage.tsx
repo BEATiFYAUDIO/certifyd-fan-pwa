@@ -14,12 +14,6 @@ function dedupe(items: DiscoverableItem[]) {
   return [...seen.values()];
 }
 
-function accessPriority(mode: DiscoverableItem['accessMode']) {
-  if (mode === 'unlocked') return 0;
-  if (mode === 'owned') return 1;
-  return 2;
-}
-
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return 'Failed to load feed';
@@ -133,17 +127,9 @@ export function HomePage() {
 
   const allDone = feeds.length > 0 && feeds.every((f) => f.done);
   const filtered: DiscoverableItem[] = useMemo(() => {
-    const ranked = items
-      .map((item, index) => ({ item, index }))
-      .sort((a, b) => {
-        const byAccess = accessPriority(a.item.accessMode) - accessPriority(b.item.accessMode);
-        if (byAccess !== 0) return byAccess;
-        return a.index - b.index;
-      })
-      .map((row) => row.item);
     const q = query.trim().toLowerCase();
-    if (!q) return ranked;
-    return ranked.filter((it) => {
+    if (!q) return items;
+    return items.filter((it) => {
       const hay = `${it.title || ''} ${it.creatorHandle || ''} ${it.primaryTopic || ''} ${it.contentType || ''}`.toLowerCase();
       return hay.includes(q);
     });
