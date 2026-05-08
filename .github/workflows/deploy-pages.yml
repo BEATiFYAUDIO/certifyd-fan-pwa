@@ -31,6 +31,8 @@ jobs:
         run: npm ci
 
       - name: Build
+        env:
+          VITE_CERTIFYD_ORIGINS: ${{ secrets.VITE_CERTIFYD_ORIGINS }}
         run: npm run build
 
       - name: Setup Pages
