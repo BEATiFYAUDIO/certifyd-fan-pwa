@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { FeedCard } from '../components/FeedCard';
 import { TopicRail } from '../components/TopicRail';
 import { fetchDiscoverablePage } from '../lib/api';
-import { getConfiguredOrigins } from '../lib/config';
+import { loadConfiguredOrigins } from '../lib/config';
 import type { DiscoverableItem, OriginFeedState, Topic } from '../lib/types';
 
 function dedupe(items: DiscoverableItem[]) {
@@ -20,15 +20,30 @@ function toErrorMessage(error: unknown): string {
 }
 
 export function HomePage() {
-  const origins = useMemo(() => getConfiguredOrigins(), []);
+  const [origins, setOrigins] = useState<string[]>([]);
+  const [originsLoaded, setOriginsLoaded] = useState(false);
   const [topic, setTopic] = useState<Topic>('all');
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<DiscoverableItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [feeds, setFeeds] = useState<OriginFeedState[]>(
-    origins.map((origin) => ({ origin, cursor: null, done: false, loading: false, error: null })),
-  );
+  const [feeds, setFeeds] = useState<OriginFeedState[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    void loadConfiguredOrigins()
+      .then((nextOrigins) => {
+        if (!mounted) return;
+        setOrigins(nextOrigins);
+        setFeeds(nextOrigins.map((origin) => ({ origin, cursor: null, done: false, loading: false, error: null })));
+      })
+      .finally(() => {
+        if (mounted) setOriginsLoaded(true);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   function onTopicChange(next: Topic) {
     setTopic(next);
@@ -86,7 +101,7 @@ export function HomePage() {
   }, [origins, items.length, loading, feeds]);
 
   const allDone = feeds.length > 0 && feeds.every((f) => f.done);
-  const filtered = useMemo(() => {
+  const filtered: DiscoverableItem[] = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
     return items.filter((it) => {
@@ -113,9 +128,9 @@ export function HomePage() {
       </header>
 
       <section className="mx-auto max-w-7xl space-y-4 px-4 py-4">
-        {origins.length === 0 ? (
+        {originsLoaded && origins.length === 0 ? (
           <div className="rounded-xl border border-amber-700 bg-amber-950/30 p-4 text-sm text-amber-200">
-            Missing <code>VITE_CERTIFYD_ORIGINS</code>. Add origins in your <code>.env</code> file.
+            No valid origins found. Add <code>public/origins.json</code> and/or <code>VITE_CERTIFYD_ORIGINS</code>.
           </div>
         ) : null}
 

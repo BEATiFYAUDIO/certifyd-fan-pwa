@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { fetchDiscoverablePage } from '../lib/api';
-import { getConfiguredOrigins } from '../lib/config';
+import { loadConfiguredOrigins } from '../lib/config';
 import type { DiscoverableItem } from '../lib/types';
 
 function ctaLabel(mode: DiscoverableItem['accessMode']) {
@@ -15,7 +15,7 @@ function toErrorMessage(error: unknown): string {
 }
 
 async function loadById(contentId: string, originHint: string | null): Promise<DiscoverableItem | null> {
-  const origins = getConfiguredOrigins();
+  const origins = await loadConfiguredOrigins();
   const ordered = originHint ? [originHint, ...origins.filter((o) => o !== originHint)] : origins;
 
   for (const origin of ordered) {

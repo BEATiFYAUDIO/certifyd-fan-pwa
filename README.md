@@ -33,7 +33,39 @@ Create `.env` from `.env.example`:
 VITE_CERTIFYD_ORIGINS=https://certifyd.beatifygroup.com
 ```
 
-Multiple origins are comma-separated.
+Multiple env origins are comma-separated.
+
+## Static network registry
+
+The app can also load creator origins from a static file:
+
+- `public/origins.json`
+
+Example:
+
+```json
+{
+  "origins": [
+    "https://certifyd.beatifygroup.com",
+    "https://certifyd.darrylhillock.com"
+  ]
+}
+```
+
+Behavior:
+
+- Origins are loaded from both:
+  1. `public/origins.json`
+  2. `VITE_CERTIFYD_ORIGINS`
+- Both sources are merged and deduped.
+- Invalid/empty origins are ignored.
+- Allowed origins:
+  - `https://...`
+  - `http://localhost...`
+  - `http://127.0.0.1...`
+- If `origins.json` is missing or malformed, app continues gracefully.
+
+To add a creator node, append its HTTPS origin to `public/origins.json` (and/or env).
 
 ## Local development
 
