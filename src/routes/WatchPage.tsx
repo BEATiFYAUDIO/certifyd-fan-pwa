@@ -160,14 +160,14 @@ function FreebiesWatch({
   useEffect(() => {
     sectionRefs.current.forEach((section, index) => {
       if (!section) return;
-      const videos = section.querySelectorAll('video');
-      videos.forEach((video) => {
+      const mediaEls = section.querySelectorAll<HTMLMediaElement>('video, audio');
+      mediaEls.forEach((mediaEl) => {
         if (index !== activeIndex) {
-          video.pause();
+          mediaEl.pause();
           return;
         }
-        if (video.paused) {
-          void video.play().catch(() => {
+        if (mediaEl.tagName.toLowerCase() === 'video' && mediaEl.paused) {
+          void mediaEl.play().catch(() => {
             // autoplay can be blocked by browser policy
           });
         }
@@ -176,8 +176,8 @@ function FreebiesWatch({
   }, [activeIndex, items]);
 
   return (
-    <main className="h-screen overflow-hidden bg-black text-white">
-      <div className="fixed left-3 top-3 z-40">
+    <main className="h-[100dvh] overflow-hidden bg-black text-white">
+      <div className="fixed left-3 z-40" style={{ top: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
         <Link to="/" className="rounded-full bg-black/50 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-black/70">
           ← Back
         </Link>
@@ -187,15 +187,16 @@ function FreebiesWatch({
       {error ? <div className="flex h-screen items-center justify-center p-4 text-red-300">{error}</div> : null}
 
       {!loading && !error ? (
-        <div ref={scrollerRef} className="h-screen snap-y snap-mandatory overflow-y-auto overscroll-y-contain">
+        <div ref={scrollerRef} className="h-[100dvh] snap-y snap-mandatory overflow-y-auto overscroll-y-contain">
           {items.map((it, index) => {
             const normalizedType = String(it.contentType || '').toLowerCase();
             const isVideo = normalizedType === 'video' && Boolean(it.previewUrl);
+            const isSong = (normalizedType === 'song' || normalizedType === 'audio') && Boolean(it.previewUrl);
             const visualSrc = isVideo ? (it.previewUrl || it.coverUrl || '') : (it.coverUrl || '');
             return (
               <section
                 key={`${it.publicOrigin}:${it.contentId}:${index}`}
-                className="relative h-screen snap-start bg-black"
+                className="relative h-[100dvh] snap-start bg-black"
                 data-index={index}
                 ref={(el) => {
                   sectionRefs.current[index] = el;
@@ -218,8 +219,22 @@ function FreebiesWatch({
                   <div className="flex h-full items-center justify-center text-zinc-500">No media</div>
                 )}
 
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/55 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-4 p-4 pb-8">
+                {isSong ? (
+                  <div className="absolute inset-x-4 z-20 rounded-xl bg-black/60 p-3 backdrop-blur" style={{ bottom: 'calc(9rem + env(safe-area-inset-bottom, 0px))' }}>
+                    <audio
+                      src={it.previewUrl}
+                      className="w-full"
+                      controls
+                      preload="metadata"
+                    />
+                  </div>
+                ) : null}
+
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/90 via-black/55 to-transparent" />
+                <div
+                  className="absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-4 p-4"
+                  style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}
+                >
                   <div className="min-w-0">
                     <h1 className="line-clamp-2 text-2xl font-bold">{it.title || 'Untitled'}</h1>
                     <p className="mt-1 text-sm text-zinc-200">@{it.creatorHandle || 'creator'} • {it.primaryTopic || 'topic'} • {it.contentType}</p>
