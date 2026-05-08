@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-const BASE = '/certifyd-fan-pwa/';
+const BASE = '/';
 
 export default defineConfig({
   base: BASE,
