@@ -14,6 +14,12 @@ function dedupe(items: DiscoverableItem[]) {
   return [...seen.values()];
 }
 
+function accessPriority(mode: DiscoverableItem['accessMode']) {
+  if (mode === 'unlocked') return 0;
+  if (mode === 'owned') return 1;
+  return 2;
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return 'Failed to load feed';
@@ -102,9 +108,17 @@ export function HomePage() {
 
   const allDone = feeds.length > 0 && feeds.every((f) => f.done);
   const filtered: DiscoverableItem[] = useMemo(() => {
+    const ranked = items
+      .map((item, index) => ({ item, index }))
+      .sort((a, b) => {
+        const byAccess = accessPriority(a.item.accessMode) - accessPriority(b.item.accessMode);
+        if (byAccess !== 0) return byAccess;
+        return a.index - b.index;
+      })
+      .map((row) => row.item);
     const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((it) => {
+    if (!q) return ranked;
+    return ranked.filter((it) => {
       const hay = `${it.title || ''} ${it.creatorHandle || ''} ${it.primaryTopic || ''} ${it.contentType || ''}`.toLowerCase();
       return hay.includes(q);
     });
@@ -127,7 +141,7 @@ export function HomePage() {
         <TopicRail active={topic} onChange={onTopicChange} />
       </header>
 
-      <section className="mx-auto max-w-7xl space-y-4 px-4 py-4">
+      <section className="mx-auto max-w-7xl space-y-3 px-4 py-4">
         {originsLoaded && origins.length === 0 ? (
           <div className="rounded-xl border border-amber-700 bg-amber-950/30 p-4 text-sm text-amber-200">
             No valid origins found. Add <code>public/origins.json</code> and/or <code>VITE_CERTIFYD_ORIGINS</code>.
@@ -146,7 +160,7 @@ export function HomePage() {
           </div>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((item) => (
             <FeedCard key={`${item.publicOrigin}:${item.contentId}`} item={item} />
           ))}
