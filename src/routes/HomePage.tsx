@@ -128,7 +128,12 @@ export function HomePage() {
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
       <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <div className="text-lg font-bold">Certifyd Fan</div>
+          <img
+            src="/header-logo.png"
+            alt="Certifyd"
+            className="h-10 w-auto object-contain sm:h-11"
+            loading="eager"
+          />
           <div className="ml-auto w-full max-w-xl">
             <input
               value={query}
