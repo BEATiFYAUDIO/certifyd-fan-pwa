@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FeedCard } from '../components/FeedCard';
+import { ShortsCard } from '../components/ShortsCard';
 import { TopicRail } from '../components/TopicRail';
 import { fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
@@ -138,6 +139,14 @@ export function HomePage() {
     const lockedLane = searched.filter((it) => it.accessMode === 'locked');
     return [...freeLane, ...lockedLane];
   }, [items, query]);
+  const freeItems = useMemo(
+    () => filtered.filter((it) => it.accessMode === 'unlocked' || it.accessMode === 'owned'),
+    [filtered]
+  );
+  const lockedItems = useMemo(
+    () => filtered.filter((it) => it.accessMode === 'locked'),
+    [filtered]
+  );
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -180,10 +189,28 @@ export function HomePage() {
           </div>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((item) => (
-            <FeedCard key={`${item.publicOrigin}:${item.contentId}`} item={item} />
-          ))}
+        <div className="space-y-6">
+          {freeItems.length > 0 ? (
+            <section className="space-y-3">
+              <div className="px-1 text-sm font-semibold uppercase tracking-wide text-zinc-300">Free Shorts</div>
+              <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+                {freeItems.map((item) => (
+                  <ShortsCard key={`shorts:${item.publicOrigin}:${item.contentId}`} item={item} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {lockedItems.length > 0 ? (
+            <section className="space-y-3">
+              <div className="px-1 text-sm font-semibold uppercase tracking-wide text-zinc-300">More to unlock</div>
+              <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {lockedItems.map((item) => (
+                  <FeedCard key={`${item.publicOrigin}:${item.contentId}`} item={item} />
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
 
         {origins.length > 0 && !allDone ? (
