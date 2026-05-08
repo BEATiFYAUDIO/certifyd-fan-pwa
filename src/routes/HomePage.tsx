@@ -192,7 +192,7 @@ export function HomePage() {
         <div className="space-y-6">
           {freeItems.length > 0 ? (
             <section className="space-y-3">
-              <div className="px-1 text-sm font-semibold uppercase tracking-wide text-zinc-300">Free Shorts</div>
+              <div className="px-1 text-sm font-semibold uppercase tracking-wide text-zinc-300">Freebies</div>
               <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
                 {freeItems.map((item) => (
                   <ShortsCard key={`shorts:${item.publicOrigin}:${item.contentId}`} item={item} />
