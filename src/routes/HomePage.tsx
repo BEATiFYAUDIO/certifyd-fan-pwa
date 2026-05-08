@@ -128,11 +128,15 @@ export function HomePage() {
   const allDone = feeds.length > 0 && feeds.every((f) => f.done);
   const filtered: DiscoverableItem[] = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((it) => {
+    const searched = !q
+      ? items
+      : items.filter((it) => {
       const hay = `${it.title || ''} ${it.creatorHandle || ''} ${it.primaryTopic || ''} ${it.contentType || ''}`.toLowerCase();
       return hay.includes(q);
     });
+    const freeLane = searched.filter((it) => it.accessMode === 'unlocked' || it.accessMode === 'owned');
+    const lockedLane = searched.filter((it) => it.accessMode === 'locked');
+    return [...freeLane, ...lockedLane];
   }, [items, query]);
 
   return (
