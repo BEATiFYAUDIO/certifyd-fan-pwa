@@ -156,7 +156,7 @@ export function HomePage() {
           <img
             src={logoSrc}
             alt="Certifyd Fan"
-            className="h-14 w-auto object-contain sm:h-16"
+            className="h-16 w-auto object-contain sm:h-20"
             loading="eager"
           />
           <div className="ml-auto w-full max-w-xl">
