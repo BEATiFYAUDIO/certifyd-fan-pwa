@@ -27,6 +27,11 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
   const [avatarFailed, setAvatarFailed] = useState(false);
   const watchHref = `/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`;
   const creator = item.creatorHandle || 'creator';
+  const creatorHandleClean = String(item.creatorHandle || '').trim().replace(/^@+/, '');
+  const creatorProfileUrl =
+    creatorHandleClean && item.publicOrigin
+      ? `${String(item.publicOrigin).replace(/\/+$/, '')}/u/${encodeURIComponent(creatorHandleClean)}`
+      : null;
   const metadata = `${item.primaryTopic || 'topic'} · ${item.contentType} · ${modeMetaText(item.accessMode, item.priceSats)}`;
   const normalizedType = String(item.contentType || '').toLowerCase();
   const prefersPreviewFirst = normalizedType === 'video';
@@ -95,7 +100,33 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
         </div>
       </Link>
       <div className="mt-2 flex gap-2.5">
-        {canShowAvatar ? (
+        {creatorProfileUrl ? (
+          <a
+            href={creatorProfileUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Open ${creatorHandleClean || creator} profile`}
+            className="mt-0.5 block h-8 w-8 shrink-0 rounded-full ring-1 ring-white/15 transition hover:ring-cyan-400/80"
+          >
+            {canShowAvatar ? (
+              <img
+                src={avatarUrl}
+                alt={`${creator} avatar`}
+                className="h-8 w-8 rounded-full object-cover"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={() => setAvatarFailed(true)}
+              />
+            ) : (
+              <div
+                className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br text-[11px] font-semibold text-zinc-100 ${avatarGradient}`}
+                aria-hidden="true"
+              >
+                {avatarInitials(creator)}
+              </div>
+            )}
+          </a>
+        ) : canShowAvatar ? (
           <img
             src={avatarUrl}
             alt={`${creator} avatar`}
