@@ -10,6 +10,8 @@ import { isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 const INITIAL_PAGE_LIMIT = 10;
 const NEXT_PAGE_LIMIT = 18;
 const ORIGIN_TIMEOUT_MS = 7000;
+const RETRY_BASE_MS = 4000;
+const RETRY_MAX_MS = 60000;
 
 function dedupe(items: DiscoverableItem[]) {
   const seen = new Map<string, DiscoverableItem>();
@@ -83,6 +85,7 @@ export function HomePage() {
   const loadingRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const sentinelWasVisibleRef = useRef(false);
+  const retryMetaRef = useRef<Map<string, { failCount: number; retryAfter: number }>>(new Map());
   const cacheKey = useMemo(
     () => `fanfeed:v1:${topic}:${origins.slice().sort().join(',') || 'none'}`,
     [origins, topic]
@@ -124,11 +127,7 @@ export function HomePage() {
 
   const loadMore = useCallback(async (currentFeeds: OriginFeedState[], currentItems: DiscoverableItem[]) => {
     if (origins.length === 0 || loadingRef.current) return;
-    const requestId = ++requestIdRef.current;
-    loadingRef.current = true;
-    setLoading(true);
-    setError(null);
-
+    const now = Date.now();
     const nextFeeds = currentFeeds.map((f) => ({ ...f }));
     const updates: DiscoverableItem[] = [];
 
@@ -136,9 +135,17 @@ export function HomePage() {
     for (let i = 0; i < nextFeeds.length; i += 1) {
       const feed = nextFeeds[i];
       if (feed.done || feed.loading) continue;
+      const retryMeta = retryMetaRef.current.get(feed.origin);
+      if (retryMeta && retryMeta.retryAfter > now) continue;
       feed.loading = true;
       pendingIndexes.push(i);
     }
+    if (pendingIndexes.length === 0) return;
+
+    const requestId = ++requestIdRef.current;
+    loadingRef.current = true;
+    setLoading(true);
+    setError(null);
 
     await Promise.all(
       pendingIndexes.map(async (index) => {
@@ -155,8 +162,16 @@ export function HomePage() {
           feed.cursor = data.cursor;
           feed.done = !data.cursor || data.items.length === 0;
           feed.error = null;
+          retryMetaRef.current.delete(feed.origin);
         } catch (e: unknown) {
           feed.error = toErrorMessage(e);
+          const prev = retryMetaRef.current.get(feed.origin) || { failCount: 0, retryAfter: 0 };
+          const failCount = prev.failCount + 1;
+          const backoff = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** (failCount - 1));
+          retryMetaRef.current.set(feed.origin, {
+            failCount,
+            retryAfter: Date.now() + backoff,
+          });
         } finally {
           feed.loading = false;
         }
