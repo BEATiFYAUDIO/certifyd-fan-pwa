@@ -81,6 +81,7 @@ export function HomePage() {
   );
   const requestIdRef = useRef(0);
   const loadingRef = useRef(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const cacheKey = useMemo(
     () => `fanfeed:v1:${topic}:${origins.slice().sort().join(',') || 'none'}`,
     [origins, topic]
@@ -208,6 +209,23 @@ export function HomePage() {
   }, [feeds, items, loadMore, loading]);
 
   const allDone = feeds.length > 0 && feeds.every((f) => f.done);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || origins.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (!first?.isIntersecting) return;
+        if (loadingRef.current || loading || allDone) return;
+        void loadMore(feeds, items);
+      },
+      { root: null, rootMargin: '320px 0px', threshold: 0.01 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [allDone, feeds, items, loadMore, loading, origins.length]);
+
   const filtered: DiscoverableItem[] = useMemo(() => {
     const q = query.trim().toLowerCase();
     const searched = !q
@@ -322,14 +340,9 @@ export function HomePage() {
           ) : null}
         </div>
 
-        {origins.length > 0 && !allDone ? (
-          <button
-            onClick={() => void loadMore(feeds, items)}
-            disabled={loading}
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-900 py-2 text-sm font-semibold text-zinc-100 hover:bg-zinc-800 disabled:opacity-50"
-          >
-            {loading ? 'Loading…' : 'Load more'}
-          </button>
+        {origins.length > 0 && !allDone ? <div ref={sentinelRef} className="h-8 w-full" aria-hidden="true" /> : null}
+        {loading && items.length > 0 ? (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 text-center text-xs text-zinc-300">Loading more…</div>
         ) : null}
       </section>
     </main>
