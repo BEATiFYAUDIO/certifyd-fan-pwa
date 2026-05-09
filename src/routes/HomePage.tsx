@@ -82,6 +82,7 @@ export function HomePage() {
   const requestIdRef = useRef(0);
   const loadingRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const sentinelWasVisibleRef = useRef(false);
   const cacheKey = useMemo(
     () => `fanfeed:v1:${topic}:${origins.slice().sort().join(',') || 'none'}`,
     [origins, topic]
@@ -216,7 +217,12 @@ export function HomePage() {
     const observer = new IntersectionObserver(
       (entries) => {
         const first = entries[0];
-        if (!first?.isIntersecting) return;
+        if (!first?.isIntersecting) {
+          sentinelWasVisibleRef.current = false;
+          return;
+        }
+        if (sentinelWasVisibleRef.current) return;
+        sentinelWasVisibleRef.current = true;
         if (loadingRef.current || loading || allDone) return;
         void loadMore(feeds, items);
       },
