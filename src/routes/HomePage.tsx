@@ -17,6 +17,25 @@ function dedupe(items: DiscoverableItem[]) {
   return [...seen.values()];
 }
 
+function itemSortKey(item: DiscoverableItem): { time: number; id: string } {
+  const maybeTime = Number(
+    Date.parse(String((item as any)?.publishedAt || (item as any)?.createdAt || (item as any)?.updatedAt || ''))
+  );
+  return {
+    time: Number.isFinite(maybeTime) ? maybeTime : 0,
+    id: String(item.contentId || ''),
+  };
+}
+
+function sortNewestFirst(items: DiscoverableItem[]): DiscoverableItem[] {
+  return [...items].sort((a, b) => {
+    const ka = itemSortKey(a);
+    const kb = itemSortKey(b);
+    if (ka.time !== kb.time) return kb.time - ka.time;
+    return kb.id.localeCompare(ka.id);
+  });
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return 'Failed to load feed';
@@ -93,7 +112,7 @@ export function HomePage() {
       return;
     }
     setFeeds(nextFeeds);
-    const nextItems = dedupe([...updates, ...currentItems]);
+    const nextItems = sortNewestFirst(dedupe([...updates, ...currentItems]));
     setItems(nextItems);
 
     const errors = nextFeeds.map((f) => f.error).filter(Boolean) as string[];

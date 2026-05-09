@@ -57,6 +57,25 @@ function normalizeTopic(value: string): Topic {
   return 'all';
 }
 
+function itemSortKey(item: DiscoverableItem): { time: number; id: string } {
+  const maybeTime = Number(
+    Date.parse(String((item as any)?.publishedAt || (item as any)?.createdAt || (item as any)?.updatedAt || ''))
+  );
+  return {
+    time: Number.isFinite(maybeTime) ? maybeTime : 0,
+    id: String(item.contentId || ''),
+  };
+}
+
+function sortNewestFirst(items: DiscoverableItem[]): DiscoverableItem[] {
+  return [...items].sort((a, b) => {
+    const ka = itemSortKey(a);
+    const kb = itemSortKey(b);
+    if (ka.time !== kb.time) return kb.time - ka.time;
+    return kb.id.localeCompare(ka.id);
+  });
+}
+
 async function loadFreebies(topic: Topic): Promise<DiscoverableItem[]> {
   const origins = await loadConfiguredOrigins();
   const rows: DiscoverableItem[] = [];
@@ -80,7 +99,7 @@ async function loadFreebies(topic: Topic): Promise<DiscoverableItem[]> {
     const key = `${it.publicOrigin}::${it.contentId}`;
     if (!seen.has(key)) seen.set(key, it);
   }
-  return [...seen.values()];
+  return sortNewestFirst([...seen.values()]);
 }
 
 function FreebiesWatch({
