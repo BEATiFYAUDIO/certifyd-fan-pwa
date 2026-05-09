@@ -9,7 +9,7 @@ import { isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 
 const INITIAL_PAGE_LIMIT = 10;
 const NEXT_PAGE_LIMIT = 18;
-const ORIGIN_TIMEOUT_MS = 4500;
+const ORIGIN_TIMEOUT_MS = 7000;
 
 function dedupe(items: DiscoverableItem[]) {
   const seen = new Map<string, DiscoverableItem>();

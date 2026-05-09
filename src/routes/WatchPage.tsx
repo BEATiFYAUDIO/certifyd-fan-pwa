@@ -31,11 +31,15 @@ async function loadById(contentId: string, originHint: string | null): Promise<D
   for (const origin of ordered) {
     let cursor: string | null = null;
     for (let page = 0; page < 6; page += 1) {
-      const response = await fetchDiscoverablePage({ origin, topic: 'all', limit: 24, cursor });
-      const hit = response.items.find((i) => i.contentId === contentId);
-      if (hit) return hit;
-      if (!response.cursor) break;
-      cursor = response.cursor;
+      try {
+        const response = await fetchDiscoverablePage({ origin, topic: 'all', limit: 24, cursor, timeoutMs: 7000 });
+        const hit = response.items.find((i) => i.contentId === contentId);
+        if (hit) return hit;
+        if (!response.cursor) break;
+        cursor = response.cursor;
+      } catch {
+        break;
+      }
     }
   }
   return null;
@@ -82,15 +86,20 @@ async function loadFreebies(topic: Topic): Promise<DiscoverableItem[]> {
   for (const origin of origins) {
     let cursor: string | null = null;
     for (let page = 0; page < 4; page += 1) {
-      const response = await fetchDiscoverablePage({
-        origin,
-        topic,
-        limit: 18,
-        cursor,
-      });
-      rows.push(...response.items);
-      if (!response.cursor) break;
-      cursor = response.cursor;
+      try {
+        const response = await fetchDiscoverablePage({
+          origin,
+          topic,
+          limit: 18,
+          cursor,
+          timeoutMs: 7000,
+        });
+        rows.push(...response.items);
+        if (!response.cursor) break;
+        cursor = response.cursor;
+      } catch {
+        break;
+      }
     }
   }
   const seen = new Map<string, DiscoverableItem>();
