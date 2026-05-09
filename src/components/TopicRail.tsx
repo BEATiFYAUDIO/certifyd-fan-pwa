@@ -15,7 +15,7 @@ const extraPills = ['Trending', 'New', 'Live', 'Following'];
 export function TopicRail(props: { active: Topic; onChange: (t: Topic) => void }) {
   return (
     <div className="border-b border-zinc-800/70 bg-zinc-950/80 backdrop-blur">
-      <div className="rail-scroll mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3">
+      <div className="rail-scroll mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-1.5">
         {topics.map((t) => {
           const active = t.key === props.active;
           return (

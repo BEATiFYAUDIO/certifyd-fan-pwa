@@ -253,7 +253,7 @@ export function HomePage() {
   return (
     <main className="app-shell min-h-screen text-zinc-100">
       <header className="sticky top-0 z-30 border-b border-zinc-800/70 bg-zinc-950/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-4">
+        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-2">
           <div className="shrink-0">
             <img
               src={logoSrc}
