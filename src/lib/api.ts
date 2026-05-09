@@ -12,6 +12,14 @@ function resolveUrl(value: unknown, origin: string): string {
   }
 }
 
+function normalizeAccessMode(value: unknown): 'unlocked' | 'locked' | 'owned' {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'owned') return 'owned';
+  if (raw === 'unlocked' || raw === 'free_play' || raw === 'free_unlock') return 'unlocked';
+  if (raw === 'locked' || raw === 'paid_unlock') return 'locked';
+  return 'locked';
+}
+
 export async function fetchDiscoverablePage(input: {
   origin: string;
   topic: Topic;
@@ -38,6 +46,7 @@ export async function fetchDiscoverablePage(input: {
     cursor: data.cursor || null,
     items: (data.items || []).map((item) => ({
       ...item,
+      accessMode: normalizeAccessMode((item as any).accessMode),
       publicOrigin: item.publicOrigin || origin,
       coverUrl: resolveUrl(item.coverUrl, item.publicOrigin || origin),
       previewUrl: resolveUrl(item.previewUrl, item.publicOrigin || origin),

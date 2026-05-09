@@ -14,16 +14,13 @@ export function isRenderableDiscoveryItem(item: DiscoverableItem | null | undefi
   const status = String(item.discoveryStatus || 'live').trim().toLowerCase();
   const health = String(item.originHealth || 'healthy').trim().toLowerCase();
   const buyUrl = String(item.buyUrl || '').trim();
-  const hasVisual = hasHttpUrl(item.coverUrl) || hasHttpUrl(item.previewUrl);
   if (!contentId || !title || !creator) return false;
   if (!hasHttpUrl(buyUrl)) return false;
-  if (!hasVisual) return false;
   if (status !== 'live') return false;
-  if (health !== 'healthy') return false;
+  if (!(health === 'healthy' || health === 'unknown' || health === '')) return false;
   return true;
 }
 
 export function canOpenCreator(item: DiscoverableItem | null | undefined): boolean {
   return Boolean(item && hasHttpUrl(item.buyUrl));
 }
-
