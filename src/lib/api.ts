@@ -17,15 +17,18 @@ export async function fetchDiscoverablePage(input: {
   topic: Topic;
   limit?: number;
   cursor?: string | null;
+  timeoutMs?: number;
 }): Promise<DiscoverableResponse> {
-  const { origin, topic, limit = 24, cursor } = input;
+  const { origin, topic, limit = 24, cursor, timeoutMs = 6000 } = input;
   const params = new URLSearchParams();
   params.set('limit', String(limit));
   if (topic !== 'all') params.set('topic', topic);
   if (cursor) params.set('cursor', cursor);
 
   const url = `${origin}/public/discoverable-content?${params.toString()}`;
-  const res = await fetch(url);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const res = await fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timeoutId));
   if (!res.ok) {
     throw new Error(`Failed ${res.status} from ${origin}`);
   }

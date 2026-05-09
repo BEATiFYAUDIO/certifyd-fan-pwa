@@ -7,6 +7,10 @@ import { loadConfiguredOrigins } from '../lib/config';
 import type { DiscoverableItem, OriginFeedState, Topic } from '../lib/types';
 import { isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 
+const INITIAL_PAGE_LIMIT = 10;
+const NEXT_PAGE_LIMIT = 18;
+const ORIGIN_TIMEOUT_MS = 4500;
+
 function dedupe(items: DiscoverableItem[]) {
   const seen = new Map<string, DiscoverableItem>();
   for (const it of items) {
@@ -77,6 +81,10 @@ export function HomePage() {
   );
   const requestIdRef = useRef(0);
   const loadingRef = useRef(false);
+  const cacheKey = useMemo(
+    () => `fanfeed:v1:${topic}:${origins.slice().sort().join(',') || 'none'}`,
+    [origins, topic]
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -98,6 +106,20 @@ export function HomePage() {
     setTopic(next);
   }
 
+  useEffect(() => {
+    if (origins.length === 0) return;
+    try {
+      const raw = sessionStorage.getItem(cacheKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { items?: DiscoverableItem[] };
+      if (!Array.isArray(parsed?.items)) return;
+      const warm = sortNewestFirst(dedupe(parsed.items));
+      if (warm.length > 0) setItems(warm);
+    } catch {
+      // ignore cache parse failures
+    }
+  }, [cacheKey, origins.length]);
+
   const loadMore = useCallback(async (currentFeeds: OriginFeedState[], currentItems: DiscoverableItem[]) => {
     if (origins.length === 0 || loadingRef.current) return;
     const requestId = ++requestIdRef.current;
@@ -108,27 +130,36 @@ export function HomePage() {
     const nextFeeds = currentFeeds.map((f) => ({ ...f }));
     const updates: DiscoverableItem[] = [];
 
+    const pendingIndexes: number[] = [];
     for (let i = 0; i < nextFeeds.length; i += 1) {
       const feed = nextFeeds[i];
       if (feed.done || feed.loading) continue;
       feed.loading = true;
-      try {
-        const data = await fetchDiscoverablePage({
-          origin: feed.origin,
-          topic,
-          limit: 18,
-          cursor: feed.cursor,
-        });
-        updates.push(...data.items);
-        feed.cursor = data.cursor;
-        feed.done = !data.cursor || data.items.length === 0;
-        feed.error = null;
-      } catch (e: unknown) {
-        feed.error = toErrorMessage(e);
-      } finally {
-        feed.loading = false;
-      }
+      pendingIndexes.push(i);
     }
+
+    await Promise.all(
+      pendingIndexes.map(async (index) => {
+        const feed = nextFeeds[index];
+        try {
+          const data = await fetchDiscoverablePage({
+            origin: feed.origin,
+            topic,
+            limit: currentItems.length === 0 ? INITIAL_PAGE_LIMIT : NEXT_PAGE_LIMIT,
+            cursor: feed.cursor,
+            timeoutMs: ORIGIN_TIMEOUT_MS,
+          });
+          updates.push(...data.items);
+          feed.cursor = data.cursor;
+          feed.done = !data.cursor || data.items.length === 0;
+          feed.error = null;
+        } catch (e: unknown) {
+          feed.error = toErrorMessage(e);
+        } finally {
+          feed.loading = false;
+        }
+      })
+    );
 
     if (requestId !== requestIdRef.current) {
       loadingRef.current = false;
@@ -138,6 +169,11 @@ export function HomePage() {
     setFeeds(nextFeeds);
     const nextItems = sortNewestFirst(dedupe([...updates, ...currentItems]));
     setItems(nextItems);
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify({ items: nextItems }));
+    } catch {
+      // ignore storage quota/unavailable errors
+    }
 
     const errors = nextFeeds.map((f) => f.error).filter(Boolean) as string[];
     if (errors.length && updates.length === 0 && currentItems.length === 0) {
@@ -145,7 +181,7 @@ export function HomePage() {
     }
     setLoading(false);
     loadingRef.current = false;
-  }, [origins.length, topic]);
+  }, [cacheKey, origins.length, topic]);
 
   useEffect(() => {
     if (origins.length === 0) return;
@@ -207,7 +243,6 @@ export function HomePage() {
               className="h-24 w-auto object-contain sm:h-28"
               loading="eager"
             />
-            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Discover on Certifyd</p>
           </div>
           <div className="ml-auto w-full max-w-xl">
             <input
@@ -217,11 +252,6 @@ export function HomePage() {
               className="search-input w-full rounded-full border border-zinc-700/80 bg-zinc-900/80 px-5 py-2.5 text-sm outline-none placeholder:text-zinc-500 focus:border-amber-300/70"
             />
           </div>
-        </div>
-        <div className="mx-auto max-w-7xl px-4 pb-2">
-          <p className="network-microcopy text-xs text-zinc-300/90">
-            Creators publishing across the Certifyd network. Free drops, premium unlocks, sovereign creator nodes.
-          </p>
         </div>
         <TopicRail active={topic} onChange={onTopicChange} />
       </header>
