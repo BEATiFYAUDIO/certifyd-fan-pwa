@@ -36,6 +36,26 @@ function sortNewestFirst(items: DiscoverableItem[]): DiscoverableItem[] {
   });
 }
 
+function hashString(input: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function sortStableRandom(items: DiscoverableItem[], seed: string): DiscoverableItem[] {
+  return [...items].sort((a, b) => {
+    const ak = `${a.publicOrigin}::${a.contentId}`;
+    const bk = `${b.publicOrigin}::${b.contentId}`;
+    const ah = hashString(`${seed}:${ak}`);
+    const bh = hashString(`${seed}:${bk}`);
+    if (ah !== bh) return ah - bh;
+    return ak.localeCompare(bk);
+  });
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return 'Failed to load feed';
@@ -51,6 +71,10 @@ export function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feeds, setFeeds] = useState<OriginFeedState[]>([]);
+  const randomSeed = useMemo(
+    () => `all:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`,
+    []
+  );
   const requestIdRef = useRef(0);
   const loadingRef = useRef(false);
 
@@ -157,10 +181,12 @@ export function HomePage() {
       const hay = `${it.title || ''} ${it.creatorHandle || ''} ${it.primaryTopic || ''} ${it.contentType || ''}`.toLowerCase();
       return hay.includes(q);
     });
-    const freeLane = searched.filter((it) => it.accessMode === 'unlocked' || it.accessMode === 'owned');
-    const lockedLane = searched.filter((it) => it.accessMode === 'locked');
+    const freeLaneBase = searched.filter((it) => it.accessMode === 'unlocked' || it.accessMode === 'owned');
+    const lockedLaneBase = searched.filter((it) => it.accessMode === 'locked');
+    const freeLane = topic === 'all' ? sortStableRandom(freeLaneBase, `${randomSeed}:free`) : freeLaneBase;
+    const lockedLane = topic === 'all' ? sortStableRandom(lockedLaneBase, `${randomSeed}:locked`) : lockedLaneBase;
     return [...freeLane, ...lockedLane];
-  }, [items, query]);
+  }, [items, query, topic, randomSeed]);
   const freeItems = useMemo(
     () => filtered.filter((it) => it.accessMode === 'unlocked' || it.accessMode === 'owned'),
     [filtered]
