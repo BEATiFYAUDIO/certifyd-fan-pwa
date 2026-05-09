@@ -11,6 +11,7 @@ function avatarInitials(handle: string | null): string {
 }
 
 export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watchParams?: string }) {
+  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
@@ -80,7 +81,10 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
             onError={() => setImageFailed(true)}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-zinc-500">No media</div>
+          <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 text-sm text-zinc-400">
+            <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" />
+            <span>No media</span>
+          </div>
         )}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/95 via-black/55 to-transparent" />
       </Link>

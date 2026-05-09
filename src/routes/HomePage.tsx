@@ -5,10 +5,12 @@ import { TopicRail } from '../components/TopicRail';
 import { fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
 import type { DiscoverableItem, OriginFeedState, Topic } from '../lib/types';
+import { isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 
 function dedupe(items: DiscoverableItem[]) {
   const seen = new Map<string, DiscoverableItem>();
   for (const it of items) {
+    if (!isRenderableDiscoveryItem(it)) continue;
     const key = `${it.publicOrigin}::${it.contentId}`;
     if (!seen.has(key)) seen.set(key, it);
   }
@@ -130,8 +132,9 @@ export function HomePage() {
   const filtered: DiscoverableItem[] = useMemo(() => {
     const q = query.trim().toLowerCase();
     const searched = !q
-      ? items
+      ? items.filter((it) => isRenderableDiscoveryItem(it))
       : items.filter((it) => {
+      if (!isRenderableDiscoveryItem(it)) return false;
       const hay = `${it.title || ''} ${it.creatorHandle || ''} ${it.primaryTopic || ''} ${it.contentType || ''}`.toLowerCase();
       return hay.includes(q);
     });

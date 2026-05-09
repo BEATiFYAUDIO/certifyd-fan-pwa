@@ -27,6 +27,9 @@ export type DiscoverableItem = {
   creatorProfileImageUrl?: string | null;
   profileImageUrl?: string | null;
   avatarUrl?: string | null;
+  discoveryStatus?: 'live' | 'relegated' | 'unpublished' | 'unavailable' | null;
+  originTrust?: 'stable' | 'ephemeral' | 'provider' | null;
+  originHealth?: 'healthy' | 'failed' | 'cooldown' | 'unknown' | null;
 };
 
 export type DiscoverableResponse = {

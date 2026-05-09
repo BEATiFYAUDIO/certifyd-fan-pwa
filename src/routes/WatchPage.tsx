@@ -3,6 +3,7 @@ import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
 import type { DiscoverableItem, Topic } from '../lib/types';
+import { canOpenCreator, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 
 function ctaLabel(mode: DiscoverableItem['accessMode']) {
   if (mode === 'locked') return 'Unlock on Creator';
@@ -93,7 +94,7 @@ function FreebiesWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
-  const [items, setItems] = useState<DiscoverableItem[]>(stateItem ? [stateItem] : []);
+  const [items, setItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -110,7 +111,7 @@ function FreebiesWatch({
         if (!active) return;
         const map = new Map<string, DiscoverableItem>();
         for (const it of feed) map.set(`${it.publicOrigin}::${it.contentId}`, it);
-        if (stateItem) map.set(`${stateItem.publicOrigin}::${stateItem.contentId}`, stateItem);
+        if (stateItem && isRenderableDiscoveryItem(stateItem)) map.set(`${stateItem.publicOrigin}::${stateItem.contentId}`, stateItem);
         let merged = [...map.values()];
         const selectedKey = stateItem
           ? `${stateItem.publicOrigin}::${stateItem.contentId}`
@@ -123,7 +124,7 @@ function FreebiesWatch({
           merged.splice(selectedIndex, 1);
           merged = [selected, ...merged];
         }
-        setItems(merged);
+        setItems(merged.filter((it) => isRenderableDiscoveryItem(it)));
       } catch (e: unknown) {
         if (!active) return;
         setError(toErrorMessage(e));
@@ -239,14 +240,16 @@ function FreebiesWatch({
                     <h1 className="line-clamp-2 text-2xl font-bold">{it.title || 'Untitled'}</h1>
                     <p className="mt-1 text-sm text-zinc-200">@{it.creatorHandle || 'creator'} • {it.primaryTopic || 'topic'} • {it.contentType}</p>
                   </div>
-                  <a
-                    href={it.buyUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="shrink-0 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-bold text-zinc-950 hover:bg-cyan-400"
-                  >
-                    {ctaLabel(it.accessMode)}
-                  </a>
+                  {canOpenCreator(it) ? (
+                    <a
+                      href={it.buyUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="shrink-0 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-bold text-zinc-950 hover:bg-cyan-400"
+                    >
+                      {ctaLabel(it.accessMode)}
+                    </a>
+                  ) : null}
                 </div>
               </section>
             );
@@ -266,8 +269,8 @@ function StandardWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
-  const [item, setItem] = useState<DiscoverableItem | null>(stateItem || null);
-  const [loading, setLoading] = useState(!stateItem);
+  const [item, setItem] = useState<DiscoverableItem | null>(stateItem && isRenderableDiscoveryItem(stateItem) ? stateItem : null);
+  const [loading, setLoading] = useState(!(stateItem && isRenderableDiscoveryItem(stateItem)));
   const [error, setError] = useState<string | null>(null);
   const [credits, setCredits] = useState<CreditItem[]>([]);
 
@@ -283,6 +286,10 @@ function StandardWatch({
         if (!active) return;
         if (!res) {
           setError('Content not found in configured origins.');
+          return;
+        }
+        if (!isRenderableDiscoveryItem(res)) {
+          setError("This creator’s node is temporarily offline.");
           return;
         }
         setItem(res);
@@ -339,7 +346,18 @@ function StandardWatch({
         <Link to="/" className="text-sm text-zinc-400 hover:text-zinc-200">← Back</Link>
 
         {loading ? <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">Loading…</div> : null}
-        {error ? <div className="mt-4 rounded-xl border border-red-800 bg-red-950/30 p-4 text-red-200">{error}</div> : null}
+        {error ? (
+          <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 text-zinc-100">
+            <div className="text-lg font-semibold">This creator’s node is temporarily offline.</div>
+            <div className="mt-2 text-sm text-zinc-400">Try again shortly or return to discovery.</div>
+            <Link
+              to="/"
+              className="mt-4 inline-flex rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-semibold hover:bg-zinc-800"
+            >
+              Back to Discovery
+            </Link>
+          </div>
+        ) : null}
 
         {item ? (
           <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_280px]">
@@ -422,16 +440,27 @@ function StandardWatch({
 
             <aside className="space-y-3">
               <a
-                href={item.buyUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="block w-full rounded-xl bg-cyan-500 px-4 py-3 text-center text-sm font-bold text-zinc-950 hover:bg-cyan-400"
+                href={canOpenCreator(item) ? item.buyUrl : undefined}
+                target={canOpenCreator(item) ? "_blank" : undefined}
+                rel={canOpenCreator(item) ? "noreferrer" : undefined}
+                className={`block w-full rounded-xl px-4 py-3 text-center text-sm font-bold ${
+                  canOpenCreator(item)
+                    ? "bg-cyan-500 text-zinc-950 hover:bg-cyan-400"
+                    : "border border-zinc-700 bg-zinc-900 text-zinc-500 cursor-not-allowed"
+                }`}
+                onClick={(e) => {
+                  if (!canOpenCreator(item)) e.preventDefault();
+                }}
               >
                 {ctaLabel(item.accessMode)}
               </a>
               <button
-                onClick={() => window.open(item.buyUrl, '_blank', 'noopener,noreferrer')}
-                className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-semibold hover:bg-zinc-800"
+                onClick={() => {
+                  if (!canOpenCreator(item)) return;
+                  window.open(item.buyUrl, '_blank', 'noopener,noreferrer');
+                }}
+                disabled={!canOpenCreator(item)}
+                className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-semibold hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Open
               </button>

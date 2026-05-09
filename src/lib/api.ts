@@ -1,4 +1,5 @@
 import type { DiscoverableResponse, Topic } from './types';
+import { isRenderableDiscoveryItem } from './discoveryGuard';
 
 function resolveUrl(value: unknown, origin: string): string {
   if (typeof value !== 'string') return '';
@@ -43,6 +44,6 @@ export async function fetchDiscoverablePage(input: {
       creatorProfileImageUrl: resolveUrl(item.creatorProfileImageUrl, item.publicOrigin || origin),
       profileImageUrl: resolveUrl(item.profileImageUrl, item.publicOrigin || origin),
       avatarUrl: resolveUrl(item.avatarUrl, item.publicOrigin || origin),
-    })),
+    })).filter((item) => isRenderableDiscoveryItem(item)),
   };
 }

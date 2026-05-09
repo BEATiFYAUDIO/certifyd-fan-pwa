@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import type { DiscoverableItem } from '../lib/types';
+import { canOpenCreator } from '../lib/discoveryGuard';
 
 function modeMetaText(mode: DiscoverableItem['accessMode'], priceSats: number) {
   if (mode === 'locked') return `${priceSats} sats`;
@@ -28,6 +29,7 @@ function avatarInitials(handle: string | null): string {
 }
 
 export function FeedCard({ item }: { item: DiscoverableItem }) {
+  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
@@ -101,6 +103,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
+                <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" />
                 <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
                 <p className="mt-1 text-xs text-zinc-400">
                   {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
@@ -169,10 +172,16 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
           <p className="mt-0.5 text-xs text-zinc-400">@{creator}</p>
           <p className="mt-0.5 text-xs text-zinc-500">{metadata}</p>
           <a
-            href={item.buyUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-1.5 inline-block text-xs font-medium text-cyan-400 hover:text-cyan-300 hover:underline"
+            href={canOpenCreator(item) ? item.buyUrl : undefined}
+            target={canOpenCreator(item) ? "_blank" : undefined}
+            rel={canOpenCreator(item) ? "noreferrer" : undefined}
+            className={`mt-1.5 inline-block text-xs font-medium ${
+              canOpenCreator(item) ? "text-cyan-400 hover:text-cyan-300 hover:underline" : "text-zinc-500 cursor-not-allowed"
+            }`}
+            aria-disabled={!canOpenCreator(item)}
+            onClick={(e) => {
+              if (!canOpenCreator(item)) e.preventDefault();
+            }}
           >
             {ctaLabel(item.accessMode)}
           </a>
