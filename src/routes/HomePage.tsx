@@ -286,7 +286,7 @@ export function HomePage() {
               href="https://certifyd.me"
               target="_blank"
               rel="noreferrer"
-              className="absolute left-[84px] top-[56px] text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-200/90 underline decoration-amber-300/40 underline-offset-2 transition hover:text-amber-100 hover:decoration-amber-200 sm:left-[98px] sm:top-[66px]"
+              className="absolute left-[84px] top-[61px] text-[10px] font-medium uppercase tracking-[0.14em] text-amber-200/85 transition hover:text-amber-100 hover:underline hover:decoration-amber-200/60 hover:underline-offset-2 sm:left-[98px] sm:top-[72px]"
             >
               Mission
             </a>
