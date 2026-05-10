@@ -275,13 +275,21 @@ export function HomePage() {
     <main className="app-shell min-h-screen text-zinc-100">
       <header className="sticky top-0 z-30 border-b border-zinc-800/70 bg-zinc-950/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-2">
-          <div className="shrink-0">
+          <div className="relative shrink-0">
             <img
               src={logoSrc}
               alt="Certifyd Discovery"
               className="h-24 w-auto object-contain sm:h-28"
               loading="eager"
             />
+            <a
+              href="https://certifyd.me"
+              target="_blank"
+              rel="noreferrer"
+              className="absolute left-1 top-full -mt-1 text-[11px] font-medium text-zinc-400 underline decoration-zinc-600 underline-offset-2 hover:text-amber-200 hover:decoration-amber-300"
+            >
+              Mission
+            </a>
           </div>
           <div className="ml-auto w-full max-w-xl">
             <input
