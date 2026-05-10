@@ -24,17 +24,47 @@ type CreditItem = {
   percent?: number | string | null;
 };
 
+const FREEBIES_FIRST_PASS_TIMEOUT_MS = 4500;
+const FREEBIES_FALLBACK_TIMEOUT_MS = 7000;
+const FREEBIES_MAX_PAGES_PER_ORIGIN = 2;
+
 async function loadById(contentId: string, originHint: string | null): Promise<DiscoverableItem | null> {
   const origins = await loadConfiguredOrigins();
   const ordered = originHint ? [originHint, ...origins.filter((o) => o !== originHint)] : origins;
 
+  // Fast path: query first page on all origins in parallel.
+  const firstPass = await Promise.all(
+    ordered.map(async (origin) => {
+      try {
+        const response = await fetchDiscoverablePage({
+          origin,
+          topic: 'all',
+          limit: 24,
+          timeoutMs: FREEBIES_FIRST_PASS_TIMEOUT_MS,
+        });
+        return response.items.find((i) => i.contentId === contentId) || null;
+      } catch {
+        return null;
+      }
+    })
+  );
+  const hit = firstPass.find(Boolean) || null;
+  if (hit) return hit;
+
+  // Fallback: deeper sequential page walk.
   for (const origin of ordered) {
     let cursor: string | null = null;
-    for (let page = 0; page < 6; page += 1) {
+    for (let page = 0; page < 3; page += 1) {
       try {
-        const response = await fetchDiscoverablePage({ origin, topic: 'all', limit: 24, cursor, timeoutMs: 7000 });
-        const hit = response.items.find((i) => i.contentId === contentId);
-        if (hit) return hit;
+        const response = await fetchDiscoverablePage({
+          origin,
+          topic: 'all',
+          limit: 24,
+          cursor,
+          timeoutMs: FREEBIES_FALLBACK_TIMEOUT_MS,
+        });
+        const deeperHit = response.items.find((i) => i.contentId === contentId);
+        if (deeperHit) return deeperHit;
         if (!response.cursor) break;
         cursor = response.cursor;
       } catch {
@@ -82,26 +112,30 @@ function sortNewestFirst(items: DiscoverableItem[]): DiscoverableItem[] {
 
 async function loadFreebies(topic: Topic): Promise<DiscoverableItem[]> {
   const origins = await loadConfiguredOrigins();
-  const rows: DiscoverableItem[] = [];
-  for (const origin of origins) {
-    let cursor: string | null = null;
-    for (let page = 0; page < 4; page += 1) {
-      try {
-        const response = await fetchDiscoverablePage({
-          origin,
-          topic,
-          limit: 18,
-          cursor,
-          timeoutMs: 7000,
-        });
-        rows.push(...response.items);
-        if (!response.cursor) break;
-        cursor = response.cursor;
-      } catch {
-        break;
+  const rowsByOrigin = await Promise.all(
+    origins.map(async (origin) => {
+      const originRows: DiscoverableItem[] = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < FREEBIES_MAX_PAGES_PER_ORIGIN; page += 1) {
+        try {
+          const response = await fetchDiscoverablePage({
+            origin,
+            topic,
+            limit: 18,
+            cursor,
+            timeoutMs: FREEBIES_FIRST_PASS_TIMEOUT_MS,
+          });
+          originRows.push(...response.items);
+          if (!response.cursor) break;
+          cursor = response.cursor;
+        } catch {
+          break;
+        }
       }
-    }
-  }
+      return originRows;
+    })
+  );
+  const rows: DiscoverableItem[] = rowsByOrigin.flat();
   const seen = new Map<string, DiscoverableItem>();
   for (const it of rows) {
     if (!(it.accessMode === 'unlocked' || it.accessMode === 'owned')) continue;
