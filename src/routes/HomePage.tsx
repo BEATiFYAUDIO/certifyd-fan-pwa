@@ -12,6 +12,9 @@ const NEXT_PAGE_LIMIT = 18;
 const ORIGIN_TIMEOUT_MS = 7000;
 const RETRY_BASE_MS = 4000;
 const RETRY_MAX_MS = 60000;
+const ORIGIN_SOFT_DISABLE_AFTER_FAILS = 3;
+const ORIGIN_SOFT_DISABLE_MS = 5 * 60 * 1000;
+const MAX_ORIGINS_PER_PASS = 8;
 
 function dedupe(items: DiscoverableItem[]) {
   const seen = new Map<string, DiscoverableItem>();
@@ -83,9 +86,10 @@ export function HomePage() {
   );
   const requestIdRef = useRef(0);
   const loadingRef = useRef(false);
+  const originPassOffsetRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const sentinelWasVisibleRef = useRef(false);
-  const retryMetaRef = useRef<Map<string, { failCount: number; retryAfter: number }>>(new Map());
+  const retryMetaRef = useRef<Map<string, { failCount: number; retryAfter: number; disabledUntil: number }>>(new Map());
   const cacheKey = useMemo(
     () => `fanfeed:v1:${topic}:${origins.slice().sort().join(',') || 'none'}`,
     [origins, topic]
@@ -136,11 +140,15 @@ export function HomePage() {
       const feed = nextFeeds[i];
       if (feed.done || feed.loading) continue;
       const retryMeta = retryMetaRef.current.get(feed.origin);
-      if (retryMeta && retryMeta.retryAfter > now) continue;
+      if (retryMeta && (retryMeta.retryAfter > now || retryMeta.disabledUntil > now)) continue;
       feed.loading = true;
       pendingIndexes.push(i);
     }
     if (pendingIndexes.length === 0) return;
+    const startOffset = pendingIndexes.length > 0 ? originPassOffsetRef.current % pendingIndexes.length : 0;
+    const rotated = pendingIndexes.slice(startOffset).concat(pendingIndexes.slice(0, startOffset));
+    const selectedIndexes = rotated.slice(0, MAX_ORIGINS_PER_PASS);
+    originPassOffsetRef.current += 1;
 
     const requestId = ++requestIdRef.current;
     loadingRef.current = true;
@@ -148,7 +156,7 @@ export function HomePage() {
     setError(null);
 
     await Promise.all(
-      pendingIndexes.map(async (index) => {
+      selectedIndexes.map(async (index) => {
         const feed = nextFeeds[index];
         try {
           const data = await fetchDiscoverablePage({
@@ -165,12 +173,14 @@ export function HomePage() {
           retryMetaRef.current.delete(feed.origin);
         } catch (e: unknown) {
           feed.error = toErrorMessage(e);
-          const prev = retryMetaRef.current.get(feed.origin) || { failCount: 0, retryAfter: 0 };
+          const prev = retryMetaRef.current.get(feed.origin) || { failCount: 0, retryAfter: 0, disabledUntil: 0 };
           const failCount = prev.failCount + 1;
           const backoff = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** (failCount - 1));
+          const disabledUntil = failCount >= ORIGIN_SOFT_DISABLE_AFTER_FAILS ? Date.now() + ORIGIN_SOFT_DISABLE_MS : 0;
           retryMetaRef.current.set(feed.origin, {
             failCount,
             retryAfter: Date.now() + backoff,
+            disabledUntil,
           });
         } finally {
           feed.loading = false;
