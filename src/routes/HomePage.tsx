@@ -9,7 +9,7 @@ import { isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 
 const INITIAL_PAGE_LIMIT = 10;
 const NEXT_PAGE_LIMIT = 18;
-const ORIGIN_TIMEOUT_MS = 7000;
+const ORIGIN_TIMEOUT_MS = 4500;
 const RETRY_BASE_MS = 4000;
 const RETRY_MAX_MS = 60000;
 const ORIGIN_SOFT_DISABLE_AFTER_FAILS = 3;
@@ -145,9 +145,10 @@ export function HomePage() {
       pendingIndexes.push(i);
     }
     if (pendingIndexes.length === 0) return;
+    const isInitialLoadPass = currentItems.length === 0;
     const startOffset = pendingIndexes.length > 0 ? originPassOffsetRef.current % pendingIndexes.length : 0;
     const rotated = pendingIndexes.slice(startOffset).concat(pendingIndexes.slice(0, startOffset));
-    const selectedIndexes = rotated.slice(0, MAX_ORIGINS_PER_PASS);
+    const selectedIndexes = isInitialLoadPass ? rotated : rotated.slice(0, MAX_ORIGINS_PER_PASS);
     originPassOffsetRef.current += 1;
 
     const requestId = ++requestIdRef.current;
