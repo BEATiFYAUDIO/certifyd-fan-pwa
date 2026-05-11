@@ -269,14 +269,14 @@ function FreebiesWatch({
                   isVideo ? (
                     <video
                       src={visualSrc}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover md:object-contain"
                       controls
                       playsInline
                       autoPlay={index === activeIndex}
                       preload="metadata"
                     />
                   ) : (
-                    <img src={visualSrc} alt={it.title || 'content'} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+                    <img src={visualSrc} alt={it.title || 'content'} className="h-full w-full object-cover md:object-contain" loading="lazy" referrerPolicy="no-referrer" />
                   )
                 ) : (
                   <div className="flex h-full items-center justify-center text-zinc-500">No media</div>
