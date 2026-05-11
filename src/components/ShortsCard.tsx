@@ -50,7 +50,7 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
   }, [creator]);
 
   return (
-    <article className="group relative aspect-[9/16] w-[78vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 hover:-translate-y-0.5 hover:ring-zinc-600">
+    <article className="group relative aspect-[9/16] w-[78vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 hover:-translate-y-0.5 hover:ring-zinc-600 md:w-[280px] md:max-w-[280px] lg:w-[300px] lg:max-w-[300px]">
       <Link to={watchHref} state={{ item }} className="absolute inset-0 block">
         <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
           <span className="rounded-full border border-emerald-300/45 bg-emerald-300/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100">
