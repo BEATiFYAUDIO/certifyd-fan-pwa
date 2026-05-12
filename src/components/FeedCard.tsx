@@ -58,8 +58,8 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
   const avatarGradient = useMemo(() => {
     const seed = creator.toLowerCase().charCodeAt(0) || 0;
     const gradients = [
-      'from-cyan-500/45 via-blue-500/40 to-indigo-500/45',
-      'from-emerald-500/40 via-teal-500/35 to-cyan-500/40',
+      'from-slate-500/45 via-zinc-500/40 to-slate-600/45',
+      'from-amber-500/40 via-orange-500/35 to-yellow-500/40',
       'from-fuchsia-500/40 via-violet-500/35 to-indigo-500/40',
       'from-amber-500/45 via-orange-500/35 to-rose-500/35',
     ];
@@ -75,11 +75,11 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                 item.accessMode === 'locked'
                   ? 'border border-amber-300/45 bg-amber-300/15 text-amber-100'
-                  : 'border border-emerald-300/45 bg-emerald-300/15 text-emerald-100'
+                  : 'border border-slate-300/45 bg-slate-300/10 text-slate-100'
               }`}>
                 {primaryLabel(item)}
               </span>
-              <span className="rounded-full border border-cyan-300/35 bg-cyan-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
+              <span className="rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
                 Lightning
               </span>
             </div>
@@ -131,11 +131,11 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
               item.accessMode === 'locked'
                 ? 'border border-amber-300/45 bg-amber-300/15 text-amber-100'
-                : 'border border-emerald-300/45 bg-emerald-300/15 text-emerald-100'
+                : 'border border-slate-300/45 bg-slate-300/10 text-slate-100'
             }`}>
               {primaryLabel(item)}
             </span>
-            <span className="rounded-full border border-cyan-300/35 bg-cyan-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
+            <span className="rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
               Lightning
             </span>
           </div>
@@ -188,7 +188,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
             target="_blank"
             rel="noreferrer"
             aria-label={`Open ${creatorHandleClean || creator} profile`}
-            className="mt-0.5 block h-8 w-8 shrink-0 rounded-full ring-1 ring-white/15 transition hover:ring-cyan-400/80"
+            className="mt-0.5 block h-8 w-8 shrink-0 rounded-full ring-1 ring-white/15 transition hover:ring-amber-400/80"
           >
             {canShowAvatar ? (
               <img
@@ -236,7 +236,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
             target={canOpenCreator(item) ? "_blank" : undefined}
             rel={canOpenCreator(item) ? "noreferrer" : undefined}
             className={`mt-1.5 inline-block text-xs font-medium ${
-              canOpenCreator(item) ? "text-cyan-400 hover:text-cyan-300 hover:underline" : "text-zinc-500 cursor-not-allowed"
+              canOpenCreator(item) ? "text-amber-300 hover:text-amber-200 hover:underline" : "text-zinc-500 cursor-not-allowed"
             }`}
             aria-disabled={!canOpenCreator(item)}
             onClick={(e) => {

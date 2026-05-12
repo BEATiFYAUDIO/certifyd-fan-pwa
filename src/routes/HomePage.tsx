@@ -341,7 +341,7 @@ export function HomePage() {
                   <h2 className="section-title text-sm font-semibold uppercase tracking-[0.2em] text-zinc-100">Freebies</h2>
                   <p className="section-subtitle mt-1 text-xs text-zinc-400">Open and playable drops from across the network</p>
                 </div>
-                <span className="rounded-full border border-emerald-400/35 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-300">
+                <span className="rounded-full border border-amber-300/35 bg-amber-300/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-200">
                   Open
                 </span>
               </div>
