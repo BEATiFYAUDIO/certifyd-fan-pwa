@@ -290,7 +290,7 @@ export function HomePage() {
             <img
               src={logoSrc}
               alt="Certifyd Discovery"
-              className="h-24 w-auto object-contain sm:h-28"
+              className="h-24 w-auto object-contain brightness-110 saturate-110 sm:h-28"
               loading="eager"
             />
             <a
