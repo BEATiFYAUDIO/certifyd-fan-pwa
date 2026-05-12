@@ -13,7 +13,9 @@ function avatarInitials(handle: string | null): string {
 export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watchParams?: string }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
   const [videoFailed, setVideoFailed] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
 
   const query = watchParams || `origin=${encodeURIComponent(item.publicOrigin)}&mode=freebies&topic=all`;
@@ -52,6 +54,9 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
   return (
     <article className="group relative aspect-[9/16] w-[78vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 hover:-translate-y-0.5 hover:ring-zinc-600 md:w-[280px] md:max-w-[280px] lg:w-[300px] lg:max-w-[300px]">
       <Link to={watchHref} state={{ item }} className="absolute inset-0 block">
+        <div className="absolute inset-0 flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 text-sm text-zinc-400">
+          <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-55" />
+        </div>
         <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
           <span className="rounded-full border border-slate-300/45 bg-slate-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100">
             Free
@@ -60,18 +65,32 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
             Lightning
           </span>
         </div>
+        {canShowImage && !imageLoaded ? (
+          <img
+            src={item.coverUrl}
+            alt={item.title || 'Content cover'}
+            className="absolute inset-0 h-full w-full object-cover"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageFailed(true)}
+          />
+        ) : null}
         {canShowVideo ? (
           <video
             src={item.previewUrl}
-            className="h-full w-full object-cover"
+            poster={item.coverUrl || undefined}
+            className={`h-full w-full object-cover ${videoReady ? '' : 'opacity-0'}`}
             muted
             autoPlay
             loop
             playsInline
             preload="metadata"
+            onLoadedData={() => setVideoReady(true)}
             onError={() => setVideoFailed(true)}
           />
-        ) : canShowImage ? (
+        ) : null}
+        {(!canShowVideo && canShowImage && imageLoaded) ? (
           <img
             src={item.coverUrl}
             alt={item.title || 'Content cover'}
@@ -80,12 +99,13 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
             referrerPolicy="no-referrer"
             onError={() => setImageFailed(true)}
           />
-        ) : (
+        ) : null}
+        {(!canShowVideo && !canShowImage) ? (
           <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 text-sm text-zinc-400">
             <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" />
             <span>No media</span>
           </div>
-        )}
+        ) : null}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/95 via-black/55 to-transparent" />
       </Link>
 
