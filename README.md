@@ -1,9 +1,9 @@
-# Certifyd Discovery PWA
+# Certifyd Fan PWA
 
-Certifyd Discovery is a lightweight discovery and routing app for Certifyd Creator nodes.
+Certifyd Fan is a lightweight discovery and routing app for Certifyd Creator nodes.
 
 It is **not** a commerce or creator-management app.
-It only reads public discoverable content and routes discovery traffic to creator buy pages.
+It only reads public discoverable content and routes fans to creator buy pages.
 
 ## Stack
 

@@ -31,9 +31,7 @@ function avatarInitials(handle: string | null): string {
 export function FeedCard({ item }: { item: DiscoverableItem }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
   const [videoFailed, setVideoFailed] = useState(false);
-  const [videoReady, setVideoReady] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
   const watchHref = `/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`;
   const creator = item.creatorHandle || 'creator';
@@ -86,45 +84,35 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
               </span>
             </div>
             {hasMedia ? (
-              <>
-                <div className="absolute inset-0 flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
-                  <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-55" />
+              canShowVideo ? (
+                <video
+                  src={item.previewUrl}
+                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                  muted
+                  autoPlay
+                  loop
+                  playsInline
+                  preload="metadata"
+                  onError={() => setVideoFailed(true)}
+                />
+              ) : canShowImage ? (
+                <img
+                  src={item.coverUrl}
+                  alt={item.title || 'Content cover'}
+                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  onError={() => setImageFailed(true)}
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
+                  <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" />
+                  <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
+                  <p className="mt-1 text-xs text-zinc-400">
+                    {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
+                  </p>
                 </div>
-                {canShowImage && !imageLoaded ? (
-                  <img
-                    src={item.coverUrl}
-                    alt={item.title || 'Content cover'}
-                    className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                    onLoad={() => setImageLoaded(true)}
-                    onError={() => setImageFailed(true)}
-                  />
-                ) : null}
-                {canShowVideo ? (
-                  <video
-                    src={item.previewUrl}
-                    poster={item.coverUrl || undefined}
-                    className={`h-full w-full object-cover transition duration-300 group-hover:scale-[1.02] ${videoReady ? '' : 'opacity-0'}`}
-                    muted
-                    autoPlay
-                    loop
-                    playsInline
-                    preload="metadata"
-                    onLoadedData={() => setVideoReady(true)}
-                    onError={() => setVideoFailed(true)}
-                  />
-                ) : canShowImage ? (
-                  <img
-                    src={item.coverUrl}
-                    alt={item.title || 'Content cover'}
-                    className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                    onError={() => setImageFailed(true)}
-                  />
-                ) : null}
-              </>
+              )
             ) : (
               <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
                 <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
@@ -152,45 +140,35 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
             </span>
           </div>
           {hasMedia ? (
-            <>
-              <div className="absolute inset-0 flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
-                <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-55" />
+            canShowVideo ? (
+              <video
+                src={item.previewUrl}
+                className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                muted
+                autoPlay
+                loop
+                playsInline
+                preload="metadata"
+                onError={() => setVideoFailed(true)}
+              />
+            ) : canShowImage ? (
+              <img
+                src={item.coverUrl}
+                alt={item.title || 'Content cover'}
+                className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={() => setImageFailed(true)}
+              />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
+                <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" />
+                <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
+                <p className="mt-1 text-xs text-zinc-400">
+                  {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
+                </p>
               </div>
-              {canShowImage && !imageLoaded ? (
-                <img
-                  src={item.coverUrl}
-                  alt={item.title || 'Content cover'}
-                  className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                  onLoad={() => setImageLoaded(true)}
-                  onError={() => setImageFailed(true)}
-                />
-              ) : null}
-              {canShowVideo ? (
-                <video
-                  src={item.previewUrl}
-                  poster={item.coverUrl || undefined}
-                  className={`h-full w-full object-cover transition duration-300 group-hover:scale-[1.02] ${videoReady ? '' : 'opacity-0'}`}
-                  muted
-                  autoPlay
-                  loop
-                  playsInline
-                  preload="metadata"
-                  onLoadedData={() => setVideoReady(true)}
-                  onError={() => setVideoFailed(true)}
-                />
-              ) : canShowImage ? (
-                <img
-                  src={item.coverUrl}
-                  alt={item.title || 'Content cover'}
-                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                  onError={() => setImageFailed(true)}
-                />
-              ) : null}
-            </>
+            )
           ) : (
             <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
               <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
