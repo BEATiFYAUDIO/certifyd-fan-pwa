@@ -307,7 +307,7 @@ function FreebiesWatch({
                       href={it.buyUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="shrink-0 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-bold text-zinc-950 hover:bg-cyan-400"
+                      className="shrink-0 rounded-xl bg-amber-300 px-4 py-2 text-sm font-bold text-zinc-950 hover:bg-amber-200"
                     >
                       {ctaLabel(it.accessMode)}
                     </a>
@@ -507,7 +507,7 @@ function StandardWatch({
                 rel={canOpenCreator(item) ? "noreferrer" : undefined}
                 className={`block w-full rounded-xl px-4 py-3 text-center text-sm font-bold ${
                   canOpenCreator(item)
-                    ? "bg-cyan-500 text-zinc-950 hover:bg-cyan-400"
+                    ? "bg-amber-300 text-zinc-950 hover:bg-amber-200"
                     : "border border-zinc-700 bg-zinc-900 text-zinc-500 cursor-not-allowed"
                 }`}
                 onClick={(e) => {
