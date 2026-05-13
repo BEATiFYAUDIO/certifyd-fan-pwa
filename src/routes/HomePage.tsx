@@ -7,14 +7,14 @@ import { loadConfiguredOrigins } from '../lib/config';
 import type { DiscoverableItem, OriginFeedState, Topic } from '../lib/types';
 import { isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 
-const INITIAL_PAGE_LIMIT = 10;
+const INITIAL_PAGE_LIMIT = 8;
 const NEXT_PAGE_LIMIT = 18;
-const ORIGIN_TIMEOUT_MS = 4500;
+const ORIGIN_TIMEOUT_MS = 3000;
 const RETRY_BASE_MS = 4000;
 const RETRY_MAX_MS = 60000;
 const ORIGIN_SOFT_DISABLE_AFTER_FAILS = 3;
 const ORIGIN_SOFT_DISABLE_MS = 5 * 60 * 1000;
-const MAX_ORIGINS_PER_PASS = 8;
+const MAX_ORIGINS_PER_PASS = 6;
 
 function dedupe(items: DiscoverableItem[]) {
   const seen = new Map<string, DiscoverableItem>();
