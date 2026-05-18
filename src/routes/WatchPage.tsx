@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
+import { FeedCard } from '../components/FeedCard';
 import { fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
 import type { DiscoverableItem, Topic } from '../lib/types';
 import { canOpenCreator, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
+import { buildWatchDiscoveryRails, dedupeDiscoveryItems, sortNewestFirst, type DiscoveryRail } from '../lib/discoveryViewModel';
 
 function ctaLabel(mode: DiscoverableItem['accessMode']) {
   if (mode === 'locked') return 'Unlock on Creator';
@@ -91,25 +93,6 @@ function normalizeTopic(value: string): Topic {
   return 'all';
 }
 
-function itemSortKey(item: DiscoverableItem): { time: number; id: string } {
-  const maybeTime = Number(
-    Date.parse(String((item as any)?.publishedAt || (item as any)?.createdAt || (item as any)?.updatedAt || ''))
-  );
-  return {
-    time: Number.isFinite(maybeTime) ? maybeTime : 0,
-    id: String(item.contentId || ''),
-  };
-}
-
-function sortNewestFirst(items: DiscoverableItem[]): DiscoverableItem[] {
-  return [...items].sort((a, b) => {
-    const ka = itemSortKey(a);
-    const kb = itemSortKey(b);
-    if (ka.time !== kb.time) return kb.time - ka.time;
-    return kb.id.localeCompare(ka.id);
-  });
-}
-
 async function loadFreebies(topic: Topic): Promise<DiscoverableItem[]> {
   const origins = await loadConfiguredOrigins();
   const rowsByOrigin = await Promise.all(
@@ -143,6 +126,51 @@ async function loadFreebies(topic: Topic): Promise<DiscoverableItem[]> {
     if (!seen.has(key)) seen.set(key, it);
   }
   return sortNewestFirst([...seen.values()]);
+}
+
+async function loadDiscoveryItems(topic: Topic): Promise<DiscoverableItem[]> {
+  const origins = await loadConfiguredOrigins();
+  const rowsByOrigin = await Promise.all(
+    origins.map(async (origin) => {
+      const originRows: DiscoverableItem[] = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < FREEBIES_MAX_PAGES_PER_ORIGIN; page += 1) {
+        try {
+          const response = await fetchDiscoverablePage({
+            origin,
+            topic,
+            limit: 18,
+            cursor,
+            timeoutMs: FREEBIES_FIRST_PASS_TIMEOUT_MS,
+          });
+          originRows.push(...response.items);
+          if (!response.cursor) break;
+          cursor = response.cursor;
+        } catch {
+          break;
+        }
+      }
+      return originRows;
+    })
+  );
+  return sortNewestFirst(dedupeDiscoveryItems(rowsByOrigin.flat()));
+}
+
+function ExplorationRail({ rail }: { rail: DiscoveryRail }) {
+  if (rail.items.length === 0) return null;
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-100">{rail.title}</h2>
+        <p className="mt-1 text-xs text-zinc-400">{rail.subtitle}</p>
+      </div>
+      <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
+        {rail.items.map((related) => (
+          <FeedCard key={`${rail.key}:${related.publicOrigin}:${related.contentId}`} item={related} />
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function FreebiesWatch({
@@ -335,6 +363,7 @@ function StandardWatch({
   const [loading, setLoading] = useState(!(stateItem && isRenderableDiscoveryItem(stateItem)));
   const [error, setError] = useState<string | null>(null);
   const [credits, setCredits] = useState<CreditItem[]>([]);
+  const [discoveryItems, setDiscoveryItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
 
   useEffect(() => {
     let active = true;
@@ -355,6 +384,7 @@ function StandardWatch({
           return;
         }
         setItem(res);
+        setDiscoveryItems((current) => dedupeDiscoveryItems([res, ...current]));
       } catch (e: unknown) {
         if (!active) return;
         setError(toErrorMessage(e));
@@ -368,6 +398,24 @@ function StandardWatch({
       active = false;
     };
   }, [contentId, item, originHint]);
+
+  useEffect(() => {
+    let active = true;
+    if (!item) return;
+    const topic = normalizeTopic(item.primaryTopic || 'all');
+    void loadDiscoveryItems(topic)
+      .then((rows) => {
+        if (!active) return;
+        setDiscoveryItems(dedupeDiscoveryItems([item, ...rows]));
+      })
+      .catch(() => {
+        if (!active) return;
+        setDiscoveryItems((current) => dedupeDiscoveryItems([item, ...current]));
+      });
+    return () => {
+      active = false;
+    };
+  }, [item]);
 
   useEffect(() => {
     let active = true;
@@ -387,6 +435,10 @@ function StandardWatch({
   }, [item]);
 
   const shareUrl = useMemo(() => item?.buyUrl || window.location.href, [item]);
+  const explorationRails = useMemo(() => {
+    if (!item) return [];
+    return buildWatchDiscoveryRails(item, discoveryItems);
+  }, [item, discoveryItems]);
 
   async function onShare() {
     if (!item) return;
@@ -533,6 +585,14 @@ function StandardWatch({
                 Share
               </button>
             </aside>
+          </div>
+        ) : null}
+
+        {item && explorationRails.length > 0 ? (
+          <div className="mt-8 space-y-8 border-t border-zinc-800 pt-6">
+            {explorationRails.map((rail) => (
+              <ExplorationRail key={rail.key} rail={rail} />
+            ))}
           </div>
         ) : null}
       </div>

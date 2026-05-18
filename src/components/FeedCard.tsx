@@ -20,6 +20,14 @@ function primaryLabel(item: DiscoverableItem): string {
   return 'Free';
 }
 
+function sourceLabel(origin: string): string {
+  try {
+    return new URL(origin).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
 function avatarInitials(handle: string | null): string {
   const raw = String(handle || '').replace(/^@+/, '').trim();
   if (!raw) return 'CF';
@@ -40,6 +48,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
     creatorHandleClean && item.publicOrigin
       ? `${String(item.publicOrigin).replace(/\/+$/, '')}/u/${encodeURIComponent(creatorHandleClean)}`
       : null;
+  const source = sourceLabel(item.publicOrigin);
   const metadata = `${item.primaryTopic || 'topic'} · ${item.contentType} · ${modeMetaText(item.accessMode, item.priceSats)}`;
   const normalizedType = String(item.contentType || '').toLowerCase();
   const prefersPreviewFirst = normalizedType === 'video';
@@ -231,6 +240,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
           </Link>
           <p className="mt-0.5 text-xs text-zinc-400">@{creator}</p>
           <p className="mt-0.5 text-xs text-zinc-500">{metadata}</p>
+          {source ? <p className="mt-0.5 truncate text-[11px] text-zinc-600">from {source}</p> : null}
           <a
             href={canOpenCreator(item) ? item.buyUrl : undefined}
             target={canOpenCreator(item) ? "_blank" : undefined}

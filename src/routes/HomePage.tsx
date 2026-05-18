@@ -6,6 +6,14 @@ import { fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
 import type { DiscoverableItem, OriginFeedState, Topic } from '../lib/types';
 import { isRenderableDiscoveryItem } from '../lib/discoveryGuard';
+import {
+  buildHomeDiscoveryViewModel,
+  dedupeDiscoveryItems,
+  searchableText,
+  sortNewestFirst,
+  type CreatorSpotlight,
+  type DiscoveryRail,
+} from '../lib/discoveryViewModel';
 
 const INITIAL_PAGE_LIMIT = 8;
 const NEXT_PAGE_LIMIT = 18;
@@ -15,35 +23,6 @@ const RETRY_MAX_MS = 60000;
 const ORIGIN_SOFT_DISABLE_AFTER_FAILS = 3;
 const ORIGIN_SOFT_DISABLE_MS = 5 * 60 * 1000;
 const MAX_ORIGINS_PER_PASS = 6;
-
-function dedupe(items: DiscoverableItem[]) {
-  const seen = new Map<string, DiscoverableItem>();
-  for (const it of items) {
-    if (!isRenderableDiscoveryItem(it)) continue;
-    const key = `${it.publicOrigin}::${it.contentId}`;
-    if (!seen.has(key)) seen.set(key, it);
-  }
-  return [...seen.values()];
-}
-
-function itemSortKey(item: DiscoverableItem): { time: number; id: string } {
-  const maybeTime = Number(
-    Date.parse(String((item as any)?.publishedAt || (item as any)?.createdAt || (item as any)?.updatedAt || ''))
-  );
-  return {
-    time: Number.isFinite(maybeTime) ? maybeTime : 0,
-    id: String(item.contentId || ''),
-  };
-}
-
-function sortNewestFirst(items: DiscoverableItem[]): DiscoverableItem[] {
-  return [...items].sort((a, b) => {
-    const ka = itemSortKey(a);
-    const kb = itemSortKey(b);
-    if (ka.time !== kb.time) return kb.time - ka.time;
-    return kb.id.localeCompare(ka.id);
-  });
-}
 
 function hashString(input: string): number {
   let h = 2166136261;
@@ -68,6 +47,66 @@ function sortStableRandom(items: DiscoverableItem[], seed: string): Discoverable
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return 'Failed to load feed';
+}
+
+function RailHeader({ title, subtitle, badge }: { title: string; subtitle: string; badge?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-1">
+      <div>
+        <h2 className="section-title text-sm font-semibold uppercase tracking-[0.2em] text-zinc-100">{title}</h2>
+        <p className="section-subtitle mt-1 text-xs text-zinc-400">{subtitle}</p>
+      </div>
+      {badge ? (
+        <span className="shrink-0 rounded-full border border-amber-300/35 bg-amber-300/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-200">
+          {badge}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function ContentRail({ rail }: { rail: DiscoveryRail }) {
+  if (rail.items.length === 0) return null;
+  return (
+    <section className="space-y-3">
+      <RailHeader title={rail.title} subtitle={rail.subtitle} />
+      <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {rail.items.map((item) => (
+          <FeedCard key={`${rail.key}:${item.publicOrigin}:${item.contentId}`} item={item} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CreatorSpotlightCard({ creator }: { creator: CreatorSpotlight }) {
+  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
+  const topicText = creator.topics.length > 0 ? creator.topics.join(' / ') : 'published works';
+  return (
+    <a
+      href={creator.profileUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="group flex min-w-[240px] max-w-[280px] shrink-0 snap-start gap-3 rounded-2xl border border-zinc-800/90 bg-zinc-900/70 p-3 transition hover:-translate-y-0.5 hover:border-amber-300/40 hover:bg-zinc-900"
+    >
+      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800">
+        {creator.avatarUrl ? (
+          <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+        ) : (
+          <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-2 opacity-70" loading="lazy" />
+        )}
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-sm font-semibold text-zinc-100">@{creator.handle}</div>
+        <div className="mt-1 text-xs text-zinc-400">
+          {creator.itemCount} {creator.itemCount === 1 ? 'work' : 'works'} · {topicText}
+        </div>
+        <div className="mt-2 text-[11px] font-medium uppercase tracking-wide text-amber-200/85">
+          Explore creator
+        </div>
+      </div>
+    </a>
+  );
 }
 
 export function HomePage() {
@@ -122,7 +161,7 @@ export function HomePage() {
       if (!raw) return;
       const parsed = JSON.parse(raw) as { items?: DiscoverableItem[] };
       if (!Array.isArray(parsed?.items)) return;
-      const warm = sortNewestFirst(dedupe(parsed.items));
+      const warm = sortNewestFirst(dedupeDiscoveryItems(parsed.items));
       if (warm.length > 0) setItems(warm);
     } catch {
       // ignore cache parse failures
@@ -195,7 +234,7 @@ export function HomePage() {
       return;
     }
     setFeeds(nextFeeds);
-    const nextItems = sortNewestFirst(dedupe([...updates, ...currentItems]));
+    const nextItems = sortNewestFirst(dedupeDiscoveryItems([...updates, ...currentItems]));
     setItems(nextItems);
     try {
       sessionStorage.setItem(cacheKey, JSON.stringify({ items: nextItems }));
@@ -264,8 +303,7 @@ export function HomePage() {
       ? items.filter((it) => isRenderableDiscoveryItem(it))
       : items.filter((it) => {
       if (!isRenderableDiscoveryItem(it)) return false;
-      const hay = `${it.title || ''} ${it.creatorHandle || ''} ${it.primaryTopic || ''} ${it.contentType || ''}`.toLowerCase();
-      return hay.includes(q);
+      return searchableText(it).includes(q);
     });
     const freeLaneBase = searched.filter((it) => it.accessMode === 'unlocked' || it.accessMode === 'owned');
     const lockedLaneBase = searched.filter((it) => it.accessMode === 'locked');
@@ -273,14 +311,29 @@ export function HomePage() {
     const lockedLane = topic === 'all' ? sortStableRandom(lockedLaneBase, `${randomSeed}:locked`) : lockedLaneBase;
     return [...freeLane, ...lockedLane];
   }, [items, query, topic, randomSeed]);
+  const discoveryView = useMemo(() => buildHomeDiscoveryViewModel(filtered), [filtered]);
   const freeItems = useMemo(
-    () => filtered.filter((it) => it.accessMode === 'unlocked' || it.accessMode === 'owned'),
-    [filtered]
+    () => (topic === 'all' ? sortStableRandom(discoveryView.freeItems, `${randomSeed}:free:view`) : discoveryView.freeItems),
+    [discoveryView.freeItems, topic, randomSeed]
   );
   const lockedItems = useMemo(
-    () => filtered.filter((it) => it.accessMode === 'locked'),
-    [filtered]
+    () => (topic === 'all' ? sortStableRandom(discoveryView.lockedItems, `${randomSeed}:locked:view`) : discoveryView.lockedItems),
+    [discoveryView.lockedItems, topic, randomSeed]
   );
+  const secondaryRails = useMemo(() => {
+    const rails: DiscoveryRail[] = [];
+    if (discoveryView.recentRail) rails.push(discoveryView.recentRail);
+    rails.push(...discoveryView.topicRails);
+    rails.push(...discoveryView.typeRails);
+    if (discoveryView.stableOriginRail) rails.push(discoveryView.stableOriginRail);
+    const seen = new Set<string>();
+    return rails.filter((rail) => {
+      const signature = rail.items.map((item) => `${item.publicOrigin}:${item.contentId}`).join('|');
+      if (!signature || seen.has(signature)) return false;
+      seen.add(signature);
+      return true;
+    }).slice(0, 5);
+  }, [discoveryView]);
 
   return (
     <main className="app-shell min-h-screen text-zinc-100">
@@ -337,15 +390,7 @@ export function HomePage() {
         <div className="space-y-6">
           {freeItems.length > 0 ? (
             <section className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <div>
-                  <h2 className="section-title text-sm font-semibold uppercase tracking-[0.2em] text-zinc-100">Freebies</h2>
-                  <p className="section-subtitle mt-1 text-xs text-zinc-400">Open and playable drops from across the network</p>
-                </div>
-                <span className="rounded-full border border-amber-300/35 bg-amber-300/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-200">
-                  Open
-                </span>
-              </div>
+              <RailHeader title="Free Drops" subtitle="Open and playable works from across the network" badge="Open" />
               <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
                 {freeItems.map((item) => {
                   const watchParams = new URLSearchParams({
@@ -361,17 +406,20 @@ export function HomePage() {
             </section>
           ) : null}
 
+          {discoveryView.creatorSpotlights.length > 0 ? (
+            <section className="space-y-3">
+              <RailHeader title="Creator Spotlights" subtitle="Explore people publishing across Certifyd" />
+              <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+                {discoveryView.creatorSpotlights.map((creator) => (
+                  <CreatorSpotlightCard key={creator.key} creator={creator} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           {lockedItems.length > 0 ? (
             <section className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <div>
-                  <h2 className="section-title text-sm font-semibold uppercase tracking-[0.2em] text-zinc-100">Premium</h2>
-                  <p className="section-subtitle mt-1 text-xs text-zinc-400">Unlock paid releases and premium creator access</p>
-                </div>
-                <span className="rounded-full border border-amber-300/35 bg-amber-300/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-200">
-                  Lightning
-                </span>
-              </div>
+              <RailHeader title="Premium Works" subtitle="Unlock paid publications and creator products" badge="Lightning" />
               <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {lockedItems.map((item) => (
                   <FeedCard key={`${item.publicOrigin}:${item.contentId}`} item={item} />
@@ -379,6 +427,10 @@ export function HomePage() {
               </div>
             </section>
           ) : null}
+
+          {secondaryRails.map((rail) => (
+            <ContentRail key={rail.key} rail={rail} />
+          ))}
         </div>
 
         {origins.length > 0 && !allDone ? <div ref={sentinelRef} className="h-8 w-full" aria-hidden="true" /> : null}

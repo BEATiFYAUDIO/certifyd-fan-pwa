@@ -34,6 +34,7 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
   const canShowAvatar = Boolean(avatarUrl) && !avatarFailed;
   const normalizedType = String(item.contentType || '').toLowerCase();
   const isVideo = normalizedType === 'video';
+  const meta = [item.primaryTopic, item.contentType].filter(Boolean).join(' · ');
 
   const canShowVideo = isVideo && Boolean(item.previewUrl) && !videoFailed;
   const canShowImage = Boolean(item.coverUrl) && !imageFailed;
@@ -130,6 +131,7 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
               {item.title || 'Untitled'}
             </Link>
             <p className="mt-1 text-sm text-zinc-200">@{creator}</p>
+            {meta ? <p className="mt-0.5 text-xs text-zinc-400">{meta}</p> : null}
           </div>
         </div>
       </div>
