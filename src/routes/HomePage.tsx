@@ -82,14 +82,15 @@ function ContentRail({ rail }: { rail: DiscoveryRail }) {
 function CreatorSpotlightCard({ creator }: { creator: CreatorSpotlight }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
   const topicText = creator.topics.length > 0 ? creator.topics.join(' / ') : 'published works';
+  const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   return (
     <a
       href={creator.profileUrl}
       target="_blank"
       rel="noreferrer"
-      className="group flex min-w-[240px] max-w-[280px] shrink-0 snap-start gap-3 rounded-2xl border border-zinc-800/90 bg-zinc-900/70 p-3 transition hover:-translate-y-0.5 hover:border-amber-300/40 hover:bg-zinc-900"
+      className="group flex min-w-[260px] max-w-[320px] shrink-0 snap-start gap-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/70 p-4 transition hover:-translate-y-0.5 hover:border-amber-300/40 hover:bg-zinc-900"
     >
-      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800">
+      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800">
         {creator.avatarUrl ? (
           <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
         ) : (
@@ -97,12 +98,13 @@ function CreatorSpotlightCard({ creator }: { creator: CreatorSpotlight }) {
         )}
       </div>
       <div className="min-w-0">
-        <div className="truncate text-sm font-semibold text-zinc-100">@{creator.handle}</div>
+        <div className="truncate text-sm font-semibold text-zinc-100">{displayName}</div>
+        <div className="mt-0.5 truncate text-xs text-zinc-400">@{creator.handle}</div>
         <div className="mt-1 text-xs text-zinc-400">
-          {creator.itemCount} {creator.itemCount === 1 ? 'work' : 'works'} · {topicText}
+          {creator.itemCount} {creator.itemCount === 1 ? 'publication' : 'publications'} · {topicText}
         </div>
-        <div className="mt-2 text-[11px] font-medium uppercase tracking-wide text-amber-200/85">
-          Explore creator
+        <div className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-amber-200/85">
+          Explore →
         </div>
       </div>
     </a>
@@ -323,9 +325,7 @@ export function HomePage() {
   const secondaryRails = useMemo(() => {
     const rails: DiscoveryRail[] = [];
     if (discoveryView.recentRail) rails.push(discoveryView.recentRail);
-    rails.push(...discoveryView.topicRails);
-    rails.push(...discoveryView.typeRails);
-    if (discoveryView.stableOriginRail) rails.push(discoveryView.stableOriginRail);
+    rails.push(...discoveryView.dynamicRails);
     const seen = new Set<string>();
     return rails.filter((rail) => {
       const signature = rail.items.map((item) => `${item.publicOrigin}:${item.contentId}`).join('|');

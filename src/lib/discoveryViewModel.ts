@@ -30,14 +30,17 @@ export type HomeDiscoveryViewModel = {
   topicRails: DiscoveryRail[];
   typeRails: DiscoveryRail[];
   stableOriginRail: DiscoveryRail | null;
+  dynamicRails: DiscoveryRail[];
 };
 
 const MAX_RAIL_ITEMS = 8;
-const MAX_SIDE_RAILS = 3;
+const MAX_DYNAMIC_RAILS = 4;
+const MIN_DYNAMIC_RAIL_ITEMS = 3;
+const MIN_WATCH_RAIL_ITEMS = 2;
 const HUMAN_TYPE_LABELS: Record<string, string> = {
   song: 'Music',
   audio: 'Audio',
-  video: 'Video Works',
+  video: 'Media',
   book: 'Books',
   file: 'Files',
   document: 'Documents',
@@ -96,7 +99,7 @@ export function displayType(value: string | null | undefined): string {
 
 function displayTopic(value: string | null | undefined): string {
   const normalized = text(value).toLowerCase();
-  if (!normalized) return 'Works';
+  if (!normalized) return 'Publications';
   return normalized.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -119,6 +122,84 @@ function bestGroups(grouped: Map<string, DiscoverableItem[]>, minItems = 2): Arr
       if (a[1].length !== b[1].length) return b[1].length - a[1].length;
       return a[0].localeCompare(b[0]);
     });
+}
+
+function railSignature(rail: DiscoveryRail): string {
+  return rail.items.map(itemKey).join('|');
+}
+
+function uniqueItems(items: DiscoverableItem[]): DiscoverableItem[] {
+  return dedupeDiscoveryItems(items);
+}
+
+function railScore(rows: DiscoverableItem[]): number {
+  const unique = uniqueItems(rows);
+  const latest = Math.max(...unique.map(itemSortTime), 0);
+  return unique.length * 10000000000000 + latest;
+}
+
+function hasHeavyOverlap(a: DiscoveryRail, b: DiscoveryRail): boolean {
+  const aKeys = new Set(a.items.map(itemKey));
+  const bKeys = new Set(b.items.map(itemKey));
+  const smaller = Math.min(aKeys.size, bKeys.size);
+  if (smaller === 0) return true;
+  let overlap = 0;
+  for (const key of aKeys) {
+    if (bKeys.has(key)) overlap += 1;
+  }
+  return overlap / smaller >= 0.6;
+}
+
+function buildDynamicRails(safe: DiscoverableItem[]): DiscoveryRail[] {
+  const candidates: DiscoveryRail[] = [];
+
+  for (const [topic, rows] of bestGroups(groupBy(safe, (item) => text(item.primaryTopic)), MIN_DYNAMIC_RAIL_ITEMS)) {
+    const label = displayTopic(topic);
+    candidates.push({
+      key: `topic:${topic}`,
+      title: label,
+      subtitle: `Fresh works in ${label.toLowerCase()}`,
+      items: sortNewestFirst(uniqueItems(rows)).slice(0, MAX_RAIL_ITEMS),
+      layout: 'grid',
+    });
+  }
+
+  for (const [type, rows] of bestGroups(groupBy(safe, (item) => text(item.contentType).toLowerCase()), MIN_DYNAMIC_RAIL_ITEMS)) {
+    const label = displayType(type);
+    candidates.push({
+      key: `type:${type}`,
+      title: label,
+      subtitle: 'Browse by format',
+      items: sortNewestFirst(uniqueItems(rows)).slice(0, MAX_RAIL_ITEMS),
+      layout: 'grid',
+    });
+  }
+
+  const stableOriginItems = safe.filter((item) => item.originHealth === 'healthy' && (item.originTrust === 'stable' || item.originTrust === 'provider'));
+  if (stableOriginItems.length >= MIN_DYNAMIC_RAIL_ITEMS) {
+    candidates.push({
+      key: 'stable-origins',
+      title: 'Reliable Sources',
+      subtitle: 'Works from currently healthy creator origins',
+      items: sortNewestFirst(uniqueItems(stableOriginItems)).slice(0, MAX_RAIL_ITEMS),
+      layout: 'grid',
+    });
+  }
+
+  const ranked = candidates
+    .filter((rail) => rail.items.length >= MIN_DYNAMIC_RAIL_ITEMS)
+    .sort((a, b) => railScore(b.items) - railScore(a.items));
+
+  const selected: DiscoveryRail[] = [];
+  for (const rail of ranked) {
+    if (selected.some((existing) => existing.key === rail.key || railSignature(existing) === railSignature(rail) || hasHeavyOverlap(existing, rail))) {
+      continue;
+    }
+    selected.push(rail);
+    if (selected.length >= MAX_DYNAMIC_RAILS) break;
+  }
+
+  return selected;
 }
 
 export function buildCreatorSpotlights(items: DiscoverableItem[], limit = 6): CreatorSpotlight[] {
@@ -150,28 +231,8 @@ export function buildHomeDiscoveryViewModel(items: DiscoverableItem[]): HomeDisc
   const lockedItems = safe.filter((item) => item.accessMode === 'locked');
   const recent = sortNewestFirst(safe).slice(0, MAX_RAIL_ITEMS);
   const hasRealTime = recent.some((item) => itemSortTime(item) > 0);
-
-  const topicRails = bestGroups(groupBy(safe, (item) => text(item.primaryTopic)), 2)
-    .slice(0, MAX_SIDE_RAILS)
-    .map(([topic, rows]) => ({
-      key: `topic:${topic}`,
-      title: `${displayTopic(topic)} Works`,
-      subtitle: 'More publications in this lane',
-      items: sortNewestFirst(rows).slice(0, MAX_RAIL_ITEMS),
-      layout: 'grid' as const,
-    }));
-
-  const typeRails = bestGroups(groupBy(safe, (item) => text(item.contentType).toLowerCase()), 2)
-    .slice(0, MAX_SIDE_RAILS)
-    .map(([type, rows]) => ({
-      key: `type:${type}`,
-      title: displayType(type),
-      subtitle: 'Works grouped by format',
-      items: sortNewestFirst(rows).slice(0, MAX_RAIL_ITEMS),
-      layout: 'grid' as const,
-    }));
-
-  const stableOriginItems = safe.filter((item) => item.originHealth === 'healthy' && (item.originTrust === 'stable' || item.originTrust === 'provider'));
+  const dynamicRails = buildDynamicRails(safe);
+  const stableOriginRail = dynamicRails.find((rail) => rail.key === 'stable-origins') || null;
 
   return {
     freeItems,
@@ -184,15 +245,10 @@ export function buildHomeDiscoveryViewModel(items: DiscoverableItem[]): HomeDisc
       layout: 'grid',
     } : null,
     creatorSpotlights: buildCreatorSpotlights(safe),
-    topicRails,
-    typeRails,
-    stableOriginRail: stableOriginItems.length >= 2 ? {
-      key: 'stable-origins',
-      title: 'Reliable Sources',
-      subtitle: 'Works from currently healthy creator origins',
-      items: sortNewestFirst(stableOriginItems).slice(0, MAX_RAIL_ITEMS),
-      layout: 'grid',
-    } : null,
+    topicRails: dynamicRails.filter((rail) => rail.key.startsWith('topic:')),
+    typeRails: dynamicRails.filter((rail) => rail.key.startsWith('type:')),
+    stableOriginRail,
+    dynamicRails,
   };
 }
 
@@ -203,47 +259,60 @@ export function buildWatchDiscoveryRails(item: DiscoverableItem, items: Discover
   const type = text(item.contentType).toLowerCase();
   const origin = text(item.publicOrigin);
   const rails: DiscoveryRail[] = [];
+  const used = new Set<string>();
+  const pickItems = (rows: DiscoverableItem[]) => sortNewestFirst(rows)
+    .filter((candidate) => {
+      const key = itemKey(candidate);
+      if (used.has(key)) return false;
+      return true;
+    })
+    .slice(0, MAX_RAIL_ITEMS);
+  const addRail = (rail: DiscoveryRail) => {
+    if (rail.items.length < MIN_WATCH_RAIL_ITEMS) return;
+    rails.push(rail);
+    rail.items.forEach((candidate) => used.add(itemKey(candidate)));
+  };
 
   const byCreator = safe.filter((candidate) => text(candidate.creatorHandle).replace(/^@+/, '').toLowerCase() === creator);
   if (byCreator.length > 0) {
-    rails.push({
+    addRail({
       key: 'more-from-creator',
       title: 'More From This Creator',
       subtitle: `Other works by @${item.creatorHandle || 'creator'}`,
-      items: sortNewestFirst(byCreator).slice(0, MAX_RAIL_ITEMS),
+      items: pickItems(byCreator),
       layout: 'grid',
     });
   }
 
   const byTopic = safe.filter((candidate) => topic && text(candidate.primaryTopic).toLowerCase() === topic);
   if (byTopic.length > 0) {
-    rails.push({
+    addRail({
       key: 'more-like-this',
       title: 'More Like This',
-      subtitle: `More ${displayTopic(topic).toLowerCase()} works`,
-      items: sortNewestFirst(byTopic).slice(0, MAX_RAIL_ITEMS),
+      subtitle: `More in ${displayTopic(topic).toLowerCase()}`,
+      items: pickItems(byTopic),
       layout: 'grid',
     });
   }
 
   const byType = safe.filter((candidate) => type && text(candidate.contentType).toLowerCase() === type);
   if (byType.length > 0) {
-    rails.push({
+    addRail({
       key: 'same-format',
       title: `More ${displayType(type)}`,
       subtitle: 'Other works in this format',
-      items: sortNewestFirst(byType).slice(0, MAX_RAIL_ITEMS),
+      items: pickItems(byType),
       layout: 'grid',
     });
   }
 
   const byOrigin = safe.filter((candidate) => origin && candidate.publicOrigin === origin);
   if (byOrigin.length > 0) {
-    rails.push({
+    addRail({
       key: 'same-source',
       title: 'From This Source',
       subtitle: 'More works published from the same creator home',
-      items: sortNewestFirst(byOrigin).slice(0, MAX_RAIL_ITEMS),
+      items: pickItems(byOrigin),
       layout: 'grid',
     });
   }
