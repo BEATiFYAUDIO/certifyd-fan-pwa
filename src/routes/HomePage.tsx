@@ -10,9 +10,6 @@ import { isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGu
 import {
   buildHomeDiscoveryViewModel,
   dedupeDiscoveryItems,
-  publicConversionScore,
-  publicUnlockScore,
-  publicSupportScore,
   searchableText,
   sortNewestFirst,
   type CreatorSpotlight,
@@ -285,6 +282,18 @@ function CreatorEcosystemGrid({ creators }: { creators: CreatorSpotlight[] }) {
   );
 }
 
+function mergeCreatorSpotlights(primary: CreatorSpotlight[], secondary: CreatorSpotlight[]): CreatorSpotlight[] {
+  const seen = new Set<string>();
+  const merged: CreatorSpotlight[] = [];
+  for (const creator of [...primary, ...secondary]) {
+    const key = `${creator.publicOrigin}::${creator.handle}`.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(creator);
+  }
+  return merged;
+}
+
 type RankedSurface = {
   key: string;
   title: string;
@@ -467,47 +476,15 @@ function RankedSurfaceCard({ surface }: { surface: RankedSurface }) {
   );
 }
 
-function CreatorMomentumCard({ creator, rank }: { creator: CreatorSpotlight; rank: number }) {
-  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
-  const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-  return (
-    <a
-      href={creator.profileUrl}
-      target="_blank"
-      rel="noreferrer"
-      className="group flex items-center gap-3 rounded-xl border border-zinc-800 bg-black/25 p-2 transition hover:border-amber-300/45"
-    >
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950 text-xs font-bold text-zinc-300">
-        {rank}
-      </div>
-      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-900">
-        {creator.avatarUrl ? (
-          <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
-        ) : (
-          <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-1.5 opacity-70" loading="lazy" />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold text-zinc-100 group-hover:text-amber-100">{displayName}</div>
-        <div className="mt-0.5 truncate text-xs text-zinc-500">
-          {creator.itemCount} {creator.itemCount === 1 ? 'work' : 'works'}
-          {creator.supportScore > 0 ? ` · ${formatCount(creator.supportScore)} support` : ''}
-          {creator.relationshipScore > 0 ? ` · ${formatCount(creator.relationshipScore)} links` : ''}
-          {creator.postureScore > 0 ? ' · trusted source' : ''}
-        </div>
-      </div>
-    </a>
-  );
-}
-
 function TopActivityBoard({
   surfaces,
-  creators,
+  networkCreators,
 }: {
   surfaces: RankedSurface[];
-  creators: CreatorSpotlight[];
+  networkCreators: CreatorSpotlight[];
 }) {
-  if (surfaces.length === 0 && creators.length === 0) return null;
+  if (surfaces.length === 0 && networkCreators.length === 0) return null;
+  const [hubCreator, ...supportingCreators] = networkCreators;
   return (
     <section className="rounded-3xl border border-zinc-800/90 bg-[radial-gradient(circle_at_10%_0%,rgba(210,166,83,0.18),transparent_30%),linear-gradient(135deg,rgba(24,24,27,0.96),rgba(5,5,6,0.98))] p-3 shadow-2xl shadow-black/40 sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-3 px-1">
@@ -522,29 +499,36 @@ function TopActivityBoard({
           Explore creators
         </a>
       </div>
-      <div className="grid gap-3 lg:grid-cols-[minmax(340px,0.9fr)_minmax(0,1.1fr)]">
-        {creators.length > 0 ? (
-          <section className="rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-3 shadow-xl shadow-black/20">
-            <div className="flex items-center justify-between gap-3 px-1">
-              <div>
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">Top Creators</h2>
-                <p className="mt-1 text-xs text-zinc-500">Ranked by public support, releases, relationships, and recency when available</p>
-              </div>
-              <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
-                Live
-              </span>
-            </div>
-            <div className="mt-3 space-y-2">
-              {creators.slice(0, 7).map((creator, index) => (
-                <CreatorMomentumCard key={`top-creator:${creator.key}`} creator={creator} rank={index + 1} />
+      <div className="grid items-start gap-3 lg:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.25fr)]">
+        {hubCreator ? <HubCreatorCard creator={hubCreator} /> : null}
+
+        <div className="space-y-3">
+          {surfaces.length > 0 ? (
+            <div className="grid gap-3 xl:grid-cols-2">
+              {surfaces.slice(0, 4).map((surface) => (
+                <RankedSurfaceCard key={surface.key} surface={surface} />
               ))}
             </div>
-        </section>
-      ) : null}
-      <div className="grid gap-3 xl:grid-cols-2">
-          {surfaces.slice(0, 4).map((surface, index) => (
-            <RankedSurfaceCard key={surface.key} surface={{ ...surface, large: index === 0 }} />
-          ))}
+          ) : null}
+
+          {supportingCreators.length > 0 ? (
+            <section className="rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-3 shadow-xl shadow-black/20">
+              <div className="flex items-center justify-between gap-3 px-1">
+                <div>
+                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">Active Creators</h2>
+                  <p className="mt-1 text-xs text-zinc-500">Creator cards from public works, recent activity, and available catalogs</p>
+                </div>
+                <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
+                  Network
+                </span>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {supportingCreators.slice(0, 5).map((creator, index) => (
+                  <CreatorClusterCard key={`network-creator:${creator.key}`} creator={creator} index={index + 1} />
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
       </div>
     </section>
@@ -816,7 +800,11 @@ export function HomePage() {
     () => signalCreators.map(signalCreatorToSpotlight).filter((creator): creator is CreatorSpotlight => Boolean(creator)),
     [signalCreators]
   );
-  const homepageCreators = signalCreatorSpotlights.length > 0 ? signalCreatorSpotlights : discoveryView.creatorSpotlights;
+  const networkCreators = discoveryView.creatorSpotlights;
+  const homepageCreators = useMemo(
+    () => mergeCreatorSpotlights(signalCreatorSpotlights, networkCreators),
+    [signalCreatorSpotlights, networkCreators]
+  );
   const freeItems = useMemo(
     () => (topic === 'all' ? sortStableRandom(discoveryView.freeItems, `${randomSeed}:free:view`) : discoveryView.freeItems),
     [discoveryView.freeItems, topic, randomSeed]
@@ -852,35 +840,20 @@ export function HomePage() {
   const topSurfaces = useMemo(() => {
     const scoreFromSignal = (kind: 'support' | 'unlock' | 'moving' | 'connected') => (item: DiscoverableItem) =>
       signalScoreByWork.get(itemKey(item))?.[kind] || 0;
-    const byScore = (scoreFor: (item: DiscoverableItem) => number) => sortNewestFirst(filtered)
-      .filter((item) => scoreFor(item) > 0)
-      .sort((a, b) => {
-        const diff = scoreFor(b) - scoreFor(a);
-        if (diff !== 0) return diff;
-        return itemKey(a).localeCompare(itemKey(b));
-      })
-      .slice(0, 6);
 
-    const topSelling = signalWorks.topSellingItems.length > 0 ? signalWorks.topSellingItems.slice(0, 6) : byScore(publicUnlockScore);
-    const supported = signalWorks.mostSupportedItems.length > 0 ? signalWorks.mostSupportedItems.slice(0, 6) : byScore(publicSupportScore);
+    const topSelling = signalWorks.topSellingItems.slice(0, 6);
+    const supported = signalWorks.mostSupportedItems.slice(0, 6);
     const moving = signalWorks.fastestMovingItems.length > 0 ? signalWorks.fastestMovingItems.slice(0, 6) : [];
     const connected = signalWorks.collaborativeItems.length > 0 ? signalWorks.collaborativeItems.slice(0, 6) : [];
-    const converting = byScore(publicConversionScore);
-    const recent = discoveryView.recentRail?.items || [];
-    const activeWorks = dedupeDiscoveryItems([
-      ...homepageCreators.flatMap((creator) => creator.works),
-      ...recent,
-      ...filtered,
-    ]).slice(0, 6);
 
     const surfaces: RankedSurface[] = [];
     if (topSelling.length > 0) {
       surfaces.push({
         key: 'top-selling',
         title: 'Top Selling',
-        subtitle: signalWorks.topSellingItems.length > 0 ? 'Works with public unlock momentum' : 'Unlockable works with visible creator activity',
+        subtitle: 'Works with public unlock momentum',
         items: topSelling,
-        scoreFor: signalWorks.topSellingItems.length > 0 ? scoreFromSignal('unlock') : publicUnlockScore,
+        scoreFor: scoreFromSignal('unlock'),
         scoreLabel: 'unlock',
       });
     }
@@ -888,9 +861,9 @@ export function HomePage() {
       surfaces.push({
         key: 'top-supported',
         title: 'Most Supported',
-        subtitle: signalWorks.mostSupportedItems.length > 0 ? 'Works with public support momentum' : 'Works with public support or sales momentum',
+        subtitle: 'Works with public support momentum',
         items: supported,
-        scoreFor: signalWorks.mostSupportedItems.length > 0 ? scoreFromSignal('support') : publicSupportScore,
+        scoreFor: scoreFromSignal('support'),
         scoreLabel: 'support',
       });
     }
@@ -904,36 +877,18 @@ export function HomePage() {
         scoreLabel: 'links',
       });
     }
-    if (converting.length > 0) {
-      surfaces.push({
-        key: 'best-converting',
-        title: 'Best Converting',
-        subtitle: 'Works with public conversion-rate signals',
-        items: converting,
-        scoreFor: publicConversionScore,
-        scoreLabel: 'rate',
-      });
-    }
-    if ((moving.length || activeWorks.length) > 0) {
+    if (moving.length > 0) {
       surfaces.push({
         key: 'fastest-moving',
         title: 'Fastest Moving',
-        subtitle: moving.length > 0 ? 'Recent public movement across works and creators' : 'Recent publications and active creator catalogs',
-        items: moving.length > 0 ? moving : activeWorks,
-        scoreFor: moving.length > 0 ? scoreFromSignal('moving') : undefined,
-        scoreLabel: moving.length > 0 ? 'move' : undefined,
-      });
-    }
-    if (recent.length > 0 && surfaces.length < 3) {
-      surfaces.push({
-        key: 'recent-publications',
-        title: 'Recent Publications',
-        subtitle: 'Fresh works from connected creators',
-        items: recent,
+        subtitle: 'Recent public movement across works and creators',
+        items: moving,
+        scoreFor: scoreFromSignal('moving'),
+        scoreLabel: 'move',
       });
     }
     return surfaces.slice(0, 4);
-  }, [discoveryView.recentRail, filtered, homepageCreators, signalScoreByWork, signalWorks]);
+  }, [signalScoreByWork, signalWorks]);
   const hasHomepageContent = filtered.length > 0 || homepageCreators.length > 0 || topSurfaces.some((surface) => surface.items.length > 0);
 
   return (
@@ -989,7 +944,7 @@ export function HomePage() {
         ) : null}
 
         {hasHomepageContent ? (
-          <TopActivityBoard surfaces={topSurfaces} creators={homepageCreators} />
+          <TopActivityBoard surfaces={topSurfaces} networkCreators={networkCreators} />
         ) : null}
 
         <div className="space-y-6">
