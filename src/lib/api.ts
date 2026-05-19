@@ -174,6 +174,7 @@ function normalizeContextArray<T>(value: unknown): T[] {
 }
 
 const creatorAvatarIndexCache = new Map<string, Promise<Map<string, string>>>();
+const creatorProfileAvatarCache = new Map<string, Promise<string>>();
 
 function normalizeHandle(value: string | null | undefined): string {
   return String(value || '').trim().replace(/^@+/, '').toLowerCase();
@@ -210,9 +211,60 @@ async function fetchPublicCreatorAvatar(origin: string | null | undefined, handl
   return byHandle.get(normalizedHandle) || '';
 }
 
+function extractProfileAvatarUrl(html: string, profileUrl: string): string {
+  const candidates = new Set<string>();
+  const avatarPathMatches = html.matchAll(/["']([^"']*\/public\/avatars\/[^"']+)["']/gi);
+  for (const match of avatarPathMatches) {
+    if (match[1]) candidates.add(match[1]);
+  }
+
+  const imageMatches = html.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi);
+  for (const match of imageMatches) {
+    const candidate = match[1] || '';
+    if (/avatar|profile|\/public\/avatars\//i.test(candidate)) candidates.add(candidate);
+  }
+
+  for (const candidate of candidates) {
+    if (!candidate || candidate.startsWith('data:')) continue;
+    try {
+      return new URL(candidate, profileUrl).toString();
+    } catch {
+      // Ignore malformed image references from remote profile HTML.
+    }
+  }
+  return '';
+}
+
+async function fetchPublicProfileAvatar(profileUrl: string | null | undefined): Promise<string> {
+  const normalizedProfileUrl = String(profileUrl || '').trim();
+  if (!normalizedProfileUrl) return '';
+
+  let cached = creatorProfileAvatarCache.get(normalizedProfileUrl);
+  if (!cached) {
+    cached = (async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      try {
+        const res = await fetch(normalizedProfileUrl, { signal: controller.signal });
+        if (!res.ok) return '';
+        const html = await res.text();
+        return extractProfileAvatarUrl(html, normalizedProfileUrl);
+      } catch {
+        return '';
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    })();
+    creatorProfileAvatarCache.set(normalizedProfileUrl, cached);
+  }
+
+  return cached;
+}
+
 async function enrichContextCreatorAvatar<T extends ContentContextCreator | null>(creator: T): Promise<T> {
   if (!creator || creator.avatarUrl) return creator;
-  const avatarUrl = await fetchPublicCreatorAvatar(creator.publicOrigin, creator.handle);
+  const avatarUrl = await fetchPublicCreatorAvatar(creator.publicOrigin, creator.handle)
+    || await fetchPublicProfileAvatar(creator.profileUrl);
   if (!avatarUrl) return creator;
   return {
     ...creator,
