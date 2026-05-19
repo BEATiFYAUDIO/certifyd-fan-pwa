@@ -97,6 +97,27 @@ export function publicSupportScore(item: DiscoverableItem): number {
   ]);
 }
 
+export function publicUnlockScore(item: DiscoverableItem): number {
+  return publicNumberSignal(item, [
+    'unlockCount',
+    'unlocksCount',
+    'purchaseCount',
+    'purchasesCount',
+    'saleCount',
+    'salesCount',
+  ]);
+}
+
+export function publicConversionScore(item: DiscoverableItem): number {
+  return publicNumberSignal(item, [
+    'conversionRate',
+    'conversionScore',
+    'purchaseRate',
+    'unlockRate',
+    'supportRate',
+  ]);
+}
+
 export function publicRelationshipScore(item: DiscoverableItem): number {
   return publicNumberSignal(item, [
     'collaboratorCount',
