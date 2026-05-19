@@ -422,7 +422,7 @@ function RankingRow({
 function RankedSurfaceCard({ surface }: { surface: RankedSurface }) {
   if (surface.items.length === 0) return null;
   return (
-    <section className="min-w-0 overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
+    <section className="mb-2.5 min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:mb-3 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">
         <div className="min-w-0">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">{surface.title}</h2>
@@ -431,7 +431,7 @@ function RankedSurfaceCard({ surface }: { surface: RankedSurface }) {
         <span className="h-2 w-2 shrink-0 rounded-full bg-amber-300/80" aria-hidden="true" />
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-2.5 space-y-1.5 sm:mt-3 sm:space-y-2">
         {surface.items.slice(0, 5).map((item, index) => (
           <RankingRow
             key={`${surface.key}:${itemKey(item)}`}
@@ -489,7 +489,7 @@ function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank:
 function CreatorNetworkCard({ creators }: { creators: CreatorSpotlight[] }) {
   if (creators.length === 0) return null;
   return (
-    <section className="min-w-0 overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
+    <section className="mb-2.5 min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:mb-3 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">
         <div className="min-w-0">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">Active Creator Ecosystems</h2>
@@ -497,7 +497,7 @@ function CreatorNetworkCard({ creators }: { creators: CreatorSpotlight[] }) {
         </div>
         <span className="h-2 w-2 shrink-0 rounded-full bg-amber-300/80" aria-hidden="true" />
       </div>
-      <div className="mt-3 space-y-2">
+      <div className="mt-2.5 space-y-1.5 sm:mt-3 sm:space-y-2">
         {creators.slice(0, 5).map((creator, index) => (
           <CompactCreatorRow key={`active-creator:${creator.key}`} creator={creator} rank={index + 1} />
         ))}
@@ -532,7 +532,7 @@ function TopActivityBoard({
           Explore creators
         </a>
       </div>
-      <div className="grid min-w-0 grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="min-w-0 columns-1 gap-2.5 md:columns-2 xl:columns-3">
         {surfaces.slice(0, 4).map((surface) => (
           <RankedSurfaceCard key={surface.key} surface={surface} />
         ))}
