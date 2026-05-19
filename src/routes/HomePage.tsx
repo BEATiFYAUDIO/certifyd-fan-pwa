@@ -93,18 +93,125 @@ function ContentRail({ rail }: { rail: DiscoveryRail }) {
   );
 }
 
-function CreatorSpotlightCard({ creator }: { creator: CreatorSpotlight }) {
+function creatorBadges(creator: CreatorSpotlight): string[] {
+  const badges: string[] = [];
+  if (creator.supportScore > 0) badges.push(`Supported ${formatCount(creator.supportScore)}`);
+  if (creator.relationshipScore > 0) badges.push(`${formatCount(creator.relationshipScore)} connections`);
+  if (creator.postureScore > 0) badges.push('Trusted source');
+  if (creator.premiumCount > 0) badges.push('Unlockable works');
+  if (creator.freeCount > 0 && creator.premiumCount > 0) badges.push('Free + premium');
+  if (creator.itemCount > 1) badges.push('Active catalog');
+  return badges.slice(0, 5);
+}
+
+function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
-  const topicText = [...creator.topics, ...creator.types].slice(0, 3).join(' / ') || 'published works';
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const [lead, ...rest] = creator.works;
+  const badges = creatorBadges(creator);
   return (
-    <article className="min-w-[310px] max-w-[380px] shrink-0 snap-start rounded-2xl border border-zinc-800/90 bg-zinc-900/70 p-4 shadow-xl shadow-black/20">
-      <div className="flex gap-4">
+    <article className="overflow-hidden rounded-3xl border border-amber-300/20 bg-[radial-gradient(circle_at_20%_0%,rgba(217,180,92,0.18),transparent_36%),linear-gradient(135deg,rgba(24,24,27,0.96),rgba(8,8,9,0.98))] p-4 shadow-2xl shadow-black/30 lg:col-span-2 lg:row-span-2">
+      <div className="flex items-start gap-4">
         <a
           href={creator.profileUrl}
           target="_blank"
           rel="noreferrer"
-          className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800 transition hover:border-amber-300/60"
+          className="h-20 w-20 shrink-0 overflow-hidden rounded-full border border-amber-300/25 bg-zinc-900 transition hover:border-amber-300/70"
+        >
+          {creator.avatarUrl ? (
+            <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+          ) : (
+            <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-2.5 opacity-80" loading="lazy" />
+          )}
+        </a>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-200/75">Hub creator</p>
+          <h3 className="mt-1 truncate text-2xl font-semibold tracking-tight text-zinc-50">{displayName}</h3>
+          <p className="mt-0.5 truncate text-sm text-zinc-400">@{creator.handle}</p>
+          <p className="mt-2 text-sm text-zinc-300">
+            {creator.itemCount} {creator.itemCount === 1 ? 'work' : 'works'}
+            {creator.topics.length || creator.types.length ? ` across ${[...creator.topics, ...creator.types].slice(0, 3).join(' / ')}` : ''}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {badges.map((badge) => (
+              <span
+                key={badge}
+                className="rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-100"
+              >
+                {badge}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-[1.1fr_0.9fr]">
+        {lead ? (
+          <Link
+            to={`/watch/${encodeURIComponent(lead.contentId)}?origin=${encodeURIComponent(lead.publicOrigin)}`}
+            state={{ item: lead }}
+            className="group overflow-hidden rounded-2xl border border-zinc-800 bg-black/30 transition hover:border-amber-300/45"
+          >
+            <div className="aspect-video bg-zinc-950">
+              {lead.coverUrl ? (
+                <img src={lead.coverUrl} alt="" className="h-full w-full object-cover opacity-90 transition group-hover:scale-[1.02]" loading="lazy" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="flex h-full items-center justify-center text-xs uppercase tracking-[0.2em] text-zinc-500">{lead.contentType || 'Work'}</div>
+              )}
+            </div>
+            <div className="p-3">
+              <div className="line-clamp-2 text-base font-semibold text-zinc-100 group-hover:text-amber-100">{lead.title || 'Untitled'}</div>
+              <div className="mt-1 text-xs text-zinc-500">{lead.primaryTopic || lead.contentType || 'publication'}</div>
+            </div>
+          </Link>
+        ) : null}
+        <div className="space-y-2">
+          {rest.slice(0, 3).map((work) => (
+            <Link
+              key={itemKey(work)}
+              to={`/watch/${encodeURIComponent(work.contentId)}?origin=${encodeURIComponent(work.publicOrigin)}`}
+              state={{ item: work }}
+              className="group flex items-center gap-3 rounded-xl border border-zinc-800 bg-black/25 p-2 transition hover:border-amber-300/45"
+            >
+              <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
+                {work.coverUrl ? (
+                  <img src={work.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-[9px] uppercase tracking-wide text-zinc-500">{work.contentType || 'Work'}</div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="line-clamp-1 text-sm font-semibold text-zinc-100 group-hover:text-amber-100">{work.title || 'Untitled'}</div>
+                <div className="mt-0.5 truncate text-xs text-zinc-500">{work.primaryTopic || work.contentType || 'work'}</div>
+              </div>
+            </Link>
+          ))}
+          <a
+            href={creator.profileUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex text-[11px] font-semibold uppercase tracking-wide text-amber-200/85 hover:text-amber-100"
+          >
+            Explore ecosystem →
+          </a>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; index: number }) {
+  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
+  const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const badges = creatorBadges(creator).slice(0, 3);
+  return (
+    <article className={`rounded-2xl border border-zinc-800/90 bg-zinc-900/60 p-3 shadow-xl shadow-black/20 ${index % 3 === 0 ? 'lg:row-span-2' : ''}`}>
+      <div className="flex gap-3">
+        <a
+          href={creator.profileUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800 transition hover:border-amber-300/60"
         >
           {creator.avatarUrl ? (
             <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
@@ -112,53 +219,39 @@ function CreatorSpotlightCard({ creator }: { creator: CreatorSpotlight }) {
             <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-2 opacity-70" loading="lazy" />
           )}
         </a>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="truncate text-base font-semibold text-zinc-100">{displayName}</div>
-          <div className="mt-0.5 truncate text-xs text-zinc-400">@{creator.handle}</div>
+          <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator.handle}</div>
           <div className="mt-1 text-xs text-zinc-400">
-            {creator.itemCount} {creator.itemCount === 1 ? 'publication' : 'publications'} · {topicText}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {creator.supportScore > 0 ? (
-              <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
-                Supported {formatCount(creator.supportScore)}
-              </span>
-            ) : null}
-            {creator.relationshipScore > 0 ? (
-              <span className="rounded-full border border-zinc-600 bg-black/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-300">
-                {formatCount(creator.relationshipScore)} connections
-              </span>
-            ) : null}
-            {creator.itemCount > 1 ? (
-              <span className="rounded-full border border-zinc-700 bg-black/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-                Active catalog
-              </span>
-            ) : null}
+            {creator.itemCount} {creator.itemCount === 1 ? 'work' : 'works'}
           </div>
         </div>
       </div>
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {badges.map((badge) => (
+          <span key={badge} className="rounded-full border border-zinc-700 bg-black/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-300">
+            {badge}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-1.5">
         {creator.works.slice(0, 3).map((work) => (
           <Link
             key={itemKey(work)}
             to={`/watch/${encodeURIComponent(work.contentId)}?origin=${encodeURIComponent(work.publicOrigin)}`}
             state={{ item: work }}
-            className="group flex items-center gap-3 rounded-xl border border-zinc-800 bg-black/20 p-2 transition hover:border-amber-300/40"
+            className="group aspect-square overflow-hidden rounded-xl border border-zinc-800 bg-black/30 transition hover:border-amber-300/45"
+            title={work.title || 'Untitled'}
           >
-            <div className="h-11 w-14 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
-              {work.coverUrl ? (
-                <img src={work.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
-              ) : (
-                <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-wide text-zinc-500">
-                  {work.contentType || 'Work'}
-                </div>
-              )}
-            </div>
-            <div className="min-w-0">
-              <div className="line-clamp-1 text-sm font-semibold text-zinc-100 group-hover:text-amber-100">{work.title || 'Untitled'}</div>
-              <div className="mt-0.5 truncate text-xs text-zinc-500">{work.primaryTopic || 'publication'} · {work.contentType || 'work'}</div>
-            </div>
+            {work.coverUrl ? (
+              <img src={work.coverUrl} alt="" className="h-full w-full object-cover opacity-90 transition group-hover:scale-105" loading="lazy" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="flex h-full items-center justify-center px-1 text-center text-[9px] uppercase tracking-wide text-zinc-500">
+                {work.contentType || 'Work'}
+              </div>
+            )}
           </Link>
         ))}
       </div>
@@ -167,11 +260,25 @@ function CreatorSpotlightCard({ creator }: { creator: CreatorSpotlight }) {
         href={creator.profileUrl}
         target="_blank"
         rel="noreferrer"
-        className="mt-4 inline-flex text-[11px] font-semibold uppercase tracking-wide text-amber-200/85 hover:text-amber-100"
+        className="mt-3 inline-flex text-[11px] font-semibold uppercase tracking-wide text-amber-200/80 hover:text-amber-100"
       >
-        Explore creator →
+        View works →
       </a>
     </article>
+  );
+}
+
+function CreatorEcosystemGrid({ creators }: { creators: CreatorSpotlight[] }) {
+  if (creators.length === 0) return null;
+  const [hub, secondHub, ...rest] = creators;
+  const secondary = [secondHub, ...rest].filter(Boolean) as CreatorSpotlight[];
+  return (
+    <div className="grid auto-rows-fr gap-3 lg:grid-cols-4">
+      <HubCreatorCard creator={hub} />
+      {secondary.slice(0, 7).map((creator, index) => (
+        <CreatorClusterCard key={creator.key} creator={creator} index={index} />
+      ))}
+    </div>
   );
 }
 
@@ -733,12 +840,8 @@ export function HomePage() {
         <div className="space-y-6">
           {discoveryView.creatorSpotlights.length > 0 ? (
             <section id="creator-ecosystems" className="space-y-3 scroll-mt-40">
-              <RailHeader title="Creator Ecosystems" subtitle="Creators with public works, drops, and publications to explore" />
-              <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
-                {discoveryView.creatorSpotlights.map((creator) => (
-                  <CreatorSpotlightCard key={creator.key} creator={creator} />
-                ))}
-              </div>
+              <RailHeader title="Creator Ecosystems" subtitle="Hub creators, connected works, and active public catalogs" />
+              <CreatorEcosystemGrid creators={discoveryView.creatorSpotlights} />
             </section>
           ) : null}
 
