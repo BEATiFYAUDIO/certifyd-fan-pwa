@@ -301,7 +301,6 @@ type RankedSurface = {
   items: DiscoverableItem[];
   scoreFor?: (item: DiscoverableItem) => number;
   scoreLabel?: string;
-  large?: boolean;
 };
 
 function signalNumber(value: unknown): number {
@@ -392,7 +391,7 @@ function RankingRow({
     <Link
       to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
       state={{ item }}
-      className="group flex items-center gap-3 rounded-xl border border-zinc-800 bg-black/25 p-2 transition hover:border-amber-300/45"
+      className="group flex min-w-0 items-center gap-2 rounded-xl border border-zinc-800 bg-black/25 p-2 transition hover:border-amber-300/45 sm:gap-3"
     >
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-amber-300/25 bg-amber-300/10 text-xs font-bold text-amber-100">
         {rank}
@@ -411,7 +410,7 @@ function RankingRow({
         <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator} · {item.primaryTopic || item.contentType || 'work'}</div>
       </div>
       {score && score > 0 ? (
-        <div className="shrink-0 text-right">
+        <div className="hidden shrink-0 text-right min-[380px]:block">
           <div className="text-sm font-bold text-amber-100">{formatCount(score)}</div>
           <div className="text-[9px] uppercase tracking-wide text-zinc-500">{scoreLabel || 'signals'}</div>
         </div>
@@ -422,51 +421,22 @@ function RankingRow({
 
 function RankedSurfaceCard({ surface }: { surface: RankedSurface }) {
   if (surface.items.length === 0) return null;
-  const [lead, ...rest] = surface.items;
-  const leadScore = surface.scoreFor?.(lead) || 0;
   return (
-    <section className={`rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-3 shadow-xl shadow-black/20 ${surface.large ? 'lg:row-span-2' : ''}`}>
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div>
+    <section className="min-w-0 overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
+      <div className="flex min-w-0 items-start justify-between gap-3 px-1">
+        <div className="min-w-0">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">{surface.title}</h2>
           <p className="mt-1 text-xs text-zinc-500">{surface.subtitle}</p>
         </div>
         <span className="h-2 w-2 shrink-0 rounded-full bg-amber-300/80" aria-hidden="true" />
       </div>
 
-      {surface.large ? (
-        <Link
-          to={`/watch/${encodeURIComponent(lead.contentId)}?origin=${encodeURIComponent(lead.publicOrigin)}`}
-          state={{ item: lead }}
-          className="group mt-3 block overflow-hidden rounded-2xl border border-zinc-800 bg-black/30 transition hover:border-amber-300/45"
-        >
-          <div className="aspect-[16/10] bg-zinc-950">
-            {lead.coverUrl ? (
-              <img src={lead.coverUrl} alt="" className="h-full w-full object-cover opacity-90 transition group-hover:scale-[1.02]" loading="lazy" referrerPolicy="no-referrer" />
-            ) : (
-              <div className="flex h-full items-center justify-center px-4 text-center text-xs uppercase tracking-[0.2em] text-zinc-500">
-                {lead.contentType || 'Work'}
-              </div>
-            )}
-          </div>
-          <div className="p-3">
-            <div className="line-clamp-2 text-base font-semibold leading-5 text-zinc-100 group-hover:text-amber-100">{lead.title || 'Untitled'}</div>
-            <div className="mt-1 text-xs text-zinc-500">@{String(lead.creatorHandle || 'creator').replace(/^@+/, '')}</div>
-            {leadScore > 0 ? (
-              <div className="mt-2 inline-flex rounded-full border border-amber-300/25 bg-amber-300/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
-                {formatCount(leadScore)} {surface.scoreLabel || 'signals'}
-              </div>
-            ) : null}
-          </div>
-        </Link>
-      ) : null}
-
       <div className="mt-3 space-y-2">
-        {(surface.large ? rest : surface.items).slice(0, surface.large ? 4 : 5).map((item, index) => (
+        {surface.items.slice(0, 5).map((item, index) => (
           <RankingRow
             key={`${surface.key}:${itemKey(item)}`}
             item={item}
-            rank={surface.large ? index + 2 : index + 1}
+            rank={index + 1}
             score={surface.scoreFor?.(item)}
             scoreLabel={surface.scoreLabel}
           />
@@ -476,19 +446,82 @@ function RankedSurfaceCard({ surface }: { surface: RankedSurface }) {
   );
 }
 
+function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank: number }) {
+  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
+  const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const chips = creatorBadges(creator).slice(0, 2);
+  return (
+    <a
+      href={creator.profileUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="group flex min-w-0 items-center gap-2 rounded-xl border border-zinc-800 bg-black/25 p-2 transition hover:border-amber-300/45 sm:gap-3"
+    >
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950 text-xs font-bold text-zinc-300">
+        {rank}
+      </div>
+      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-900">
+        {creator.avatarUrl ? (
+          <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+        ) : (
+          <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-1.5 opacity-70" loading="lazy" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold text-zinc-100 group-hover:text-amber-100">{displayName}</div>
+        <div className="mt-0.5 truncate text-xs text-zinc-500">
+          @{creator.handle} · {creator.itemCount} {creator.itemCount === 1 ? 'work' : 'works'}
+        </div>
+        {chips.length > 0 ? (
+          <div className="mt-1 flex min-w-0 gap-1 overflow-hidden">
+            {chips.map((chip) => (
+              <span key={chip} className="truncate rounded-full border border-zinc-700 bg-black/30 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-zinc-300">
+                {chip}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </a>
+  );
+}
+
+function CreatorNetworkCard({ creators }: { creators: CreatorSpotlight[] }) {
+  if (creators.length === 0) return null;
+  return (
+    <section className="min-w-0 overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
+      <div className="flex min-w-0 items-start justify-between gap-3 px-1">
+        <div className="min-w-0">
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">Active Creator Ecosystems</h2>
+          <p className="mt-1 text-xs text-zinc-500">Creators with public works, catalog activity, and connected releases</p>
+        </div>
+        <span className="h-2 w-2 shrink-0 rounded-full bg-amber-300/80" aria-hidden="true" />
+      </div>
+      <div className="mt-3 space-y-2">
+        {creators.slice(0, 5).map((creator, index) => (
+          <CompactCreatorRow key={`active-creator:${creator.key}`} creator={creator} rank={index + 1} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function TopActivityBoard({
   surfaces,
   networkCreators,
+  recentItems,
+  unlockableItems,
 }: {
   surfaces: RankedSurface[];
   networkCreators: CreatorSpotlight[];
+  recentItems: DiscoverableItem[];
+  unlockableItems: DiscoverableItem[];
 }) {
-  if (surfaces.length === 0 && networkCreators.length === 0) return null;
-  const [hubCreator, ...supportingCreators] = networkCreators;
+  if (surfaces.length === 0 && networkCreators.length === 0 && recentItems.length === 0 && unlockableItems.length === 0) return null;
   return (
-    <section className="rounded-3xl border border-zinc-800/90 bg-[radial-gradient(circle_at_10%_0%,rgba(210,166,83,0.18),transparent_30%),linear-gradient(135deg,rgba(24,24,27,0.96),rgba(5,5,6,0.98))] p-3 shadow-2xl shadow-black/40 sm:p-4">
+    <section className="w-full min-w-0 overflow-hidden rounded-3xl border border-zinc-800/90 bg-[radial-gradient(circle_at_10%_0%,rgba(210,166,83,0.18),transparent_30%),linear-gradient(135deg,rgba(24,24,27,0.96),rgba(5,5,6,0.98))] p-2.5 shadow-2xl shadow-black/40 sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-3 px-1">
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-200/80">Creator economy board</p>
           <h1 className="mt-1 text-lg font-semibold tracking-tight text-zinc-50 sm:text-xl">Ranked creators, works, and momentum</h1>
         </div>
@@ -499,37 +532,31 @@ function TopActivityBoard({
           Explore creators
         </a>
       </div>
-      <div className="grid items-start gap-3 lg:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.25fr)]">
-        {hubCreator ? <HubCreatorCard creator={hubCreator} /> : null}
-
-        <div className="space-y-3">
-          {surfaces.length > 0 ? (
-            <div className="grid gap-3 xl:grid-cols-2">
-              {surfaces.slice(0, 4).map((surface) => (
-                <RankedSurfaceCard key={surface.key} surface={surface} />
-              ))}
-            </div>
-          ) : null}
-
-          {supportingCreators.length > 0 ? (
-            <section className="rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-3 shadow-xl shadow-black/20">
-              <div className="flex items-center justify-between gap-3 px-1">
-                <div>
-                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">Active Creators</h2>
-                  <p className="mt-1 text-xs text-zinc-500">Creator cards from public works, recent activity, and available catalogs</p>
-                </div>
-                <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
-                  Network
-                </span>
-              </div>
-              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {supportingCreators.slice(0, 5).map((creator, index) => (
-                  <CreatorClusterCard key={`network-creator:${creator.key}`} creator={creator} index={index + 1} />
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </div>
+      <div className="grid min-w-0 grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {surfaces.slice(0, 4).map((surface) => (
+          <RankedSurfaceCard key={surface.key} surface={surface} />
+        ))}
+        <CreatorNetworkCard creators={networkCreators} />
+        {recentItems.length > 0 ? (
+          <RankedSurfaceCard
+            surface={{
+              key: 'recently-added',
+              title: 'Recently Added',
+              subtitle: 'Fresh public works from active creators',
+              items: recentItems,
+            }}
+          />
+        ) : null}
+        {unlockableItems.length > 0 ? (
+          <RankedSurfaceCard
+            surface={{
+              key: 'unlockable-works',
+              title: 'Unlockable Works',
+              subtitle: 'Premium works to explore here and unlock on creator pages',
+              items: unlockableItems,
+            }}
+          />
+        ) : null}
       </div>
     </section>
   );
@@ -889,6 +916,8 @@ export function HomePage() {
     }
     return surfaces.slice(0, 4);
   }, [signalScoreByWork, signalWorks]);
+  const boardRecentItems = useMemo(() => (discoveryView.recentRail?.items || []).slice(0, 5), [discoveryView.recentRail]);
+  const boardUnlockableItems = useMemo(() => lockedItems.slice(0, 5), [lockedItems]);
   const hasHomepageContent = filtered.length > 0 || homepageCreators.length > 0 || topSurfaces.some((surface) => surface.items.length > 0);
 
   return (
@@ -944,7 +973,12 @@ export function HomePage() {
         ) : null}
 
         {hasHomepageContent ? (
-          <TopActivityBoard surfaces={topSurfaces} networkCreators={networkCreators} />
+          <TopActivityBoard
+            surfaces={topSurfaces}
+            networkCreators={networkCreators}
+            recentItems={boardRecentItems}
+            unlockableItems={boardUnlockableItems}
+          />
         ) : null}
 
         <div className="space-y-6">
