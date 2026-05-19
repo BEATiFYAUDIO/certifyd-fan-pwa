@@ -452,7 +452,7 @@ function RankingRow({
 function RankedSurfaceCard({ surface }: { surface: RankedSurface }) {
   if (surface.items.length === 0) return null;
   return (
-    <section className="mb-2.5 min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:mb-3 sm:p-3">
+    <section className="min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">
         <div className="min-w-0">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">{surface.title}</h2>
@@ -519,7 +519,7 @@ function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank:
 function CreatorNetworkCard({ creators }: { creators: CreatorSpotlight[] }) {
   if (creators.length === 0) return null;
   return (
-    <section className="mb-2.5 min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:mb-3 sm:p-3">
+    <section className="min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">
         <div className="min-w-0">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">Active Creator Ecosystems</h2>
@@ -562,7 +562,7 @@ function TopActivityBoard({
           Explore creators
         </a>
       </div>
-      <div className="min-w-0 columns-1 gap-2.5 md:columns-2 xl:columns-3">
+      <div className="grid min-w-0 auto-rows-auto grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
         {surfaces.slice(0, 4).map((surface) => (
           <RankedSurfaceCard key={surface.key} surface={surface} />
         ))}
@@ -899,7 +899,6 @@ export function HomePage() {
       signalScoreByWork.get(itemKey(item))?.[kind] || 0;
 
     const topSelling = signalWorks.topSellingItems.slice(0, 6);
-    const supported = signalWorks.mostSupportedItems.slice(0, 6);
     const moving = signalWorks.fastestMovingItems.length > 0 ? signalWorks.fastestMovingItems.slice(0, 6) : [];
     const connected = signalWorks.collaborativeItems.length > 0 ? signalWorks.collaborativeItems.slice(0, 6) : [];
 
@@ -912,16 +911,6 @@ export function HomePage() {
         items: topSelling,
         scoreFor: scoreFromSignal('unlock'),
         scoreLabel: 'unlock',
-      });
-    }
-    if (supported.length > 0) {
-      surfaces.push({
-        key: 'top-supported',
-        title: 'Most Supported',
-        subtitle: 'Works with public support momentum',
-        items: supported,
-        scoreFor: scoreFromSignal('support'),
-        scoreLabel: 'support',
       });
     }
     if (connected.length > 0) {
@@ -944,7 +933,7 @@ export function HomePage() {
         scoreLabel: 'move',
       });
     }
-    return surfaces.slice(0, 4);
+    return surfaces.slice(0, 3);
   }, [signalScoreByWork, signalWorks]);
   const boardRecentItems = useMemo(() => (discoveryView.recentRail?.items || []).slice(0, 5), [discoveryView.recentRail]);
   const boardUnlockableItems = useMemo(() => lockedItems.slice(0, 5), [lockedItems]);
