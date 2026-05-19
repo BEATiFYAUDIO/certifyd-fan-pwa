@@ -1,5 +1,5 @@
 import type { DiscoverableItem } from './types';
-import { isRenderableDiscoveryItem } from './discoveryGuard';
+import { isLockedOrPremium, isRenderableDiscoveryItem } from './discoveryGuard';
 
 export type DiscoveryRail = {
   key: string;
@@ -217,8 +217,8 @@ export function buildCreatorSpotlights(items: DiscoverableItem[], limit = 6): Cr
       avatarUrl,
       profileUrl: `${first.publicOrigin.replace(/\/+$/, '')}/u/${encodeURIComponent(handle)}`,
       itemCount: rows.length,
-      freeCount: rows.filter((item) => item.accessMode === 'unlocked' || item.accessMode === 'owned').length,
-      premiumCount: rows.filter((item) => item.accessMode === 'locked').length,
+      freeCount: rows.filter((item) => !isLockedOrPremium(item) && (item.accessMode === 'unlocked' || item.accessMode === 'owned')).length,
+      premiumCount: rows.filter((item) => isLockedOrPremium(item)).length,
       topics,
       latestTitle: first.title || 'Untitled',
     };
@@ -227,8 +227,8 @@ export function buildCreatorSpotlights(items: DiscoverableItem[], limit = 6): Cr
 
 export function buildHomeDiscoveryViewModel(items: DiscoverableItem[]): HomeDiscoveryViewModel {
   const safe = dedupeDiscoveryItems(items);
-  const freeItems = safe.filter((item) => item.accessMode === 'unlocked' || item.accessMode === 'owned');
-  const lockedItems = safe.filter((item) => item.accessMode === 'locked');
+  const freeItems = safe.filter((item) => !isLockedOrPremium(item) && (item.accessMode === 'unlocked' || item.accessMode === 'owned'));
+  const lockedItems = safe.filter((item) => isLockedOrPremium(item));
   const recent = sortNewestFirst(safe).slice(0, MAX_RAIL_ITEMS);
   const hasRealTime = recent.some((item) => itemSortTime(item) > 0);
   const dynamicRails = buildDynamicRails(safe);

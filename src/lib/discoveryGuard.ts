@@ -27,3 +27,11 @@ export function canOpenCreator(item: DiscoverableItem | null | undefined): boole
   return Boolean(item && hasHttpUrl(item.buyUrl));
 }
 
+export function isLockedOrPremium(item: DiscoverableItem | null | undefined): boolean {
+  if (!item) return false;
+  return item.accessMode === 'locked' || Number(item.priceSats || 0) > 0;
+}
+
+export function canPlayInFan(item: DiscoverableItem | null | undefined): boolean {
+  return Boolean(item) && !isLockedOrPremium(item);
+}

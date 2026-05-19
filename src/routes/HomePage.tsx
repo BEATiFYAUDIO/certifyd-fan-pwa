@@ -5,7 +5,7 @@ import { TopicRail } from '../components/TopicRail';
 import { fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
 import type { DiscoverableItem, OriginFeedState, Topic } from '../lib/types';
-import { isRenderableDiscoveryItem } from '../lib/discoveryGuard';
+import { isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import {
   buildHomeDiscoveryViewModel,
   dedupeDiscoveryItems,
@@ -307,8 +307,8 @@ export function HomePage() {
       if (!isRenderableDiscoveryItem(it)) return false;
       return searchableText(it).includes(q);
     });
-    const freeLaneBase = searched.filter((it) => it.accessMode === 'unlocked' || it.accessMode === 'owned');
-    const lockedLaneBase = searched.filter((it) => it.accessMode === 'locked');
+    const freeLaneBase = searched.filter((it) => !isLockedOrPremium(it) && (it.accessMode === 'unlocked' || it.accessMode === 'owned'));
+    const lockedLaneBase = searched.filter((it) => isLockedOrPremium(it));
     const freeLane = topic === 'all' ? sortStableRandom(freeLaneBase, `${randomSeed}:free`) : freeLaneBase;
     const lockedLane = topic === 'all' ? sortStableRandom(lockedLaneBase, `${randomSeed}:locked`) : lockedLaneBase;
     return [...freeLane, ...lockedLane];
@@ -334,6 +334,10 @@ export function HomePage() {
       return true;
     }).slice(0, 5);
   }, [discoveryView]);
+  const creatorCount = useMemo(() => {
+    const keys = new Set(filtered.map((item) => `${item.publicOrigin}::${String(item.creatorHandle || '').replace(/^@+/, '').toLowerCase()}`));
+    return keys.size;
+  }, [filtered]);
 
   return (
     <main className="app-shell min-h-screen text-zinc-100">
@@ -385,6 +389,26 @@ export function HomePage() {
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 text-sm text-zinc-300">
             No discoverable content yet.
           </div>
+        ) : null}
+
+        {filtered.length > 0 ? (
+          <section className="rounded-2xl border border-zinc-800/90 bg-[radial-gradient(circle_at_18%_0%,rgba(210,166,83,0.16),transparent_34%),linear-gradient(135deg,rgba(24,24,27,0.92),rgba(9,9,11,0.96))] p-4 shadow-2xl shadow-black/30 sm:p-5">
+            <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/80">Creator ecosystems</p>
+                <h1 className="mt-2 max-w-2xl text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">
+                  Discover works through the people and creators around them.
+                </h1>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">
+                  Open a work to explore who made it, what else they worked on, and related publications from connected creator origins.
+                </p>
+              </div>
+              <div className="flex gap-2 text-xs text-zinc-300">
+                <span className="rounded-full border border-zinc-700/80 bg-black/25 px-3 py-1.5">{filtered.length} works</span>
+                <span className="rounded-full border border-zinc-700/80 bg-black/25 px-3 py-1.5">{creatorCount} creators</span>
+              </div>
+            </div>
+          </section>
         ) : null}
 
         <div className="space-y-6">

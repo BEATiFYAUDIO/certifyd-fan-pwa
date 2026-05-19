@@ -44,3 +44,59 @@ export type OriginFeedState = {
   loading: boolean;
   error: string | null;
 };
+
+export type ContentContextCreator = {
+  handle: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  profileUrl: string | null;
+  publicOrigin: string | null;
+};
+
+export type ContentContextPerson = ContentContextCreator & {
+  role: string | null;
+  relationshipLabel: string;
+};
+
+export type ContentContextWork = {
+  contentId: string;
+  title: string;
+  contentType: string;
+  primaryTopic: string | null;
+  coverUrl: string | null;
+  previewUrl: string | null;
+  publicUrl: string | null;
+  creator: ContentContextCreator | null;
+  relationshipLabel: string;
+};
+
+export type ContentRelationshipContext = {
+  contentId: string;
+  publicOrigin: string | null;
+  title: string;
+  contentType: string;
+  primaryTopic: string | null;
+  creator: ContentContextCreator | null;
+  peopleBehindThis: ContentContextPerson[];
+  featuring: ContentContextPerson[];
+  createdWith: ContentContextPerson[];
+  builtFrom: ContentContextWork[];
+  derivedFrom: ContentContextWork[];
+  worksThatBuiltOnThis: ContentContextWork[];
+  moreTheyWorkedOn: ContentContextWork[];
+  relatedWorks: ContentContextWork[];
+  connectedCreators: ContentContextCreator[];
+  provenance?: {
+    hasManifest?: boolean;
+    hasLockedProof?: boolean;
+    proofVersion?: number | null;
+    lockedAt?: string | null;
+  } | null;
+  origin?: {
+    origin?: string | null;
+    displayHost?: string | null;
+    health?: string | null;
+    trust?: string | null;
+  } | null;
+  generatedAt?: string;
+};

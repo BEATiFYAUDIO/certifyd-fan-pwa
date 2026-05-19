@@ -1,21 +1,21 @@
 import { Link } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import type { DiscoverableItem } from '../lib/types';
-import { canOpenCreator } from '../lib/discoveryGuard';
+import { canOpenCreator, isLockedOrPremium } from '../lib/discoveryGuard';
 
 function modeMetaText(mode: DiscoverableItem['accessMode'], priceSats: number) {
-  if (mode === 'locked') return `${priceSats} sats`;
+  if (mode === 'locked' || Number(priceSats || 0) > 0) return `${priceSats} sats`;
   if (mode === 'owned') return 'Owned';
   return 'Free';
 }
 
-function ctaLabel(mode: DiscoverableItem['accessMode']) {
-  if (mode === 'locked') return 'Unlock on Creator';
+function ctaLabel(item: DiscoverableItem) {
+  if (isLockedOrPremium(item)) return 'Unlock on Creator';
   return 'Open on Creator';
 }
 
 function primaryLabel(item: DiscoverableItem): string {
-  if (item.accessMode === 'locked') return 'Premium';
+  if (isLockedOrPremium(item)) return 'Premium';
   if (item.accessMode === 'owned') return 'Owned';
   return 'Free';
 }
@@ -51,8 +51,9 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
   const source = sourceLabel(item.publicOrigin);
   const metadata = `${item.primaryTopic || 'topic'} · ${item.contentType} · ${modeMetaText(item.accessMode, item.priceSats)}`;
   const normalizedType = String(item.contentType || '').toLowerCase();
+  const lockedForFan = isLockedOrPremium(item);
   const prefersPreviewFirst = normalizedType === 'video';
-  const canShowVideo = prefersPreviewFirst && Boolean(item.previewUrl) && !videoFailed;
+  const canShowVideo = !lockedForFan && prefersPreviewFirst && Boolean(item.previewUrl) && !videoFailed;
   const canShowImage = Boolean(item.coverUrl) && !imageFailed;
   const hasMedia = canShowVideo || canShowImage;
   const avatarUrl =
@@ -62,7 +63,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
     item.avatarUrl ||
     '';
   const canShowAvatar = Boolean(avatarUrl) && !avatarFailed;
-  const mediaHref = item.accessMode === 'locked' && canOpenCreator(item) ? item.buyUrl : watchHref;
+  const mediaHref = watchHref;
   const mediaIsExternal = mediaHref === item.buyUrl;
   const avatarGradient = useMemo(() => {
     const seed = creator.toLowerCase().charCodeAt(0) || 0;
@@ -82,7 +83,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
           <div className="relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5 group-hover:ring-zinc-600">
             <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                item.accessMode === 'locked'
+                lockedForFan
                   ? 'border border-amber-300/45 bg-amber-300/15 text-amber-100'
                   : 'border border-slate-300/45 bg-slate-300/10 text-slate-100'
               }`}>
@@ -138,7 +139,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
         <div className="relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5 group-hover:ring-zinc-600">
           <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-              item.accessMode === 'locked'
+              lockedForFan
                 ? 'border border-amber-300/45 bg-amber-300/15 text-amber-100'
                 : 'border border-slate-300/45 bg-slate-300/10 text-slate-100'
             }`}>
@@ -253,7 +254,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
               if (!canOpenCreator(item)) e.preventDefault();
             }}
           >
-            {ctaLabel(item.accessMode)}
+            {ctaLabel(item)}
           </a>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import type { DiscoverableItem } from '../lib/types';
+import { isLockedOrPremium } from '../lib/discoveryGuard';
 
 function avatarInitials(handle: string | null): string {
   const raw = String(handle || '').replace(/^@+/, '').trim();
@@ -33,10 +34,11 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
     '';
   const canShowAvatar = Boolean(avatarUrl) && !avatarFailed;
   const normalizedType = String(item.contentType || '').toLowerCase();
+  const lockedForFan = isLockedOrPremium(item);
   const isVideo = normalizedType === 'video';
   const meta = [item.primaryTopic, item.contentType].filter(Boolean).join(' · ');
 
-  const canShowVideo = isVideo && Boolean(item.previewUrl) && !videoFailed;
+  const canShowVideo = !lockedForFan && isVideo && Boolean(item.previewUrl) && !videoFailed;
   const canShowImage = Boolean(item.coverUrl) && !imageFailed;
 
   const avatarGradient = useMemo(() => {

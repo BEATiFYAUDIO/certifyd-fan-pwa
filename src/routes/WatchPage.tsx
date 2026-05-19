@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { FeedCard } from '../components/FeedCard';
-import { fetchDiscoverablePage } from '../lib/api';
+import { fetchContentContext, fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
-import type { DiscoverableItem, Topic } from '../lib/types';
-import { canOpenCreator, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
+import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem, Topic } from '../lib/types';
+import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { buildWatchDiscoveryRails, dedupeDiscoveryItems, sortNewestFirst, type DiscoveryRail } from '../lib/discoveryViewModel';
 
-function ctaLabel(mode: DiscoverableItem['accessMode']) {
-  if (mode === 'locked') return 'Unlock on Creator';
+function ctaLabel(item: DiscoverableItem) {
+  if (isLockedOrPremium(item)) return 'Unlock on Creator';
   return 'Open on Creator';
 }
 
@@ -121,7 +121,7 @@ async function loadFreebies(topic: Topic): Promise<DiscoverableItem[]> {
   const rows: DiscoverableItem[] = rowsByOrigin.flat();
   const seen = new Map<string, DiscoverableItem>();
   for (const it of rows) {
-    if (!(it.accessMode === 'unlocked' || it.accessMode === 'owned')) continue;
+    if (isLockedOrPremium(it) || !(it.accessMode === 'unlocked' || it.accessMode === 'owned')) continue;
     const key = `${it.publicOrigin}::${it.contentId}`;
     if (!seen.has(key)) seen.set(key, it);
   }
@@ -173,6 +173,295 @@ function ExplorationRail({ rail }: { rail: DiscoveryRail }) {
   );
 }
 
+function personKey(person: ContentContextPerson | ContentContextCreator): string {
+  return `${person.profileUrl || ''}|${person.handle || ''}|${person.displayName || ''}`.toLowerCase();
+}
+
+function workKey(work: ContentContextWork): string {
+  return `${work.contentId}|${work.publicUrl || ''}`;
+}
+
+function dedupePeople<T extends ContentContextPerson | ContentContextCreator>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const row of rows) {
+    const key = personKey(row);
+    if (!key.trim() || seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
+function dedupeWorks(rows: ContentContextWork[], exclude = new Set<string>()): ContentContextWork[] {
+  const seen = new Set<string>(exclude);
+  const out: ContentContextWork[] = [];
+  for (const row of rows) {
+    const key = workKey(row);
+    if (!key.trim() || seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
+function RelationshipSection({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-zinc-800/80 bg-zinc-900/35 p-4">
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-100">{title}</h2>
+        {subtitle ? <p className="mt-1 text-xs text-zinc-400">{subtitle}</p> : null}
+      </div>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function PeopleList({ people }: { people: ContentContextPerson[] }) {
+  if (!people.length) return null;
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {people.map((person) => {
+        const label = person.displayName || person.handle || 'Contributor';
+        const handle = person.handle ? `@${String(person.handle).replace(/^@+/, '')}` : null;
+        const body = (
+          <div className="flex min-w-0 items-center gap-3 rounded-xl border border-zinc-800 bg-black/25 p-3 transition hover:border-amber-300/40">
+            {person.avatarUrl ? (
+              <img src={person.avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-zinc-700 object-cover" loading="lazy" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-xs font-bold text-amber-200">
+                {label.slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-zinc-100">{label}</div>
+              <div className="truncate text-xs text-zinc-400">
+                {person.relationshipLabel || person.role || 'Contributor'}{handle ? ` • ${handle}` : ''}
+              </div>
+            </div>
+          </div>
+        );
+        return person.profileUrl ? (
+          <a key={personKey(person)} href={person.profileUrl} target="_blank" rel="noreferrer" className="block">
+            {body}
+          </a>
+        ) : (
+          <div key={personKey(person)}>{body}</div>
+        );
+      })}
+    </div>
+  );
+}
+
+function WorksList({ works }: { works: ContentContextWork[] }) {
+  if (!works.length) return null;
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {works.map((work) => {
+        const creator = work.creator?.displayName || work.creator?.handle || 'Creator';
+        const body = (
+          <div className="overflow-hidden rounded-xl border border-zinc-800 bg-black/25 transition hover:border-amber-300/40">
+            <div className="aspect-video bg-zinc-950">
+              {work.coverUrl ? (
+                <img src={work.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="flex h-full items-center justify-center px-3 text-center text-xs uppercase tracking-[0.18em] text-zinc-500">
+                  {work.contentType || 'Work'}
+                </div>
+              )}
+            </div>
+            <div className="space-y-1 p-3">
+              <div className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100">{work.title || 'Untitled work'}</div>
+              <div className="truncate text-xs text-zinc-400">{creator} • {work.contentType || 'work'}</div>
+              <div className="truncate text-xs font-semibold text-amber-200/90">{work.relationshipLabel || 'Related work'}</div>
+            </div>
+          </div>
+        );
+        return work.publicUrl ? (
+          <a key={workKey(work)} href={work.publicUrl} target="_blank" rel="noreferrer" className="block">
+            {body}
+          </a>
+        ) : (
+          <div key={workKey(work)}>{body}</div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ConnectedCreators({ creators }: { creators: ContentContextCreator[] }) {
+  const rows = dedupePeople(creators).slice(0, 8);
+  if (!rows.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {rows.map((creator) => {
+        const label = creator.displayName || creator.handle || 'Creator';
+        const chip = (
+          <span className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-black/25 px-3 py-2 text-sm text-zinc-200 hover:border-amber-300/50">
+            {creator.avatarUrl ? <img src={creator.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : null}
+            <span>{label}</span>
+          </span>
+        );
+        return creator.profileUrl ? (
+          <a key={personKey(creator)} href={creator.profileUrl} target="_blank" rel="noreferrer">
+            {chip}
+          </a>
+        ) : (
+          <span key={personKey(creator)}>{chip}</span>
+        );
+      })}
+    </div>
+  );
+}
+
+function RelationshipContextSections({ context }: { context: ContentRelationshipContext | null }) {
+  if (!context) return null;
+
+  const peopleBehindThis = dedupePeople(context.peopleBehindThis || []).slice(0, 12);
+  const featuring = dedupePeople(context.featuring || []).slice(0, 8);
+  const createdWith = dedupePeople(context.createdWith || []).slice(0, 10);
+  const builtFrom = dedupeWorks(context.builtFrom || []).slice(0, 12);
+  const builtFromKeys = new Set(builtFrom.map(workKey));
+  const derivedFrom = dedupeWorks(context.derivedFrom || [], builtFromKeys).slice(0, 12);
+  const worksThatBuiltOnThis = dedupeWorks(context.worksThatBuiltOnThis || []).slice(0, 12);
+  const moreTheyWorkedOn = dedupeWorks(context.moreTheyWorkedOn || []).slice(0, 8);
+  const excludedRelated = new Set([...builtFrom, ...derivedFrom, ...worksThatBuiltOnThis, ...moreTheyWorkedOn].map(workKey));
+  const relatedWorks = dedupeWorks(context.relatedWorks || [], excludedRelated).slice(0, 8);
+  const connectedCreators = dedupePeople(context.connectedCreators || []).slice(0, 8);
+
+  const hasAny =
+    peopleBehindThis.length ||
+    featuring.length ||
+    createdWith.length ||
+    builtFrom.length ||
+    derivedFrom.length ||
+    worksThatBuiltOnThis.length ||
+    moreTheyWorkedOn.length ||
+    relatedWorks.length ||
+    connectedCreators.length;
+
+  if (!hasAny) return null;
+
+  return (
+    <div className="mt-8 space-y-6 border-t border-zinc-800 pt-6">
+      <div>
+        <h2 className="text-base font-semibold text-zinc-100">Explore the connections</h2>
+        <p className="mt-1 text-sm text-zinc-400">Creators, collaborators, and related works around this publication.</p>
+      </div>
+
+      {peopleBehindThis.length ? (
+        <RelationshipSection title="People Behind This">
+          <PeopleList people={peopleBehindThis} />
+        </RelationshipSection>
+      ) : null}
+
+      {featuring.length ? (
+        <RelationshipSection title="Featuring">
+          <PeopleList people={featuring} />
+        </RelationshipSection>
+      ) : null}
+
+      {createdWith.length ? (
+        <RelationshipSection title="Created With">
+          <PeopleList people={createdWith} />
+        </RelationshipSection>
+      ) : null}
+
+      {builtFrom.length ? (
+        <RelationshipSection title="Built From" subtitle="Works explicitly connected as source or upstream material.">
+          <WorksList works={builtFrom} />
+        </RelationshipSection>
+      ) : null}
+
+      {derivedFrom.length ? (
+        <RelationshipSection title="Derived From">
+          <WorksList works={derivedFrom} />
+        </RelationshipSection>
+      ) : null}
+
+      {worksThatBuiltOnThis.length ? (
+        <RelationshipSection title="Works That Built On This">
+          <WorksList works={worksThatBuiltOnThis} />
+        </RelationshipSection>
+      ) : null}
+
+      {moreTheyWorkedOn.length ? (
+        <RelationshipSection title="More They Worked On">
+          <WorksList works={moreTheyWorkedOn} />
+        </RelationshipSection>
+      ) : null}
+
+      {relatedWorks.length ? (
+        <RelationshipSection title="Related Works">
+          <WorksList works={relatedWorks} />
+        </RelationshipSection>
+      ) : null}
+
+      {connectedCreators.length ? (
+        <RelationshipSection title="Connected Creators">
+          <ConnectedCreators creators={connectedCreators} />
+        </RelationshipSection>
+      ) : null}
+    </div>
+  );
+}
+
+function FreebiesRelationshipPanel({ context, open, onToggle }: { context: ContentRelationshipContext | null; open: boolean; onToggle: () => void }) {
+  if (!context) return null;
+  const peopleBehindThis = dedupePeople(context.peopleBehindThis || []).slice(0, 6);
+  const moreTheyWorkedOn = dedupeWorks(context.moreTheyWorkedOn || []).slice(0, 4);
+  const excludedRelated = new Set(moreTheyWorkedOn.map(workKey));
+  const relatedWorks = dedupeWorks(context.relatedWorks || [], excludedRelated).slice(0, 4);
+  const hasAny = peopleBehindThis.length || moreTheyWorkedOn.length || relatedWorks.length;
+  if (!hasAny) return null;
+
+  return (
+    <div
+      className="absolute inset-x-3 z-30 rounded-2xl border border-zinc-700/80 bg-black/80 p-3 shadow-2xl backdrop-blur-md md:left-auto md:right-4 md:w-[420px]"
+      style={{ bottom: 'calc(7.25rem + env(safe-area-inset-bottom, 0px))' }}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <span>
+          <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">Explore this work</span>
+          <span className="mt-1 block text-xs text-zinc-300">People and related works</span>
+        </span>
+        <span className="rounded-full border border-zinc-600 px-2 py-1 text-xs font-semibold text-zinc-200">
+          {open ? 'Hide' : 'Open'}
+        </span>
+      </button>
+
+      {open ? (
+        <div className="mt-3 max-h-[48vh] space-y-4 overflow-y-auto pr-1">
+          {peopleBehindThis.length ? (
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-300">People Behind This</div>
+              <PeopleList people={peopleBehindThis} />
+            </div>
+          ) : null}
+
+          {moreTheyWorkedOn.length ? (
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-300">More They Worked On</div>
+              <WorksList works={moreTheyWorkedOn} />
+            </div>
+          ) : null}
+
+          {relatedWorks.length ? (
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-300">Related Works</div>
+              <WorksList works={relatedWorks} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function FreebiesWatch({
   contentId,
   topic,
@@ -188,6 +477,8 @@ function FreebiesWatch({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [relationshipContextState, setRelationshipContextState] = useState<{ key: string; context: ContentRelationshipContext | null } | null>(null);
+  const [relationshipOpenKey, setRelationshipOpenKey] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Array<HTMLElement | null>>([]);
 
@@ -266,6 +557,29 @@ function FreebiesWatch({
     });
   }, [activeIndex, items]);
 
+  const activeItem = items[activeIndex] || null;
+  const activeItemKey = activeItem ? `${activeItem.publicOrigin}::${activeItem.contentId}` : null;
+
+  useEffect(() => {
+    let active = true;
+    if (!activeItem || !activeItemKey) return;
+    void fetchContentContext({ origin: activeItem.publicOrigin, contentId: activeItem.contentId })
+      .then((context) => {
+        if (!active) return;
+        setRelationshipContextState({ key: activeItemKey, context });
+      })
+      .catch(() => {
+        if (!active) return;
+        setRelationshipContextState({ key: activeItemKey, context: null });
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeItem, activeItemKey]);
+
+  const activeRelationshipContext =
+    activeItemKey && relationshipContextState?.key === activeItemKey ? relationshipContextState.context : null;
+
   return (
     <main className="h-[100dvh] overflow-hidden bg-black text-white">
       <div className="fixed left-3 z-40" style={{ top: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
@@ -281,8 +595,9 @@ function FreebiesWatch({
         <div ref={scrollerRef} className="h-[100dvh] snap-y snap-mandatory overflow-y-auto overscroll-y-contain">
           {items.map((it, index) => {
             const normalizedType = String(it.contentType || '').toLowerCase();
-            const isVideo = normalizedType === 'video' && Boolean(it.previewUrl);
-            const isSong = (normalizedType === 'song' || normalizedType === 'audio') && Boolean(it.previewUrl);
+            const lockedForFan = isLockedOrPremium(it);
+            const isVideo = !lockedForFan && normalizedType === 'video' && Boolean(it.previewUrl);
+            const isSong = !lockedForFan && (normalizedType === 'song' || normalizedType === 'audio') && Boolean(it.previewUrl);
             const visualSrc = isVideo ? (it.previewUrl || it.coverUrl || '') : (it.coverUrl || '');
             return (
               <section
@@ -337,10 +652,20 @@ function FreebiesWatch({
                       rel="noreferrer"
                       className="shrink-0 rounded-xl bg-amber-300 px-4 py-2 text-sm font-bold text-zinc-950 hover:bg-amber-200"
                     >
-                      {ctaLabel(it.accessMode)}
+                      {ctaLabel(it)}
                     </a>
                   ) : null}
                 </div>
+
+                {index === activeIndex ? (
+                  <FreebiesRelationshipPanel
+                    context={activeRelationshipContext}
+                    open={relationshipOpenKey === activeItemKey}
+                    onToggle={() => {
+                      setRelationshipOpenKey((current) => (current === activeItemKey ? null : activeItemKey));
+                    }}
+                  />
+                ) : null}
               </section>
             );
           })}
@@ -364,6 +689,7 @@ function StandardWatch({
   const [error, setError] = useState<string | null>(null);
   const [credits, setCredits] = useState<CreditItem[]>([]);
   const [discoveryItems, setDiscoveryItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
+  const [relationshipContextState, setRelationshipContextState] = useState<{ key: string; context: ContentRelationshipContext | null } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -434,11 +760,32 @@ function StandardWatch({
     };
   }, [item]);
 
+  useEffect(() => {
+    let active = true;
+    if (!item) return;
+    const key = `${item.publicOrigin}::${item.contentId}`;
+    void fetchContentContext({ origin: item.publicOrigin, contentId: item.contentId })
+      .then((context) => {
+        if (!active) return;
+        setRelationshipContextState({ key, context });
+      })
+      .catch(() => {
+        if (!active) return;
+        setRelationshipContextState({ key, context: null });
+      });
+    return () => {
+      active = false;
+    };
+  }, [item]);
+
   const shareUrl = useMemo(() => item?.buyUrl || window.location.href, [item]);
   const explorationRails = useMemo(() => {
     if (!item) return [];
     return buildWatchDiscoveryRails(item, discoveryItems);
   }, [item, discoveryItems]);
+  const relationshipContext = item && relationshipContextState?.key === `${item.publicOrigin}::${item.contentId}`
+    ? relationshipContextState.context
+    : null;
 
   async function onShare() {
     if (!item) return;
@@ -480,6 +827,41 @@ function StandardWatch({
                 const normalizedType = String(item.contentType || '').toLowerCase();
                 const isSong = normalizedType === 'song' || normalizedType === 'audio';
                 const isVideo = normalizedType === 'video';
+                const lockedForFan = isLockedOrPremium(item);
+                if (lockedForFan) {
+                  return (
+                    <div className="overflow-hidden rounded-2xl border border-amber-300/20 bg-zinc-900">
+                      <div className="relative flex min-h-[45vh] items-center justify-center overflow-hidden bg-black">
+                        {item.coverUrl ? (
+                          <img src={item.coverUrl} alt={item.title} className="h-full w-full max-h-[70vh] object-contain opacity-90" />
+                        ) : (
+                          <div className="flex h-[50vh] w-full flex-col items-center justify-center px-4 text-center text-zinc-500">
+                            <div className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-200/80">Premium Work</div>
+                            <div className="mt-2 max-w-sm text-sm text-zinc-400">Official playback is available on the creator page.</div>
+                          </div>
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-5">
+                          <div className="max-w-xl">
+                            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200/90">Official access required</div>
+                            <p className="mt-2 text-sm text-zinc-200">
+                              Fan discovery can show context and artwork for this work. Unlock and protected playback stay on the official creator page.
+                            </p>
+                            {canOpenCreator(item) ? (
+                              <a
+                                href={item.buyUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-4 inline-flex rounded-xl bg-amber-300 px-4 py-2 text-sm font-bold text-zinc-950 hover:bg-amber-200"
+                              >
+                                Unlock on Creator
+                              </a>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
                 if (isSong) {
                   return (
                     <div className="space-y-3 overflow-hidden rounded-2xl bg-zinc-900 p-4">
@@ -550,6 +932,7 @@ function StandardWatch({
                   })}
                 </div>
               </section>
+              <RelationshipContextSections context={relationshipContext} />
             </section>
 
             <aside className="space-y-3">
@@ -566,7 +949,7 @@ function StandardWatch({
                   if (!canOpenCreator(item)) e.preventDefault();
                 }}
               >
-                {ctaLabel(item.accessMode)}
+                {ctaLabel(item)}
               </a>
               <button
                 onClick={() => {
