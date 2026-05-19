@@ -23,6 +23,7 @@ export type CreatorSpotlight = {
   works: DiscoverableItem[];
   supportScore: number;
   relationshipScore: number;
+  postureScore: number;
   activeScore: number;
   latestTitle: string;
 };
@@ -131,6 +132,22 @@ export function publicRelationshipScore(item: DiscoverableItem): number {
     'relatedWorkCount',
     'relationshipCount',
   ]);
+}
+
+function publicPostureScore(item: DiscoverableItem): number {
+  const record = item as unknown as Record<string, unknown>;
+  const originHealth = text(item.originHealth).toLowerCase();
+  const originTrust = text(item.originTrust).toLowerCase();
+  const posture = text(record.creatorPosture || record.posture || record.originPosture || record.commercePosture).toLowerCase();
+  const commerceCapable = Boolean(record.commerceCapable || record.canSell || record.canPurchase || record.offerUrl || item.offerUrl || item.buyUrl);
+  let score = 0;
+  if (originHealth === 'healthy' || originHealth === 'online' || originHealth === 'reachable') score += 8;
+  if (originTrust === 'stable' || originTrust === 'trusted') score += 6;
+  if (originTrust === 'provider') score += 5;
+  if (commerceCapable) score += 4;
+  if (posture.includes('provider') || posture.includes('verified')) score += 3;
+  if (posture.includes('creator') || posture.includes('commerce')) score += 2;
+  return score;
 }
 
 export function itemSortTime(item: DiscoverableItem): number {
@@ -282,8 +299,18 @@ export function buildCreatorSpotlights(items: DiscoverableItem[], limit = 6): Cr
     const scoreFor = (rows: DiscoverableItem[]) => {
       const support = rows.reduce((sum, item) => sum + publicSupportScore(item), 0);
       const relationships = rows.reduce((sum, item) => sum + publicRelationshipScore(item), 0);
+      const posture = rows.reduce((sum, item) => sum + publicPostureScore(item), 0);
+      const premium = rows.filter((item) => isLockedOrPremium(item)).length;
+      const topics = new Set(rows.map((item) => text(item.primaryTopic)).filter(Boolean)).size;
+      const types = new Set(rows.map((item) => text(item.contentType)).filter(Boolean)).size;
       const latest = Math.max(...rows.map(itemSortTime), 0);
-      return rows.length * 10000000000000 + support * 100000000 + relationships * 1000000 + latest;
+      return rows.length * 10000000000000
+        + support * 100000000
+        + relationships * 1000000
+        + posture * 100000
+        + premium * 50000
+        + (topics + types) * 10000
+        + latest;
     };
     return scoreFor(b[1]) - scoreFor(a[1]);
   }).slice(0, limit).map(([key, rows]) => {
@@ -295,6 +322,7 @@ export function buildCreatorSpotlights(items: DiscoverableItem[], limit = 6): Cr
     const types = [...new Set(sorted.map((item) => displayType(text(item.contentType))).filter(Boolean))].slice(0, 2);
     const supportScore = rows.reduce((sum, item) => sum + publicSupportScore(item), 0);
     const relationshipScore = rows.reduce((sum, item) => sum + publicRelationshipScore(item), 0);
+    const postureScore = rows.reduce((sum, item) => sum + publicPostureScore(item), 0);
     return {
       key,
       handle,
@@ -309,7 +337,8 @@ export function buildCreatorSpotlights(items: DiscoverableItem[], limit = 6): Cr
       works: sorted.slice(0, 3),
       supportScore,
       relationshipScore,
-      activeScore: rows.length + supportScore + relationshipScore,
+      postureScore,
+      activeScore: rows.length + supportScore + relationshipScore + postureScore,
       latestTitle: first.title || 'Untitled',
     };
   });

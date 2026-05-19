@@ -311,6 +311,7 @@ function CreatorMomentumCard({ creator, rank }: { creator: CreatorSpotlight; ran
           {creator.itemCount} {creator.itemCount === 1 ? 'work' : 'works'}
           {creator.supportScore > 0 ? ` · ${formatCount(creator.supportScore)} support` : ''}
           {creator.relationshipScore > 0 ? ` · ${formatCount(creator.relationshipScore)} links` : ''}
+          {creator.postureScore > 0 ? ' · trusted source' : ''}
         </div>
       </div>
     </a>
