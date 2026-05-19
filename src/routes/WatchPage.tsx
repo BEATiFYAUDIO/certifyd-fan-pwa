@@ -205,6 +205,24 @@ function dedupeWorks(rows: ContentContextWork[], exclude = new Set<string>()): C
   return out;
 }
 
+function isUpstreamPerson(person: ContentContextPerson): boolean {
+  return /^upstream\b/i.test(person.relationshipLabel || '');
+}
+
+function isLowValueGenericPerson(person: ContentContextPerson | ContentContextCreator): boolean {
+  const display = String(person.displayName || '').trim().toLowerCase();
+  const handle = String(person.handle || '').trim();
+  return display === 'contributor' && !handle && !person.profileUrl && !person.avatarUrl;
+}
+
+function filterDisplayPeople(rows: ContentContextPerson[]): ContentContextPerson[] {
+  return rows.filter((person) => !isLowValueGenericPerson(person));
+}
+
+function filterDisplayCreators(rows: ContentContextCreator[]): ContentContextCreator[] {
+  return rows.filter((creator) => !isLowValueGenericPerson(creator));
+}
+
 function RelationshipSection({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
     <section className="rounded-2xl border border-zinc-800/80 bg-zinc-900/35 p-4">
@@ -317,17 +335,21 @@ function ConnectedCreators({ creators }: { creators: ContentContextCreator[] }) 
 function RelationshipContextSections({ context }: { context: ContentRelationshipContext | null }) {
   if (!context) return null;
 
-  const peopleBehindThis = dedupePeople(context.peopleBehindThis || []).slice(0, 12);
-  const featuring = dedupePeople(context.featuring || []).slice(0, 8);
-  const createdWith = dedupePeople(context.createdWith || []).slice(0, 10);
-  const builtFrom = dedupeWorks(context.builtFrom || []).slice(0, 12);
-  const builtFromKeys = new Set(builtFrom.map(workKey));
-  const derivedFrom = dedupeWorks(context.derivedFrom || [], builtFromKeys).slice(0, 12);
+  const peopleBehindThis = filterDisplayPeople(
+    dedupePeople(context.peopleBehindThis || []).filter((person) => !isUpstreamPerson(person)),
+  ).slice(0, 12);
+  const featuring = filterDisplayPeople(dedupePeople(context.featuring || [])).slice(0, 8);
+  const createdWith = filterDisplayPeople(
+    dedupePeople(context.createdWith || []).filter((person) => !isUpstreamPerson(person) && person.relationshipLabel !== 'Creator'),
+  ).slice(0, 10);
+  const derivedFrom = dedupeWorks(context.derivedFrom || []).slice(0, 12);
+  const derivedFromKeys = new Set(derivedFrom.map(workKey));
+  const builtFrom = dedupeWorks(context.builtFrom || [], derivedFromKeys).slice(0, 12);
   const worksThatBuiltOnThis = dedupeWorks(context.worksThatBuiltOnThis || []).slice(0, 12);
   const moreTheyWorkedOn = dedupeWorks(context.moreTheyWorkedOn || []).slice(0, 8);
-  const excludedRelated = new Set([...builtFrom, ...derivedFrom, ...worksThatBuiltOnThis, ...moreTheyWorkedOn].map(workKey));
+  const excludedRelated = new Set([...derivedFrom, ...builtFrom, ...worksThatBuiltOnThis, ...moreTheyWorkedOn].map(workKey));
   const relatedWorks = dedupeWorks(context.relatedWorks || [], excludedRelated).slice(0, 8);
-  const connectedCreators = dedupePeople(context.connectedCreators || []).slice(0, 8);
+  const connectedCreators = filterDisplayCreators(dedupePeople(context.connectedCreators || [])).slice(0, 8);
 
   const hasAny =
     peopleBehindThis.length ||
@@ -349,33 +371,21 @@ function RelationshipContextSections({ context }: { context: ContentRelationship
         <p className="mt-1 text-sm text-zinc-400">Creators, collaborators, and related works around this publication.</p>
       </div>
 
-      {peopleBehindThis.length ? (
-        <RelationshipSection title="People Behind This">
-          <PeopleList people={peopleBehindThis} />
-        </RelationshipSection>
-      ) : null}
-
-      {featuring.length ? (
-        <RelationshipSection title="Featuring">
-          <PeopleList people={featuring} />
-        </RelationshipSection>
-      ) : null}
-
-      {createdWith.length ? (
-        <RelationshipSection title="Created With">
-          <PeopleList people={createdWith} />
+      {derivedFrom.length ? (
+        <RelationshipSection title="Derived From" subtitle="Original or upstream works this publication is connected to.">
+          <WorksList works={derivedFrom} />
         </RelationshipSection>
       ) : null}
 
       {builtFrom.length ? (
-        <RelationshipSection title="Built From" subtitle="Works explicitly connected as source or upstream material.">
+        <RelationshipSection title="Built From" subtitle="Additional source material connected to this work.">
           <WorksList works={builtFrom} />
         </RelationshipSection>
       ) : null}
 
-      {derivedFrom.length ? (
-        <RelationshipSection title="Derived From">
-          <WorksList works={derivedFrom} />
+      {connectedCreators.length ? (
+        <RelationshipSection title="Connected Creators">
+          <ConnectedCreators creators={connectedCreators} />
         </RelationshipSection>
       ) : null}
 
@@ -397,9 +407,21 @@ function RelationshipContextSections({ context }: { context: ContentRelationship
         </RelationshipSection>
       ) : null}
 
-      {connectedCreators.length ? (
-        <RelationshipSection title="Connected Creators">
-          <ConnectedCreators creators={connectedCreators} />
+      {peopleBehindThis.length ? (
+        <RelationshipSection title="People Behind This">
+          <PeopleList people={peopleBehindThis} />
+        </RelationshipSection>
+      ) : null}
+
+      {featuring.length ? (
+        <RelationshipSection title="Featuring">
+          <PeopleList people={featuring} />
+        </RelationshipSection>
+      ) : null}
+
+      {createdWith.length ? (
+        <RelationshipSection title="Created With">
+          <PeopleList people={createdWith} />
         </RelationshipSection>
       ) : null}
     </div>
@@ -408,11 +430,15 @@ function RelationshipContextSections({ context }: { context: ContentRelationship
 
 function FreebiesRelationshipPanel({ context, open, onToggle }: { context: ContentRelationshipContext | null; open: boolean; onToggle: () => void }) {
   if (!context) return null;
-  const peopleBehindThis = dedupePeople(context.peopleBehindThis || []).slice(0, 6);
+  const peopleBehindThis = filterDisplayPeople(
+    dedupePeople(context.peopleBehindThis || []).filter((person) => !isUpstreamPerson(person)),
+  ).slice(0, 6);
+  const derivedFrom = dedupeWorks(context.derivedFrom || []).slice(0, 4);
+  const connectedCreators = filterDisplayCreators(dedupePeople(context.connectedCreators || [])).slice(0, 6);
   const moreTheyWorkedOn = dedupeWorks(context.moreTheyWorkedOn || []).slice(0, 4);
-  const excludedRelated = new Set(moreTheyWorkedOn.map(workKey));
+  const excludedRelated = new Set([...derivedFrom, ...moreTheyWorkedOn].map(workKey));
   const relatedWorks = dedupeWorks(context.relatedWorks || [], excludedRelated).slice(0, 4);
-  const hasAny = peopleBehindThis.length || moreTheyWorkedOn.length || relatedWorks.length;
+  const hasAny = derivedFrom.length || connectedCreators.length || peopleBehindThis.length || moreTheyWorkedOn.length || relatedWorks.length;
   if (!hasAny) return null;
 
   return (
@@ -436,6 +462,20 @@ function FreebiesRelationshipPanel({ context, open, onToggle }: { context: Conte
 
       {open ? (
         <div className="mt-3 max-h-[48vh] space-y-4 overflow-y-auto pr-1">
+          {derivedFrom.length ? (
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-300">Derived From</div>
+              <WorksList works={derivedFrom} />
+            </div>
+          ) : null}
+
+          {connectedCreators.length ? (
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-300">Connected Creators</div>
+              <ConnectedCreators creators={connectedCreators} />
+            </div>
+          ) : null}
+
           {peopleBehindThis.length ? (
             <div>
               <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-300">People Behind This</div>
