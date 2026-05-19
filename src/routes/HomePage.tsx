@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FeedCard } from '../components/FeedCard';
 import { ShortsCard } from '../components/ShortsCard';
 import { TopicRail } from '../components/TopicRail';
@@ -65,6 +66,10 @@ function RailHeader({ title, subtitle, badge }: { title: string; subtitle: strin
   );
 }
 
+function itemKey(item: DiscoverableItem): string {
+  return `${item.publicOrigin}::${item.contentId}`;
+}
+
 function ContentRail({ rail }: { rail: DiscoveryRail }) {
   if (rail.items.length === 0) return null;
   return (
@@ -81,33 +86,92 @@ function ContentRail({ rail }: { rail: DiscoveryRail }) {
 
 function CreatorSpotlightCard({ creator }: { creator: CreatorSpotlight }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
-  const topicText = creator.topics.length > 0 ? creator.topics.join(' / ') : 'published works';
+  const topicText = [...creator.topics, ...creator.types].slice(0, 3).join(' / ') || 'published works';
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   return (
-    <a
-      href={creator.profileUrl}
-      target="_blank"
-      rel="noreferrer"
-      className="group flex min-w-[260px] max-w-[320px] shrink-0 snap-start gap-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/70 p-4 transition hover:-translate-y-0.5 hover:border-amber-300/40 hover:bg-zinc-900"
+    <article className="min-w-[310px] max-w-[380px] shrink-0 snap-start rounded-2xl border border-zinc-800/90 bg-zinc-900/70 p-4 shadow-xl shadow-black/20">
+      <div className="flex gap-4">
+        <a
+          href={creator.profileUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800 transition hover:border-amber-300/60"
+        >
+          {creator.avatarUrl ? (
+            <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+          ) : (
+            <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-2 opacity-70" loading="lazy" />
+          )}
+        </a>
+        <div className="min-w-0">
+          <div className="truncate text-base font-semibold text-zinc-100">{displayName}</div>
+          <div className="mt-0.5 truncate text-xs text-zinc-400">@{creator.handle}</div>
+          <div className="mt-1 text-xs text-zinc-400">
+            {creator.itemCount} {creator.itemCount === 1 ? 'publication' : 'publications'} · {topicText}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {creator.works.slice(0, 3).map((work) => (
+          <Link
+            key={itemKey(work)}
+            to={`/watch/${encodeURIComponent(work.contentId)}?origin=${encodeURIComponent(work.publicOrigin)}`}
+            state={{ item: work }}
+            className="group flex items-center gap-3 rounded-xl border border-zinc-800 bg-black/20 p-2 transition hover:border-amber-300/40"
+          >
+            <div className="h-11 w-14 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
+              {work.coverUrl ? (
+                <img src={work.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-wide text-zinc-500">
+                  {work.contentType || 'Work'}
+                </div>
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="line-clamp-1 text-sm font-semibold text-zinc-100 group-hover:text-amber-100">{work.title || 'Untitled'}</div>
+              <div className="mt-0.5 truncate text-xs text-zinc-500">{work.primaryTopic || 'publication'} · {work.contentType || 'work'}</div>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <a
+        href={creator.profileUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-4 inline-flex text-[11px] font-semibold uppercase tracking-wide text-amber-200/85 hover:text-amber-100"
+      >
+        Explore creator →
+      </a>
+    </article>
+  );
+}
+
+function HeroConnectionCard({ item }: { item: DiscoverableItem }) {
+  const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
+  return (
+    <Link
+      to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
+      state={{ item }}
+      className="group overflow-hidden rounded-2xl border border-zinc-800/90 bg-black/35 transition hover:-translate-y-0.5 hover:border-amber-300/45"
     >
-      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800">
-        {creator.avatarUrl ? (
-          <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+      <div className="aspect-video bg-zinc-950">
+        {item.coverUrl ? (
+          <img src={item.coverUrl} alt="" className="h-full w-full object-cover opacity-90 transition group-hover:scale-[1.02]" loading="lazy" referrerPolicy="no-referrer" />
         ) : (
-          <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-2 opacity-70" loading="lazy" />
+          <div className="flex h-full items-center justify-center px-3 text-center text-xs uppercase tracking-[0.18em] text-zinc-500">
+            {item.contentType || 'Work'}
+          </div>
         )}
       </div>
-      <div className="min-w-0">
-        <div className="truncate text-sm font-semibold text-zinc-100">{displayName}</div>
-        <div className="mt-0.5 truncate text-xs text-zinc-400">@{creator.handle}</div>
-        <div className="mt-1 text-xs text-zinc-400">
-          {creator.itemCount} {creator.itemCount === 1 ? 'publication' : 'publications'} · {topicText}
-        </div>
-        <div className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-amber-200/85">
-          Explore →
-        </div>
+      <div className="p-3">
+        <div className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100">{item.title || 'Untitled'}</div>
+        <div className="mt-1 text-xs text-zinc-400">by @{creator}</div>
+        <div className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-amber-200/85">Explore connections →</div>
       </div>
-    </a>
+    </Link>
   );
 }
 
@@ -323,21 +387,32 @@ export function HomePage() {
     [discoveryView.lockedItems, topic, randomSeed]
   );
   const secondaryRails = useMemo(() => {
+    const primaryKeys = new Set<string>();
+    [...freeItems.slice(0, 8), ...lockedItems.slice(0, 8), ...(discoveryView.recentRail?.items || [])]
+      .forEach((item) => primaryKeys.add(itemKey(item)));
+
     const rails: DiscoveryRail[] = [];
-    if (discoveryView.recentRail) rails.push(discoveryView.recentRail);
     rails.push(...discoveryView.dynamicRails);
     const seen = new Set<string>();
-    return rails.filter((rail) => {
+    return rails.map((rail) => ({
+      ...rail,
+      items: rail.items.filter((item) => !primaryKeys.has(itemKey(item))),
+    })).filter((rail) => {
+      if (rail.items.length < 3) return false;
       const signature = rail.items.map((item) => `${item.publicOrigin}:${item.contentId}`).join('|');
       if (!signature || seen.has(signature)) return false;
       seen.add(signature);
       return true;
-    }).slice(0, 5);
-  }, [discoveryView]);
+    }).slice(0, 3);
+  }, [discoveryView, freeItems, lockedItems]);
   const creatorCount = useMemo(() => {
     const keys = new Set(filtered.map((item) => `${item.publicOrigin}::${String(item.creatorHandle || '').replace(/^@+/, '').toLowerCase()}`));
     return keys.size;
   }, [filtered]);
+  const heroWorks = useMemo(() => {
+    const fromCreators = discoveryView.creatorSpotlights.flatMap((creator) => creator.works);
+    return dedupeDiscoveryItems(fromCreators.length ? fromCreators : filtered).slice(0, 3);
+  }, [discoveryView.creatorSpotlights, filtered]);
 
   return (
     <main className="app-shell min-h-screen text-zinc-100">
@@ -392,31 +467,54 @@ export function HomePage() {
         ) : null}
 
         {filtered.length > 0 ? (
-          <section className="rounded-2xl border border-zinc-800/90 bg-[radial-gradient(circle_at_18%_0%,rgba(210,166,83,0.16),transparent_34%),linear-gradient(135deg,rgba(24,24,27,0.92),rgba(9,9,11,0.96))] p-4 shadow-2xl shadow-black/30 sm:p-5">
-            <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+          <section className="overflow-hidden rounded-3xl border border-zinc-800/90 bg-[radial-gradient(circle_at_12%_10%,rgba(210,166,83,0.2),transparent_32%),radial-gradient(circle_at_84%_18%,rgba(56,49,38,0.4),transparent_34%),linear-gradient(135deg,rgba(24,24,27,0.94),rgba(5,5,6,0.98))] p-4 shadow-2xl shadow-black/40 sm:p-6">
+            <div className="grid gap-6 lg:grid-cols-[1fr_460px] lg:items-center">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/80">Creator ecosystems</p>
-                <h1 className="mt-2 max-w-2xl text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">
-                  Discover works through the people and creators around them.
+                <h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-zinc-50 sm:text-5xl">
+                  Every work opens into people, creators, and related publications.
                 </h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">
-                  Open a work to explore who made it, what else they worked on, and related publications from connected creator origins.
+                <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-300 sm:text-base">
+                  Start with a drop, then follow the creator. Open any work to see who is behind it, what else they worked on, and where it connects.
                 </p>
+                <div className="mt-5 flex flex-wrap gap-2 text-xs text-zinc-300">
+                  <span className="rounded-full border border-zinc-700/80 bg-black/25 px-3 py-1.5">{filtered.length} works</span>
+                  <span className="rounded-full border border-zinc-700/80 bg-black/25 px-3 py-1.5">{creatorCount} creators</span>
+                  <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1.5 text-amber-100">relationship-first discovery</span>
+                </div>
+                <a
+                  href="#creator-ecosystems"
+                  className="mt-6 inline-flex rounded-xl bg-amber-300 px-4 py-2 text-sm font-bold text-zinc-950 hover:bg-amber-200"
+                >
+                  Explore creators
+                </a>
               </div>
-              <div className="flex gap-2 text-xs text-zinc-300">
-                <span className="rounded-full border border-zinc-700/80 bg-black/25 px-3 py-1.5">{filtered.length} works</span>
-                <span className="rounded-full border border-zinc-700/80 bg-black/25 px-3 py-1.5">{creatorCount} creators</span>
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                {heroWorks.map((item) => (
+                  <HeroConnectionCard key={`hero:${itemKey(item)}`} item={item} />
+                ))}
               </div>
             </div>
           </section>
         ) : null}
 
         <div className="space-y-6">
+          {discoveryView.creatorSpotlights.length > 0 ? (
+            <section id="creator-ecosystems" className="space-y-3 scroll-mt-40">
+              <RailHeader title="Creator Ecosystems" subtitle="Creators with public works, drops, and publications to explore" />
+              <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+                {discoveryView.creatorSpotlights.map((creator) => (
+                  <CreatorSpotlightCard key={creator.key} creator={creator} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           {freeItems.length > 0 ? (
             <section className="space-y-3">
-              <RailHeader title="Free Drops" subtitle="Open and playable works from across the network" badge="Open" />
+              <RailHeader title="Free Drops" subtitle="Open works fans can play while exploring creators" badge="Open" />
               <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
-                {freeItems.map((item) => {
+                {freeItems.slice(0, 12).map((item) => {
                   const watchParams = new URLSearchParams({
                     origin: item.publicOrigin,
                     mode: 'freebies',
@@ -430,27 +528,18 @@ export function HomePage() {
             </section>
           ) : null}
 
-          {discoveryView.creatorSpotlights.length > 0 ? (
-            <section className="space-y-3">
-              <RailHeader title="Creator Spotlights" subtitle="Explore people publishing across Certifyd" />
-              <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
-                {discoveryView.creatorSpotlights.map((creator) => (
-                  <CreatorSpotlightCard key={creator.key} creator={creator} />
-                ))}
-              </div>
-            </section>
-          ) : null}
-
           {lockedItems.length > 0 ? (
             <section className="space-y-3">
-              <RailHeader title="Premium Works" subtitle="Unlock paid publications and creator products" badge="Lightning" />
+              <RailHeader title="Premium Works" subtitle="Explore context here, unlock on the official creator page" badge="Lightning" />
               <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {lockedItems.map((item) => (
+                {lockedItems.slice(0, 8).map((item) => (
                   <FeedCard key={`${item.publicOrigin}:${item.contentId}`} item={item} />
                 ))}
               </div>
             </section>
           ) : null}
+
+          {discoveryView.recentRail ? <ContentRail rail={discoveryView.recentRail} /> : null}
 
           {secondaryRails.map((rail) => (
             <ContentRail key={rail.key} rail={rail} />

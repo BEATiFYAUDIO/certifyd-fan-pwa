@@ -19,6 +19,8 @@ export type CreatorSpotlight = {
   freeCount: number;
   premiumCount: number;
   topics: string[];
+  types: string[];
+  works: DiscoverableItem[];
   latestTitle: string;
 };
 
@@ -34,8 +36,8 @@ export type HomeDiscoveryViewModel = {
 };
 
 const MAX_RAIL_ITEMS = 8;
-const MAX_DYNAMIC_RAILS = 4;
-const MIN_DYNAMIC_RAIL_ITEMS = 3;
+const MAX_DYNAMIC_RAILS = 3;
+const MIN_DYNAMIC_RAIL_ITEMS = 4;
 const MIN_WATCH_RAIL_ITEMS = 2;
 const HUMAN_TYPE_LABELS: Record<string, string> = {
   song: 'Music',
@@ -157,8 +159,8 @@ function buildDynamicRails(safe: DiscoverableItem[]): DiscoveryRail[] {
     const label = displayTopic(topic);
     candidates.push({
       key: `topic:${topic}`,
-      title: label,
-      subtitle: `Fresh works in ${label.toLowerCase()}`,
+      title: `Connected by ${label}`,
+      subtitle: `Works sharing a ${label.toLowerCase()} thread`,
       items: sortNewestFirst(uniqueItems(rows)).slice(0, MAX_RAIL_ITEMS),
       layout: 'grid',
     });
@@ -168,8 +170,8 @@ function buildDynamicRails(safe: DiscoverableItem[]): DiscoveryRail[] {
     const label = displayType(type);
     candidates.push({
       key: `type:${type}`,
-      title: label,
-      subtitle: 'Browse by format',
+      title: `${label} to Explore`,
+      subtitle: 'Publications connected by format',
       items: sortNewestFirst(uniqueItems(rows)).slice(0, MAX_RAIL_ITEMS),
       layout: 'grid',
     });
@@ -179,8 +181,8 @@ function buildDynamicRails(safe: DiscoverableItem[]): DiscoveryRail[] {
   if (stableOriginItems.length >= MIN_DYNAMIC_RAIL_ITEMS) {
     candidates.push({
       key: 'stable-origins',
-      title: 'Reliable Sources',
-      subtitle: 'Works from currently healthy creator origins',
+      title: 'Active Creator Sources',
+      subtitle: 'Works from currently reachable creator homes',
       items: sortNewestFirst(uniqueItems(stableOriginItems)).slice(0, MAX_RAIL_ITEMS),
       layout: 'grid',
     });
@@ -210,6 +212,7 @@ export function buildCreatorSpotlights(items: DiscoverableItem[], limit = 6): Cr
     const handle = text(first.creatorHandle).replace(/^@+/, '') || 'creator';
     const avatarUrl = first.creatorAvatarUrl || first.creatorProfileImageUrl || first.profileImageUrl || first.avatarUrl || '';
     const topics = [...new Set(sorted.map((item) => text(item.primaryTopic)).filter(Boolean))].slice(0, 2);
+    const types = [...new Set(sorted.map((item) => displayType(text(item.contentType))).filter(Boolean))].slice(0, 2);
     return {
       key,
       handle,
@@ -220,6 +223,8 @@ export function buildCreatorSpotlights(items: DiscoverableItem[], limit = 6): Cr
       freeCount: rows.filter((item) => !isLockedOrPremium(item) && (item.accessMode === 'unlocked' || item.accessMode === 'owned')).length,
       premiumCount: rows.filter((item) => isLockedOrPremium(item)).length,
       topics,
+      types,
+      works: sorted.slice(0, 3),
       latestTitle: first.title || 'Untitled',
     };
   });
