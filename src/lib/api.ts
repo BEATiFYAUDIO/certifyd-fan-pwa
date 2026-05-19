@@ -70,6 +70,13 @@ function normalizeSignalWork(value: DiscoverySignalWork, origin: string): Discov
     coverUrl: resolveUrl(value.coverUrl, publicOrigin),
     previewUrl: resolveUrl(value.previewUrl, publicOrigin),
     creatorAvatarUrl: resolveUrl(value.creatorAvatarUrl, publicOrigin),
+    contributors: Array.isArray(value.contributors)
+      ? value.contributors.slice(0, 4).map((contributor) => ({
+          ...contributor,
+          avatarUrl: resolveUrl(contributor.avatarUrl, publicOrigin),
+          profileUrl: resolveUrl(contributor.profileUrl, publicOrigin),
+        }))
+      : [],
   };
 }
 

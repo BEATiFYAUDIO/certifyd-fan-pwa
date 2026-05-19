@@ -30,6 +30,7 @@ export type DiscoverableItem = {
   discoveryStatus?: 'live' | 'relegated' | 'unpublished' | 'unavailable' | null;
   originTrust?: 'stable' | 'ephemeral' | 'provider' | null;
   originHealth?: 'healthy' | 'failed' | 'cooldown' | 'unknown' | null;
+  contributors?: DiscoverySignalContributor[];
 };
 
 export type DiscoverableResponse = {
@@ -129,6 +130,15 @@ export type DiscoverySignalWork = {
     fastestMovingScore?: number;
   };
   labels?: string[];
+  contributors?: DiscoverySignalContributor[];
+};
+
+export type DiscoverySignalContributor = {
+  displayName: string | null;
+  handle: string | null;
+  avatarUrl: string | null;
+  profileUrl: string | null;
+  role: string | null;
 };
 
 export type DiscoverySignalCreator = {

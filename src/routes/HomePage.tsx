@@ -330,6 +330,7 @@ function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableIt
     accessMode: work.accessMode || 'unlocked',
     publicOrigin: work.publicOrigin,
     creatorAvatarUrl: work.creatorAvatarUrl || null,
+    contributors: Array.isArray(work.contributors) ? work.contributors.slice(0, 4) : [],
     discoveryStatus: 'live',
     originHealth: 'healthy',
   };
@@ -387,6 +388,7 @@ function RankingRow({
   scoreLabel?: string;
 }) {
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
+  const contributors = Array.isArray(item.contributors) ? item.contributors.slice(0, 4) : [];
   return (
     <Link
       to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
@@ -408,6 +410,34 @@ function RankingRow({
       <div className="min-w-0 flex-1">
         <div className="line-clamp-1 text-sm font-semibold text-zinc-100 group-hover:text-amber-100">{item.title || 'Untitled'}</div>
         <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator} · {item.primaryTopic || item.contentType || 'work'}</div>
+        {contributors.length > 0 ? (
+          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">With</span>
+            {contributors.slice(0, 3).map((contributor) => {
+              const label = contributor.displayName || contributor.handle || 'Contributor';
+              const handle = contributor.handle ? contributor.handle.replace(/^@+/, '') : '';
+              return (
+                <span
+                  key={`${itemKey(item)}:${label}:${contributor.role || ''}`}
+                  className="inline-flex max-w-[9rem] items-center gap-1 rounded-full border border-zinc-700/80 bg-zinc-900/80 py-0.5 pl-1 pr-2 text-[10px] text-zinc-300"
+                  title={[label, contributor.role].filter(Boolean).join(' · ')}
+                >
+                  <span className="h-4 w-4 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800">
+                    {contributor.avatarUrl ? (
+                      <img src={contributor.avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="flex h-full w-full items-center justify-center text-[8px] font-bold text-amber-200">
+                        {label.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                  </span>
+                  <span className="truncate">{handle || label}</span>
+                  {contributor.role ? <span className="hidden text-zinc-500 min-[440px]:inline">· {contributor.role}</span> : null}
+                </span>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
       {score && score > 0 ? (
         <div className="hidden shrink-0 text-right min-[380px]:block">
