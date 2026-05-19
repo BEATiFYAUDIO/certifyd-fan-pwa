@@ -55,13 +55,13 @@ function toErrorMessage(error: unknown): string {
 
 function RailHeader({ title, subtitle, badge }: { title: string; subtitle: string; badge?: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 px-1">
-      <div>
-        <h2 className="section-title text-sm font-semibold uppercase tracking-[0.2em] text-zinc-100">{title}</h2>
-        <p className="section-subtitle mt-1 text-xs text-zinc-400">{subtitle}</p>
+    <div className="rounded-2xl border border-zinc-800/70 bg-black/35 px-3 py-2.5 sm:flex sm:items-center sm:justify-between sm:gap-4 sm:border-transparent sm:bg-transparent sm:px-1 sm:py-0">
+      <div className="min-w-0">
+        <h2 className="section-title text-[13px] font-bold uppercase tracking-[0.14em] text-zinc-50 sm:text-sm sm:tracking-[0.2em]">{title}</h2>
+        <p className="section-subtitle mt-1 max-w-[32rem] text-[12px] leading-5 text-zinc-300 sm:text-xs sm:text-zinc-400">{subtitle}</p>
       </div>
       {badge ? (
-        <span className="shrink-0 rounded-full border border-amber-300/35 bg-amber-300/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-200">
+        <span className="mt-2 inline-flex shrink-0 rounded-full border border-amber-300/35 bg-amber-300/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-200 sm:mt-0 sm:text-[11px]">
           {badge}
         </span>
       ) : null}
@@ -109,14 +109,15 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const [lead, ...rest] = creator.works;
   const badges = creatorBadges(creator);
+  const hasCompanionWorks = rest.length > 0;
   return (
-    <article className="overflow-hidden rounded-3xl border border-amber-300/20 bg-[radial-gradient(circle_at_20%_0%,rgba(217,180,92,0.18),transparent_36%),linear-gradient(135deg,rgba(24,24,27,0.96),rgba(8,8,9,0.98))] p-4 shadow-2xl shadow-black/30 lg:col-span-2 lg:row-span-2">
-      <div className="flex items-start gap-4">
+    <article className="overflow-hidden rounded-3xl border border-amber-300/20 bg-[radial-gradient(circle_at_20%_0%,rgba(217,180,92,0.18),transparent_36%),linear-gradient(135deg,rgba(24,24,27,0.96),rgba(8,8,9,0.98))] p-3 shadow-2xl shadow-black/30 sm:p-4 lg:col-span-2">
+      <div className="flex items-start gap-3 sm:gap-4">
         <a
           href={creator.profileUrl}
           target="_blank"
           rel="noreferrer"
-          className="h-20 w-20 shrink-0 overflow-hidden rounded-full border border-amber-300/25 bg-zinc-900 transition hover:border-amber-300/70"
+          className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-amber-300/25 bg-zinc-900 transition hover:border-amber-300/70 sm:h-20 sm:w-20"
         >
           {creator.avatarUrl ? (
             <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
@@ -126,13 +127,13 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
         </a>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-200/75">Hub creator</p>
-          <h3 className="mt-1 truncate text-2xl font-semibold tracking-tight text-zinc-50">{displayName}</h3>
+          <h3 className="mt-1 truncate text-xl font-semibold tracking-tight text-zinc-50 sm:text-2xl">{displayName}</h3>
           <p className="mt-0.5 truncate text-sm text-zinc-400">@{creator.handle}</p>
-          <p className="mt-2 text-sm text-zinc-300">
+          <p className="mt-1.5 text-sm leading-5 text-zinc-300 sm:mt-2">
             {creator.itemCount} {creator.itemCount === 1 ? 'work' : 'works'}
             {creator.topics.length || creator.types.length ? ` across ${[...creator.topics, ...creator.types].slice(0, 3).join(' / ')}` : ''}
           </p>
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3">
             {badges.map((badge) => (
               <span
                 key={badge}
@@ -145,27 +146,28 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-[1.1fr_0.9fr]">
+      <div className={`mt-3 grid gap-3 sm:mt-4 ${hasCompanionWorks ? 'md:grid-cols-[minmax(0,1fr)_minmax(220px,0.72fr)]' : ''}`}>
         {lead ? (
           <Link
             to={`/watch/${encodeURIComponent(lead.contentId)}?origin=${encodeURIComponent(lead.publicOrigin)}`}
             state={{ item: lead }}
             className="group overflow-hidden rounded-2xl border border-zinc-800 bg-black/30 transition hover:border-amber-300/45"
           >
-            <div className="aspect-video bg-zinc-950">
+            <div className="aspect-[16/9] max-h-[280px] bg-zinc-950">
               {lead.coverUrl ? (
                 <img src={lead.coverUrl} alt="" className="h-full w-full object-cover opacity-90 transition group-hover:scale-[1.02]" loading="lazy" referrerPolicy="no-referrer" />
               ) : (
                 <div className="flex h-full items-center justify-center text-xs uppercase tracking-[0.2em] text-zinc-500">{lead.contentType || 'Work'}</div>
               )}
             </div>
-            <div className="p-3">
+            <div className="p-2.5 sm:p-3">
               <div className="line-clamp-2 text-base font-semibold text-zinc-100 group-hover:text-amber-100">{lead.title || 'Untitled'}</div>
               <div className="mt-1 text-xs text-zinc-500">{lead.primaryTopic || lead.contentType || 'publication'}</div>
             </div>
           </Link>
         ) : null}
-        <div className="space-y-2">
+        {hasCompanionWorks ? (
+        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-1">
           {rest.slice(0, 3).map((work) => (
             <Link
               key={itemKey(work)}
@@ -186,16 +188,17 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
               </div>
             </Link>
           ))}
-          <a
-            href={creator.profileUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex text-[11px] font-semibold uppercase tracking-wide text-amber-200/85 hover:text-amber-100"
-          >
-            Explore ecosystem →
-          </a>
         </div>
+        ) : null}
       </div>
+      <a
+        href={creator.profileUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-3 inline-flex min-h-9 items-center rounded-full border border-amber-300/25 bg-amber-300/10 px-3 text-[11px] font-semibold uppercase tracking-wide text-amber-100 hover:bg-amber-300/15"
+      >
+        Explore ecosystem →
+      </a>
     </article>
   );
 }
@@ -205,7 +208,7 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const badges = creatorBadges(creator).slice(0, 3);
   return (
-    <article className={`rounded-2xl border border-zinc-800/90 bg-zinc-900/60 p-3 shadow-xl shadow-black/20 ${index % 3 === 0 ? 'lg:row-span-2' : ''}`}>
+    <article className={`rounded-2xl border border-zinc-800/90 bg-zinc-900/60 p-3 shadow-xl shadow-black/20 ${index === 0 ? 'xl:col-span-2' : ''}`}>
       <div className="flex gap-3">
         <a
           href={creator.profileUrl}
@@ -236,7 +239,7 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
         ))}
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-1.5">
+      <div className={`mt-3 grid gap-1.5 ${index === 0 ? 'grid-cols-3 sm:grid-cols-4 xl:grid-cols-3' : 'grid-cols-3'}`}>
         {creator.works.slice(0, 3).map((work) => (
           <Link
             key={itemKey(work)}
@@ -273,7 +276,7 @@ function CreatorEcosystemGrid({ creators }: { creators: CreatorSpotlight[] }) {
   const [hub, secondHub, ...rest] = creators;
   const secondary = [secondHub, ...rest].filter(Boolean) as CreatorSpotlight[];
   return (
-    <div className="grid auto-rows-fr gap-3 lg:grid-cols-4">
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       <HubCreatorCard creator={hub} />
       {secondary.slice(0, 7).map((creator, index) => (
         <CreatorClusterCard key={creator.key} creator={creator} index={index} />
