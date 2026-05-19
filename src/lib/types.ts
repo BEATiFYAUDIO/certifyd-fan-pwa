@@ -100,3 +100,85 @@ export type ContentRelationshipContext = {
   } | null;
   generatedAt?: string;
 };
+
+export type DiscoverySignalWork = {
+  contentId: string;
+  title: string;
+  contentType: string;
+  primaryTopic: Exclude<Topic, 'all'> | string | null;
+  creatorHandle: string | null;
+  creatorDisplayName?: string | null;
+  creatorAvatarUrl?: string | null;
+  publicUrl: string | null;
+  coverUrl: string | null;
+  previewUrl: string | null;
+  accessMode: AccessMode;
+  priceSats: number;
+  publicOrigin: string | null;
+  signals?: {
+    support?: string | null;
+    unlocks?: string | null;
+    views?: string | null;
+    collaborators?: number;
+    connectedWorks?: number;
+  };
+  scores?: {
+    topConnectedScore?: number;
+    supportMomentumScore?: number;
+    unlockMomentumScore?: number;
+    fastestMovingScore?: number;
+  };
+  labels?: string[];
+};
+
+export type DiscoverySignalCreator = {
+  creatorHandle: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  profileUrl: string | null;
+  publicOrigin: string | null;
+  workCount: number;
+  recentWorkCount: number;
+  topicCount: number;
+  typeCount: number;
+  unlockableWorkCount: number;
+  representativeWorks: DiscoverySignalWork[];
+  signals?: {
+    support?: string | null;
+    unlocks?: string | null;
+    views?: string | null;
+    collaborators?: number;
+    connectedWorks?: number;
+    originHealth?: 'healthy' | 'failed' | 'cooldown' | 'unknown' | string | null;
+    originTrust?: 'stable' | 'ephemeral' | 'provider' | string | null;
+  };
+  scores?: {
+    creatorMomentumScore?: number;
+    ecosystemDensityScore?: number;
+    supportMomentumScore?: number;
+    unlockMomentumScore?: number;
+    topConnectedScore?: number;
+  };
+  labels?: string[];
+};
+
+export type DiscoverySignalsResponse = {
+  generatedAt: string;
+  window: string;
+  origin?: {
+    publicOrigin?: string | null;
+    health?: string | null;
+    trust?: string | null;
+  } | null;
+  creators?: {
+    topCreators?: DiscoverySignalCreator[];
+  };
+  works?: {
+    topSelling?: DiscoverySignalWork[];
+    mostSupported?: DiscoverySignalWork[];
+    fastestMoving?: DiscoverySignalWork[];
+    recentlySupported?: DiscoverySignalWork[];
+    collaborativeReleases?: DiscoverySignalWork[];
+  };
+  ecosystems?: DiscoverySignalCreator[];
+};

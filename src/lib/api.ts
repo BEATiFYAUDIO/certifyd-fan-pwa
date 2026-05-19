@@ -4,6 +4,9 @@ import type {
   ContentContextWork,
   ContentRelationshipContext,
   DiscoverableResponse,
+  DiscoverySignalCreator,
+  DiscoverySignalsResponse,
+  DiscoverySignalWork,
   Topic,
 } from './types';
 import { isRenderableDiscoveryItem } from './discoveryGuard';
@@ -56,6 +59,80 @@ export async function fetchDiscoverablePage(input: {
       avatarUrl: resolveUrl(item.avatarUrl, item.publicOrigin || origin),
     })).filter((item) => isRenderableDiscoveryItem(item)),
   };
+}
+
+function normalizeSignalWork(value: DiscoverySignalWork, origin: string): DiscoverySignalWork {
+  const publicOrigin = value.publicOrigin || origin;
+  return {
+    ...value,
+    publicOrigin,
+    publicUrl: resolveUrl(value.publicUrl, publicOrigin),
+    coverUrl: resolveUrl(value.coverUrl, publicOrigin),
+    previewUrl: resolveUrl(value.previewUrl, publicOrigin),
+    creatorAvatarUrl: resolveUrl(value.creatorAvatarUrl, publicOrigin),
+  };
+}
+
+function normalizeSignalCreator(value: DiscoverySignalCreator, origin: string): DiscoverySignalCreator {
+  const publicOrigin = value.publicOrigin || origin;
+  return {
+    ...value,
+    publicOrigin,
+    avatarUrl: resolveUrl(value.avatarUrl, publicOrigin),
+    profileUrl: resolveUrl(value.profileUrl, publicOrigin),
+    representativeWorks: Array.isArray(value.representativeWorks)
+      ? value.representativeWorks.map((work) => normalizeSignalWork(work, publicOrigin))
+      : [],
+  };
+}
+
+export async function fetchDiscoverySignals(input: {
+  origin: string;
+  timeoutMs?: number;
+}): Promise<DiscoverySignalsResponse | null> {
+  const { origin, timeoutMs = 5000 } = input;
+  if (!origin) return null;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const endpoint = `${origin}/public/discovery/signals`;
+    const res = await fetch(endpoint, { signal: controller.signal });
+    if (!res.ok) return null;
+    const data = (await res.json()) as DiscoverySignalsResponse;
+    return {
+      ...data,
+      creators: {
+        topCreators: Array.isArray(data.creators?.topCreators)
+          ? data.creators.topCreators.map((creator) => normalizeSignalCreator(creator, origin))
+          : [],
+      },
+      ecosystems: Array.isArray(data.ecosystems)
+        ? data.ecosystems.map((creator) => normalizeSignalCreator(creator, origin))
+        : [],
+      works: {
+        topSelling: Array.isArray(data.works?.topSelling)
+          ? data.works.topSelling.map((work) => normalizeSignalWork(work, origin))
+          : [],
+        mostSupported: Array.isArray(data.works?.mostSupported)
+          ? data.works.mostSupported.map((work) => normalizeSignalWork(work, origin))
+          : [],
+        fastestMoving: Array.isArray(data.works?.fastestMoving)
+          ? data.works.fastestMoving.map((work) => normalizeSignalWork(work, origin))
+          : [],
+        recentlySupported: Array.isArray(data.works?.recentlySupported)
+          ? data.works.recentlySupported.map((work) => normalizeSignalWork(work, origin))
+          : [],
+        collaborativeReleases: Array.isArray(data.works?.collaborativeReleases)
+          ? data.works.collaborativeReleases.map((work) => normalizeSignalWork(work, origin))
+          : [],
+      },
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function normalizeContextCreator(value: ContentContextCreator | null | undefined, origin: string): ContentContextCreator | null {

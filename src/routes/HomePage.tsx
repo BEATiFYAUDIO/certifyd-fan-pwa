@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import { FeedCard } from '../components/FeedCard';
 import { ShortsCard } from '../components/ShortsCard';
 import { TopicRail } from '../components/TopicRail';
-import { fetchDiscoverablePage } from '../lib/api';
+import { fetchDiscoverablePage, fetchDiscoverySignals } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
-import type { DiscoverableItem, OriginFeedState, Topic } from '../lib/types';
+import type { DiscoverableItem, DiscoverySignalCreator, DiscoverySignalsResponse, DiscoverySignalWork, OriginFeedState, Topic } from '../lib/types';
 import { isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import {
   buildHomeDiscoveryViewModel,
@@ -111,7 +111,7 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
   const badges = creatorBadges(creator);
   const hasCompanionWorks = rest.length > 0;
   return (
-    <article className="overflow-hidden rounded-3xl border border-amber-300/20 bg-[radial-gradient(circle_at_20%_0%,rgba(217,180,92,0.18),transparent_36%),linear-gradient(135deg,rgba(24,24,27,0.96),rgba(8,8,9,0.98))] p-3 shadow-2xl shadow-black/30 sm:p-4 lg:col-span-2">
+    <article className="self-start overflow-hidden rounded-3xl border border-amber-300/20 bg-[radial-gradient(circle_at_20%_0%,rgba(217,180,92,0.18),transparent_36%),linear-gradient(135deg,rgba(24,24,27,0.96),rgba(8,8,9,0.98))] p-3 shadow-2xl shadow-black/30 sm:p-4 lg:col-span-2">
       <div className="flex items-start gap-3 sm:gap-4">
         <a
           href={creator.profileUrl}
@@ -208,7 +208,7 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const badges = creatorBadges(creator).slice(0, 3);
   return (
-    <article className={`rounded-2xl border border-zinc-800/90 bg-zinc-900/60 p-3 shadow-xl shadow-black/20 ${index === 0 ? 'xl:col-span-2' : ''}`}>
+    <article className={`self-start rounded-2xl border border-zinc-800/90 bg-zinc-900/60 p-3 shadow-xl shadow-black/20 ${index === 0 ? 'xl:col-span-2' : ''}`}>
       <div className="flex gap-3">
         <a
           href={creator.profileUrl}
@@ -276,7 +276,7 @@ function CreatorEcosystemGrid({ creators }: { creators: CreatorSpotlight[] }) {
   const [hub, secondHub, ...rest] = creators;
   const secondary = [secondHub, ...rest].filter(Boolean) as CreatorSpotlight[];
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid auto-rows-auto items-start gap-3 md:grid-cols-2 xl:grid-cols-4">
       <HubCreatorCard creator={hub} />
       {secondary.slice(0, 7).map((creator, index) => (
         <CreatorClusterCard key={creator.key} creator={creator} index={index} />
@@ -294,6 +294,78 @@ type RankedSurface = {
   scoreLabel?: string;
   large?: boolean;
 };
+
+function signalNumber(value: unknown): number {
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function signalWorkKey(work: DiscoverySignalWork): string {
+  return `${work.publicOrigin || ''}::${work.contentId}`;
+}
+
+function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableItem | null {
+  if (!work.contentId || !work.publicOrigin) return null;
+  const publicUrl = work.publicUrl || '';
+  return {
+    contentId: work.contentId,
+    title: work.title || 'Untitled',
+    description: null,
+    creatorHandle: work.creatorHandle || null,
+    contentType: work.contentType || 'work',
+    primaryTopic: (work.primaryTopic || null) as DiscoverableItem['primaryTopic'],
+    coverUrl: work.coverUrl || '',
+    previewUrl: work.previewUrl || '',
+    buyUrl: publicUrl,
+    offerUrl: publicUrl,
+    priceSats: Number(work.priceSats || 0),
+    accessMode: work.accessMode || 'unlocked',
+    publicOrigin: work.publicOrigin,
+    creatorAvatarUrl: work.creatorAvatarUrl || null,
+    discoveryStatus: 'live',
+    originHealth: 'healthy',
+  };
+}
+
+function signalCreatorToSpotlight(creator: DiscoverySignalCreator): CreatorSpotlight | null {
+  const handle = String(creator.creatorHandle || '').replace(/^@+/, '').trim();
+  const publicOrigin = String(creator.publicOrigin || '').trim();
+  if (!handle || !publicOrigin) return null;
+  const works = (creator.representativeWorks || [])
+    .map(signalWorkToDiscoverableItem)
+    .filter((item): item is DiscoverableItem => Boolean(item));
+  const labels = Array.isArray(creator.labels) ? creator.labels : [];
+  const topics = [...new Set(works.map((item) => String(item.primaryTopic || '').trim()).filter(Boolean))].slice(0, 2);
+  const types = [...new Set(works.map((item) => String(item.contentType || '').trim()).filter(Boolean))].slice(0, 2);
+  return {
+    key: `signals:${publicOrigin}:${handle}`,
+    handle,
+    publicOrigin,
+    avatarUrl: creator.avatarUrl || '',
+    profileUrl: creator.profileUrl || `${publicOrigin.replace(/\/+$/, '')}/u/${encodeURIComponent(handle)}`,
+    itemCount: Number(creator.workCount || works.length || 0),
+    freeCount: works.filter((item) => !isLockedOrPremium(item)).length,
+    premiumCount: Number(creator.unlockableWorkCount || works.filter((item) => isLockedOrPremium(item)).length || 0),
+    topics,
+    types,
+    works,
+    supportScore: signalNumber(creator.scores?.supportMomentumScore),
+    relationshipScore: Math.max(signalNumber(creator.scores?.topConnectedScore), signalNumber(creator.scores?.ecosystemDensityScore)),
+    postureScore: labels.includes('Trusted source') || creator.signals?.originHealth === 'healthy' ? 1 : 0,
+    activeScore: signalNumber(creator.scores?.creatorMomentumScore),
+    latestTitle: works[0]?.title || `${creator.workCount || 0} works`,
+  };
+}
+
+function dedupeSignalWorks(works: DiscoverySignalWork[]): DiscoverySignalWork[] {
+  const seen = new Map<string, DiscoverySignalWork>();
+  for (const work of works) {
+    const key = signalWorkKey(work);
+    if (!work.contentId || !work.publicOrigin || seen.has(key)) continue;
+    seen.set(key, work);
+  }
+  return [...seen.values()];
+}
 
 function RankingRow({
   item,
@@ -467,10 +539,10 @@ function TopActivityBoard({
                 <CreatorMomentumCard key={`top-creator:${creator.key}`} creator={creator} rank={index + 1} />
               ))}
             </div>
-          </section>
-        ) : null}
-        <div className="grid gap-3 xl:grid-cols-2">
-          {surfaces.slice(0, 3).map((surface, index) => (
+        </section>
+      ) : null}
+      <div className="grid gap-3 xl:grid-cols-2">
+          {surfaces.slice(0, 4).map((surface, index) => (
             <RankedSurfaceCard key={surface.key} surface={{ ...surface, large: index === 0 }} />
           ))}
         </div>
@@ -486,6 +558,7 @@ export function HomePage() {
   const [topic, setTopic] = useState<Topic>('all');
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<DiscoverableItem[]>([]);
+  const [signals, setSignals] = useState<DiscoverySignalsResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feeds, setFeeds] = useState<OriginFeedState[]>([]);
@@ -630,6 +703,25 @@ export function HomePage() {
   }, [loadMore, origins, topic]);
 
   useEffect(() => {
+    if (origins.length === 0) {
+      setSignals([]);
+      return;
+    }
+    let cancelled = false;
+    void Promise.all(origins.map((origin) => fetchDiscoverySignals({ origin, timeoutMs: ORIGIN_TIMEOUT_MS + 1500 })))
+      .then((responses) => {
+        if (cancelled) return;
+        setSignals(responses.filter((response): response is DiscoverySignalsResponse => Boolean(response)));
+      })
+      .catch(() => {
+        if (!cancelled) setSignals([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [origins]);
+
+  useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState !== 'visible' || loading) return;
       if (items.length === 0 && feeds.length > 0) {
@@ -682,6 +774,49 @@ export function HomePage() {
     return [...freeLane, ...lockedLane];
   }, [items, query, topic, randomSeed]);
   const discoveryView = useMemo(() => buildHomeDiscoveryViewModel(filtered), [filtered]);
+  const signalWorks = useMemo(() => {
+    const topSelling = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.topSelling || []));
+    const mostSupported = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.mostSupported || []));
+    const fastestMoving = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.fastestMoving || []));
+    const collaborativeReleases = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.collaborativeReleases || []));
+    return {
+      topSelling,
+      mostSupported,
+      fastestMoving,
+      collaborativeReleases,
+      topSellingItems: topSelling.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
+      mostSupportedItems: mostSupported.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
+      fastestMovingItems: fastestMoving.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
+      collaborativeItems: collaborativeReleases.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
+    };
+  }, [signals]);
+  const signalScoreByWork = useMemo(() => {
+    const map = new Map<string, { support: number; unlock: number; moving: number; connected: number }>();
+    const add = (work: DiscoverySignalWork) => {
+      map.set(signalWorkKey(work), {
+        support: signalNumber(work.scores?.supportMomentumScore),
+        unlock: signalNumber(work.scores?.unlockMomentumScore),
+        moving: signalNumber(work.scores?.fastestMovingScore),
+        connected: signalNumber(work.scores?.topConnectedScore),
+      });
+    };
+    [...signalWorks.topSelling, ...signalWorks.mostSupported, ...signalWorks.fastestMoving, ...signalWorks.collaborativeReleases].forEach(add);
+    return map;
+  }, [signalWorks]);
+  const signalCreators = useMemo(() => {
+    const byKey = new Map<string, DiscoverySignalCreator>();
+    for (const creator of signals.flatMap((signal) => [...(signal.ecosystems || []), ...(signal.creators?.topCreators || [])])) {
+      const key = `${creator.publicOrigin || ''}::${creator.creatorHandle || creator.displayName || ''}`;
+      if (!creator.publicOrigin || byKey.has(key)) continue;
+      byKey.set(key, creator);
+    }
+    return [...byKey.values()].sort((a, b) => signalNumber(b.scores?.creatorMomentumScore) - signalNumber(a.scores?.creatorMomentumScore));
+  }, [signals]);
+  const signalCreatorSpotlights = useMemo(
+    () => signalCreators.map(signalCreatorToSpotlight).filter((creator): creator is CreatorSpotlight => Boolean(creator)),
+    [signalCreators]
+  );
+  const homepageCreators = signalCreatorSpotlights.length > 0 ? signalCreatorSpotlights : discoveryView.creatorSpotlights;
   const freeItems = useMemo(
     () => (topic === 'all' ? sortStableRandom(discoveryView.freeItems, `${randomSeed}:free:view`) : discoveryView.freeItems),
     [discoveryView.freeItems, topic, randomSeed]
@@ -715,6 +850,8 @@ export function HomePage() {
     }).slice(0, 3);
   }, [discoveryView, freeItems, lockedItems]);
   const topSurfaces = useMemo(() => {
+    const scoreFromSignal = (kind: 'support' | 'unlock' | 'moving' | 'connected') => (item: DiscoverableItem) =>
+      signalScoreByWork.get(itemKey(item))?.[kind] || 0;
     const byScore = (scoreFor: (item: DiscoverableItem) => number) => sortNewestFirst(filtered)
       .filter((item) => scoreFor(item) > 0)
       .sort((a, b) => {
@@ -724,35 +861,47 @@ export function HomePage() {
       })
       .slice(0, 6);
 
-    const supported = byScore(publicSupportScore);
-    const unlocked = byScore(publicUnlockScore);
+    const topSelling = signalWorks.topSellingItems.length > 0 ? signalWorks.topSellingItems.slice(0, 6) : byScore(publicUnlockScore);
+    const supported = signalWorks.mostSupportedItems.length > 0 ? signalWorks.mostSupportedItems.slice(0, 6) : byScore(publicSupportScore);
+    const moving = signalWorks.fastestMovingItems.length > 0 ? signalWorks.fastestMovingItems.slice(0, 6) : [];
+    const connected = signalWorks.collaborativeItems.length > 0 ? signalWorks.collaborativeItems.slice(0, 6) : [];
     const converting = byScore(publicConversionScore);
     const recent = discoveryView.recentRail?.items || [];
     const activeWorks = dedupeDiscoveryItems([
-      ...discoveryView.creatorSpotlights.flatMap((creator) => creator.works),
+      ...homepageCreators.flatMap((creator) => creator.works),
       ...recent,
       ...filtered,
     ]).slice(0, 6);
 
     const surfaces: RankedSurface[] = [];
+    if (topSelling.length > 0) {
+      surfaces.push({
+        key: 'top-selling',
+        title: 'Top Selling',
+        subtitle: signalWorks.topSellingItems.length > 0 ? 'Works with public unlock momentum' : 'Unlockable works with visible creator activity',
+        items: topSelling,
+        scoreFor: signalWorks.topSellingItems.length > 0 ? scoreFromSignal('unlock') : publicUnlockScore,
+        scoreLabel: 'unlock',
+      });
+    }
     if (supported.length > 0) {
       surfaces.push({
         key: 'top-supported',
         title: 'Most Supported',
-        subtitle: 'Works with public support or sales momentum',
+        subtitle: signalWorks.mostSupportedItems.length > 0 ? 'Works with public support momentum' : 'Works with public support or sales momentum',
         items: supported,
-        scoreFor: publicSupportScore,
+        scoreFor: signalWorks.mostSupportedItems.length > 0 ? scoreFromSignal('support') : publicSupportScore,
         scoreLabel: 'support',
       });
     }
-    if (unlocked.length > 0) {
+    if (connected.length > 0) {
       surfaces.push({
-        key: 'most-unlocked',
-        title: 'Most Unlocked',
-        subtitle: 'Works with public unlock or purchase activity',
-        items: unlocked,
-        scoreFor: publicUnlockScore,
-        scoreLabel: 'unlocks',
+        key: 'top-connected',
+        title: 'Top Connected',
+        subtitle: 'Collaborative and related works with public relationship signals',
+        items: connected,
+        scoreFor: scoreFromSignal('connected'),
+        scoreLabel: 'links',
       });
     }
     if (converting.length > 0) {
@@ -765,12 +914,14 @@ export function HomePage() {
         scoreLabel: 'rate',
       });
     }
-    if (activeWorks.length > 0) {
+    if ((moving.length || activeWorks.length) > 0) {
       surfaces.push({
         key: 'fastest-moving',
-        title: supported.length || unlocked.length ? 'Creator Momentum' : 'Fastest Moving',
-        subtitle: supported.length || unlocked.length ? 'Active works from visible creator ecosystems' : 'Recent publications and active creator catalogs',
-        items: activeWorks,
+        title: 'Fastest Moving',
+        subtitle: moving.length > 0 ? 'Recent public movement across works and creators' : 'Recent publications and active creator catalogs',
+        items: moving.length > 0 ? moving : activeWorks,
+        scoreFor: moving.length > 0 ? scoreFromSignal('moving') : undefined,
+        scoreLabel: moving.length > 0 ? 'move' : undefined,
       });
     }
     if (recent.length > 0 && surfaces.length < 3) {
@@ -782,7 +933,8 @@ export function HomePage() {
       });
     }
     return surfaces.slice(0, 4);
-  }, [discoveryView.creatorSpotlights, discoveryView.recentRail, filtered]);
+  }, [discoveryView.recentRail, filtered, homepageCreators, signalScoreByWork, signalWorks]);
+  const hasHomepageContent = filtered.length > 0 || homepageCreators.length > 0 || topSurfaces.some((surface) => surface.items.length > 0);
 
   return (
     <main className="app-shell min-h-screen text-zinc-100">
@@ -830,21 +982,21 @@ export function HomePage() {
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 text-sm text-zinc-300">Loading feed…</div>
         ) : null}
 
-        {!loading && filtered.length === 0 && !error ? (
+        {!loading && !hasHomepageContent && !error ? (
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 text-sm text-zinc-300">
             No discoverable content yet.
           </div>
         ) : null}
 
-        {filtered.length > 0 ? (
-          <TopActivityBoard surfaces={topSurfaces} creators={discoveryView.creatorSpotlights} />
+        {hasHomepageContent ? (
+          <TopActivityBoard surfaces={topSurfaces} creators={homepageCreators} />
         ) : null}
 
         <div className="space-y-6">
-          {discoveryView.creatorSpotlights.length > 0 ? (
+          {homepageCreators.length > 0 ? (
             <section id="creator-ecosystems" className="space-y-3 scroll-mt-40">
               <RailHeader title="Creator Ecosystems" subtitle="Hub creators, connected works, and active public catalogs" />
-              <CreatorEcosystemGrid creators={discoveryView.creatorSpotlights} />
+              <CreatorEcosystemGrid creators={homepageCreators} />
             </section>
           ) : null}
 
