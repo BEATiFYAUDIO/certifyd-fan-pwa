@@ -173,6 +173,53 @@ function normalizeContextArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+const creatorAvatarIndexCache = new Map<string, Promise<Map<string, string>>>();
+
+function normalizeHandle(value: string | null | undefined): string {
+  return String(value || '').trim().replace(/^@+/, '').toLowerCase();
+}
+
+async function fetchPublicCreatorAvatar(origin: string | null | undefined, handle: string | null | undefined): Promise<string> {
+  const normalizedOrigin = String(origin || '').trim();
+  const normalizedHandle = normalizeHandle(handle);
+  if (!normalizedOrigin || !normalizedHandle) return '';
+
+  let indexed = creatorAvatarIndexCache.get(normalizedOrigin);
+  if (!indexed) {
+    indexed = fetchDiscoverablePage({
+      origin: normalizedOrigin,
+      topic: 'all',
+      limit: 48,
+      timeoutMs: 3000,
+    })
+      .then((page) => {
+        const byHandle = new Map<string, string>();
+        for (const item of page.items) {
+          const itemHandle = normalizeHandle(item.creatorHandle);
+          if (!itemHandle || byHandle.has(itemHandle)) continue;
+          const avatarUrl = item.creatorAvatarUrl || item.creatorProfileImageUrl || item.profileImageUrl || item.avatarUrl || '';
+          if (avatarUrl) byHandle.set(itemHandle, avatarUrl);
+        }
+        return byHandle;
+      })
+      .catch(() => new Map<string, string>());
+    creatorAvatarIndexCache.set(normalizedOrigin, indexed);
+  }
+
+  const byHandle = await indexed;
+  return byHandle.get(normalizedHandle) || '';
+}
+
+async function enrichContextCreatorAvatar<T extends ContentContextCreator | null>(creator: T): Promise<T> {
+  if (!creator || creator.avatarUrl) return creator;
+  const avatarUrl = await fetchPublicCreatorAvatar(creator.publicOrigin, creator.handle);
+  if (!avatarUrl) return creator;
+  return {
+    ...creator,
+    avatarUrl,
+  } as T;
+}
+
 export async function fetchContentContext(input: {
   origin: string;
   contentId: string;
@@ -188,21 +235,41 @@ export async function fetchContentContext(input: {
     const res = await fetch(endpoint, { signal: controller.signal });
     if (!res.ok) return null;
     const data = (await res.json()) as ContentRelationshipContext;
+    const creator = await enrichContextCreatorAvatar(normalizeContextCreator(data.creator, origin));
+    const peopleBehindThis = await Promise.all(
+      normalizeContextArray<ContentContextPerson>(data.peopleBehindThis)
+        .map((person) => normalizeContextPerson(person, origin))
+        .map((person) => enrichContextCreatorAvatar(person)),
+    );
+    const featuring = await Promise.all(
+      normalizeContextArray<ContentContextPerson>(data.featuring)
+        .map((person) => normalizeContextPerson(person, origin))
+        .map((person) => enrichContextCreatorAvatar(person)),
+    );
+    const createdWith = await Promise.all(
+      normalizeContextArray<ContentContextPerson>(data.createdWith)
+        .map((person) => normalizeContextPerson(person, origin))
+        .map((person) => enrichContextCreatorAvatar(person)),
+    );
+    const connectedCreators = await Promise.all(
+      normalizeContextArray<ContentContextCreator>(data.connectedCreators)
+        .map((row) => normalizeContextCreator(row, origin))
+        .filter((row): row is ContentContextCreator => Boolean(row))
+        .map((row) => enrichContextCreatorAvatar(row)),
+    );
     return {
       ...data,
       publicOrigin: data.publicOrigin || origin,
-      creator: normalizeContextCreator(data.creator, origin),
-      peopleBehindThis: normalizeContextArray<ContentContextPerson>(data.peopleBehindThis).map((person) => normalizeContextPerson(person, origin)),
-      featuring: normalizeContextArray<ContentContextPerson>(data.featuring).map((person) => normalizeContextPerson(person, origin)),
-      createdWith: normalizeContextArray<ContentContextPerson>(data.createdWith).map((person) => normalizeContextPerson(person, origin)),
+      creator,
+      peopleBehindThis,
+      featuring,
+      createdWith,
       builtFrom: normalizeContextArray<ContentContextWork>(data.builtFrom).map((work) => normalizeContextWork(work, origin)),
       derivedFrom: normalizeContextArray<ContentContextWork>(data.derivedFrom).map((work) => normalizeContextWork(work, origin)),
       worksThatBuiltOnThis: normalizeContextArray<ContentContextWork>(data.worksThatBuiltOnThis).map((work) => normalizeContextWork(work, origin)),
       moreTheyWorkedOn: normalizeContextArray<ContentContextWork>(data.moreTheyWorkedOn).map((work) => normalizeContextWork(work, origin)),
       relatedWorks: normalizeContextArray<ContentContextWork>(data.relatedWorks).map((work) => normalizeContextWork(work, origin)),
-      connectedCreators: normalizeContextArray<ContentContextCreator>(data.connectedCreators)
-        .map((creator) => normalizeContextCreator(creator, origin))
-        .filter((creator): creator is ContentContextCreator => Boolean(creator)),
+      connectedCreators,
     };
   } catch {
     return null;
