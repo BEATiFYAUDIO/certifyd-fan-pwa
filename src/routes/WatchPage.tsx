@@ -885,27 +885,28 @@ function StandardWatch({
                 }
                 return (
                   <div className="overflow-hidden rounded-2xl bg-zinc-900">
-                    {item.previewUrl ? (
-                      isVideo ? (
-                        <video
-                          src={item.previewUrl}
-                          className="h-full w-full max-h-[70vh] bg-black object-contain"
-                          controls
-                          playsInline
-                          preload="metadata"
-                        />
-                      ) : (
-                        <audio
-                          src={item.previewUrl}
-                          className="w-full p-4"
-                          controls
-                          preload="metadata"
-                        />
-                      )
+                    {item.previewUrl && isVideo ? (
+                      <video
+                        src={item.previewUrl}
+                        className="h-full w-full max-h-[70vh] bg-black object-contain"
+                        controls
+                        playsInline
+                        preload="metadata"
+                      />
+                    ) : item.previewUrl && isSong ? (
+                      <audio
+                        src={item.previewUrl}
+                        className="w-full p-4"
+                        controls
+                        preload="metadata"
+                      />
                     ) : item.coverUrl ? (
                       <img src={item.coverUrl} alt={item.title} className="h-full w-full max-h-[70vh] bg-black object-contain" />
                     ) : (
-                      <div className="flex h-[50vh] items-center justify-center text-zinc-500">No media preview</div>
+                      <div className="flex h-[50vh] flex-col items-center justify-center px-4 text-center text-zinc-500">
+                        <div className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-400">{item.contentType || 'Work'}</div>
+                        <div className="mt-2 max-w-sm text-sm text-zinc-500">Preview this work on the official creator page.</div>
+                      </div>
                     )}
                   </div>
                 );
