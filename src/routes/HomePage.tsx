@@ -10,6 +10,8 @@ import { isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGu
 import {
   buildHomeDiscoveryViewModel,
   dedupeDiscoveryItems,
+  publicRelationshipScore,
+  publicSupportScore,
   searchableText,
   sortNewestFirst,
   type CreatorSpotlight,
@@ -70,6 +72,12 @@ function itemKey(item: DiscoverableItem): string {
   return `${item.publicOrigin}::${item.contentId}`;
 }
 
+function formatCount(value: number): string {
+  if (value >= 1000000) return `${(value / 1000000).toFixed(value >= 10000000 ? 0 : 1)}M`;
+  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}K`;
+  return String(value);
+}
+
 function ContentRail({ rail }: { rail: DiscoveryRail }) {
   if (rail.items.length === 0) return null;
   return (
@@ -108,6 +116,23 @@ function CreatorSpotlightCard({ creator }: { creator: CreatorSpotlight }) {
           <div className="mt-0.5 truncate text-xs text-zinc-400">@{creator.handle}</div>
           <div className="mt-1 text-xs text-zinc-400">
             {creator.itemCount} {creator.itemCount === 1 ? 'publication' : 'publications'} · {topicText}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {creator.supportScore > 0 ? (
+              <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
+                Supported {formatCount(creator.supportScore)}
+              </span>
+            ) : null}
+            {creator.relationshipScore > 0 ? (
+              <span className="rounded-full border border-zinc-600 bg-black/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-300">
+                {formatCount(creator.relationshipScore)} connections
+              </span>
+            ) : null}
+            {creator.itemCount > 1 ? (
+              <span className="rounded-full border border-zinc-700 bg-black/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                Active catalog
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
@@ -151,6 +176,8 @@ function CreatorSpotlightCard({ creator }: { creator: CreatorSpotlight }) {
 
 function HeroConnectionCard({ item }: { item: DiscoverableItem }) {
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
+  const supportScore = publicSupportScore(item);
+  const relationshipScore = publicRelationshipScore(item);
   return (
     <Link
       to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
@@ -169,9 +196,88 @@ function HeroConnectionCard({ item }: { item: DiscoverableItem }) {
       <div className="p-3">
         <div className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100">{item.title || 'Untitled'}</div>
         <div className="mt-1 text-xs text-zinc-400">by @{creator}</div>
+        {supportScore > 0 || relationshipScore > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {supportScore > 0 ? (
+              <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
+                Supported {formatCount(supportScore)}
+              </span>
+            ) : null}
+            {relationshipScore > 0 ? (
+              <span className="rounded-full border border-zinc-700 bg-black/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-300">
+                {formatCount(relationshipScore)} links
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         <div className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-amber-200/85">Explore connections →</div>
       </div>
     </Link>
+  );
+}
+
+function HeroActivityPanel({
+  activeCreators,
+  ecosystemCount,
+  supportedWorks,
+  supportSignals,
+  collaborativeWorks,
+  recentWorks,
+  premiumWorks,
+}: {
+  activeCreators: number;
+  ecosystemCount: number;
+  supportedWorks: number;
+  supportSignals: number;
+  collaborativeWorks: number;
+  recentWorks: number;
+  premiumWorks: number;
+}) {
+  const stats = [
+    supportSignals > 0
+      ? { label: 'public support signals', value: formatCount(supportSignals), tone: 'gold' }
+      : null,
+    supportedWorks > 0
+      ? { label: 'supported works', value: formatCount(supportedWorks), tone: 'gold' }
+      : null,
+    collaborativeWorks > 0
+      ? { label: 'connected works', value: formatCount(collaborativeWorks), tone: 'neutral' }
+      : null,
+    { label: 'active creators', value: formatCount(activeCreators), tone: 'neutral' },
+    { label: 'creator ecosystems', value: formatCount(ecosystemCount), tone: 'neutral' },
+    { label: 'recent works', value: formatCount(recentWorks), tone: 'neutral' },
+    premiumWorks > 0
+      ? { label: 'unlockable works', value: formatCount(premiumWorks), tone: 'neutral' }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; value: string; tone: 'gold' | 'neutral' }>;
+
+  return (
+    <div className="rounded-2xl border border-zinc-800/90 bg-black/30 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-200/80">Live discovery pulse</p>
+          <p className="mt-1 text-xs text-zinc-400">Public activity signals from connected creator origins.</p>
+        </div>
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-amber-300 shadow-[0_0_18px_rgba(252,211,77,0.55)]" aria-hidden="true" />
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        {stats.slice(0, 6).map((stat) => (
+          <div
+            key={stat.label}
+            className={`rounded-xl border px-3 py-2 ${
+              stat.tone === 'gold'
+                ? 'border-amber-300/25 bg-amber-300/10'
+                : 'border-zinc-800 bg-zinc-950/60'
+            }`}
+          >
+            <div className={stat.tone === 'gold' ? 'text-lg font-semibold text-amber-100' : 'text-lg font-semibold text-zinc-100'}>
+              {stat.value}
+            </div>
+            <div className="mt-0.5 text-[10px] uppercase tracking-wide text-zinc-500">{stat.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -388,7 +494,12 @@ export function HomePage() {
   );
   const secondaryRails = useMemo(() => {
     const primaryKeys = new Set<string>();
-    [...freeItems.slice(0, 8), ...lockedItems.slice(0, 8), ...(discoveryView.recentRail?.items || [])]
+    [
+      ...freeItems.slice(0, 8),
+      ...lockedItems.slice(0, 8),
+      ...(discoveryView.supportedRail?.items || []),
+      ...(discoveryView.recentRail?.items || []),
+    ]
       .forEach((item) => primaryKeys.add(itemKey(item)));
 
     const rails: DiscoveryRail[] = [];
@@ -409,10 +520,27 @@ export function HomePage() {
     const keys = new Set(filtered.map((item) => `${item.publicOrigin}::${String(item.creatorHandle || '').replace(/^@+/, '').toLowerCase()}`));
     return keys.size;
   }, [filtered]);
+  const supportSignals = useMemo(
+    () => filtered.reduce((sum, item) => sum + publicSupportScore(item), 0),
+    [filtered]
+  );
+  const supportedWorks = useMemo(
+    () => filtered.filter((item) => publicSupportScore(item) > 0).length,
+    [filtered]
+  );
+  const collaborativeWorks = useMemo(
+    () => filtered.filter((item) => publicRelationshipScore(item) > 0).length,
+    [filtered]
+  );
+  const ecosystemCount = useMemo(
+    () => discoveryView.creatorSpotlights.filter((creator) => creator.itemCount > 1 || creator.supportScore > 0 || creator.relationshipScore > 0).length,
+    [discoveryView.creatorSpotlights]
+  );
   const heroWorks = useMemo(() => {
+    const supported = discoveryView.supportedRail?.items || [];
     const fromCreators = discoveryView.creatorSpotlights.flatMap((creator) => creator.works);
-    return dedupeDiscoveryItems(fromCreators.length ? fromCreators : filtered).slice(0, 3);
-  }, [discoveryView.creatorSpotlights, filtered]);
+    return dedupeDiscoveryItems([...supported, ...fromCreators, ...filtered]).slice(0, 3);
+  }, [discoveryView.creatorSpotlights, discoveryView.supportedRail, filtered]);
 
   return (
     <main className="app-shell min-h-screen text-zinc-100">
@@ -468,19 +596,28 @@ export function HomePage() {
 
         {filtered.length > 0 ? (
           <section className="overflow-hidden rounded-3xl border border-zinc-800/90 bg-[radial-gradient(circle_at_12%_10%,rgba(210,166,83,0.2),transparent_32%),radial-gradient(circle_at_84%_18%,rgba(56,49,38,0.4),transparent_34%),linear-gradient(135deg,rgba(24,24,27,0.94),rgba(5,5,6,0.98))] p-4 shadow-2xl shadow-black/40 sm:p-6">
-            <div className="grid gap-6 lg:grid-cols-[1fr_460px] lg:items-center">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(480px,1.1fr)] lg:items-stretch">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/80">Creator ecosystems</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/80">Live creator ecosystems</p>
                 <h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-zinc-50 sm:text-5xl">
-                  Every work opens into people, creators, and related publications.
+                  Follow what creators are publishing, supporting, and building around.
                 </h1>
                 <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-300 sm:text-base">
-                  Start with a drop, then follow the creator. Open any work to see who is behind it, what else they worked on, and where it connects.
+                  Start with a work, then move through the people, creator homes, topics, and public support signals around it.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2 text-xs text-zinc-300">
                   <span className="rounded-full border border-zinc-700/80 bg-black/25 px-3 py-1.5">{filtered.length} works</span>
                   <span className="rounded-full border border-zinc-700/80 bg-black/25 px-3 py-1.5">{creatorCount} creators</span>
-                  <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1.5 text-amber-100">relationship-first discovery</span>
+                  {supportSignals > 0 ? (
+                    <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1.5 text-amber-100">
+                      {formatCount(supportSignals)} public support signals
+                    </span>
+                  ) : null}
+                  {collaborativeWorks > 0 ? (
+                    <span className="rounded-full border border-zinc-700/80 bg-black/25 px-3 py-1.5">
+                      {formatCount(collaborativeWorks)} connected works
+                    </span>
+                  ) : null}
                 </div>
                 <a
                   href="#creator-ecosystems"
@@ -489,10 +626,21 @@ export function HomePage() {
                   Explore creators
                 </a>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-                {heroWorks.map((item) => (
-                  <HeroConnectionCard key={`hero:${itemKey(item)}`} item={item} />
-                ))}
+              <div className="grid gap-3 xl:grid-cols-[0.85fr_1.15fr]">
+                <HeroActivityPanel
+                  activeCreators={creatorCount}
+                  ecosystemCount={ecosystemCount || creatorCount}
+                  supportedWorks={supportedWorks}
+                  supportSignals={supportSignals}
+                  collaborativeWorks={collaborativeWorks}
+                  recentWorks={discoveryView.recentRail?.items.length || 0}
+                  premiumWorks={lockedItems.length}
+                />
+                <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                  {heroWorks.map((item) => (
+                    <HeroConnectionCard key={`hero:${itemKey(item)}`} item={item} />
+                  ))}
+                </div>
               </div>
             </div>
           </section>
@@ -538,6 +686,8 @@ export function HomePage() {
               </div>
             </section>
           ) : null}
+
+          {discoveryView.supportedRail ? <ContentRail rail={discoveryView.supportedRail} /> : null}
 
           {discoveryView.recentRail ? <ContentRail rail={discoveryView.recentRail} /> : null}
 

@@ -21,6 +21,9 @@ export type CreatorSpotlight = {
   topics: string[];
   types: string[];
   works: DiscoverableItem[];
+  supportScore: number;
+  relationshipScore: number;
+  activeScore: number;
   latestTitle: string;
 };
 
@@ -28,6 +31,7 @@ export type HomeDiscoveryViewModel = {
   freeItems: DiscoverableItem[];
   lockedItems: DiscoverableItem[];
   recentRail: DiscoveryRail | null;
+  supportedRail: DiscoveryRail | null;
   creatorSpotlights: CreatorSpotlight[];
   topicRails: DiscoveryRail[];
   typeRails: DiscoveryRail[];
@@ -59,6 +63,53 @@ function itemKey(item: DiscoverableItem): string {
 
 function text(value: unknown): string {
   return String(value || '').trim();
+}
+
+function publicNumberSignal(item: DiscoverableItem, keys: string[]): number {
+  const record = item as unknown as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+  }
+  return 0;
+}
+
+export function publicSupportScore(item: DiscoverableItem): number {
+  return publicNumberSignal(item, [
+    'supportCount',
+    'supportedCount',
+    'supporterCount',
+    'supportersCount',
+    'purchaseCount',
+    'purchasesCount',
+    'saleCount',
+    'salesCount',
+    'unlockCount',
+    'unlocksCount',
+    'tipCount',
+    'tipsCount',
+    'popularityScore',
+    'supportScore',
+  ]);
+}
+
+export function publicRelationshipScore(item: DiscoverableItem): number {
+  return publicNumberSignal(item, [
+    'collaboratorCount',
+    'collaboratorsCount',
+    'contributorCount',
+    'contributorsCount',
+    'creditCount',
+    'creditsCount',
+    'splitParticipantCount',
+    'participantCount',
+    'relatedWorkCount',
+    'relationshipCount',
+  ]);
 }
 
 export function itemSortTime(item: DiscoverableItem): number {
@@ -206,13 +257,23 @@ function buildDynamicRails(safe: DiscoverableItem[]): DiscoveryRail[] {
 
 export function buildCreatorSpotlights(items: DiscoverableItem[], limit = 6): CreatorSpotlight[] {
   const grouped = groupBy(items, (item) => `${item.publicOrigin}::${text(item.creatorHandle).replace(/^@+/, '')}`);
-  return bestGroups(grouped, 1).slice(0, limit).map(([key, rows]) => {
+  return [...grouped.entries()].sort((a, b) => {
+    const scoreFor = (rows: DiscoverableItem[]) => {
+      const support = rows.reduce((sum, item) => sum + publicSupportScore(item), 0);
+      const relationships = rows.reduce((sum, item) => sum + publicRelationshipScore(item), 0);
+      const latest = Math.max(...rows.map(itemSortTime), 0);
+      return rows.length * 10000000000000 + support * 100000000 + relationships * 1000000 + latest;
+    };
+    return scoreFor(b[1]) - scoreFor(a[1]);
+  }).slice(0, limit).map(([key, rows]) => {
     const sorted = sortNewestFirst(rows);
     const first = sorted[0];
     const handle = text(first.creatorHandle).replace(/^@+/, '') || 'creator';
     const avatarUrl = first.creatorAvatarUrl || first.creatorProfileImageUrl || first.profileImageUrl || first.avatarUrl || '';
     const topics = [...new Set(sorted.map((item) => text(item.primaryTopic)).filter(Boolean))].slice(0, 2);
     const types = [...new Set(sorted.map((item) => displayType(text(item.contentType))).filter(Boolean))].slice(0, 2);
+    const supportScore = rows.reduce((sum, item) => sum + publicSupportScore(item), 0);
+    const relationshipScore = rows.reduce((sum, item) => sum + publicRelationshipScore(item), 0);
     return {
       key,
       handle,
@@ -225,6 +286,9 @@ export function buildCreatorSpotlights(items: DiscoverableItem[], limit = 6): Cr
       topics,
       types,
       works: sorted.slice(0, 3),
+      supportScore,
+      relationshipScore,
+      activeScore: rows.length + supportScore + relationshipScore,
       latestTitle: first.title || 'Untitled',
     };
   });
@@ -235,6 +299,14 @@ export function buildHomeDiscoveryViewModel(items: DiscoverableItem[]): HomeDisc
   const freeItems = safe.filter((item) => !isLockedOrPremium(item) && (item.accessMode === 'unlocked' || item.accessMode === 'owned'));
   const lockedItems = safe.filter((item) => isLockedOrPremium(item));
   const recent = sortNewestFirst(safe).slice(0, MAX_RAIL_ITEMS);
+  const supported = safe
+    .filter((item) => publicSupportScore(item) > 0)
+    .sort((a, b) => {
+      const diff = publicSupportScore(b) - publicSupportScore(a);
+      if (diff !== 0) return diff;
+      return itemSortTime(b) - itemSortTime(a);
+    })
+    .slice(0, MAX_RAIL_ITEMS);
   const hasRealTime = recent.some((item) => itemSortTime(item) > 0);
   const dynamicRails = buildDynamicRails(safe);
   const stableOriginRail = dynamicRails.find((rail) => rail.key === 'stable-origins') || null;
@@ -247,6 +319,13 @@ export function buildHomeDiscoveryViewModel(items: DiscoverableItem[]): HomeDisc
       title: hasRealTime ? 'Recently Published' : 'Recently Indexed',
       subtitle: hasRealTime ? 'Fresh works across the network' : 'Freshly found across connected creators',
       items: recent,
+      layout: 'grid',
+    } : null,
+    supportedRail: supported.length > 0 ? {
+      key: 'supported',
+      title: 'Most Supported',
+      subtitle: 'Works with public support momentum',
+      items: supported,
       layout: 'grid',
     } : null,
     creatorSpotlights: buildCreatorSpotlights(safe),
