@@ -25,6 +25,12 @@ export type CreatorSpotlight = {
   relationshipScore: number;
   postureScore: number;
   activeScore: number;
+  supportBucket?: string | null;
+  unlockBucket?: string | null;
+  viewBucket?: string | null;
+  collaboratorCount?: number;
+  connectedWorkCount?: number;
+  unlockableWorkCount?: number;
   latestTitle: string;
 };
 

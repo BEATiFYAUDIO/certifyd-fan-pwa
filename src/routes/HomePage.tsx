@@ -92,11 +92,30 @@ function ContentRail({ rail }: { rail: DiscoveryRail }) {
 
 function creatorBadges(creator: CreatorSpotlight): string[] {
   const badges: string[] = [];
-  if (creator.supportScore > 0) badges.push(`Supported ${formatCount(creator.supportScore)}`);
-  if (creator.relationshipScore > 0) badges.push(`${formatCount(creator.relationshipScore)} connections`);
+  const supportBucket = String(creator.supportBucket || '').toLowerCase();
+  const unlockBucket = String(creator.unlockBucket || '').toLowerCase();
+  const viewBucket = String(creator.viewBucket || '').toLowerCase();
+  if (supportBucket === 'high') badges.push('High support');
+  else if (supportBucket === 'active') badges.push('Active support');
+  if (unlockBucket === 'high') badges.push('High unlock activity');
+  else if (unlockBucket === 'active') badges.push('Active unlocks');
+  if (viewBucket === 'high') badges.push('High view activity');
+  else if (viewBucket === 'active') badges.push('Active views');
+  if (Number(creator.collaboratorCount || 0) > 0) {
+    const count = Number(creator.collaboratorCount || 0);
+    badges.push(`${formatCount(count)} ${count === 1 ? 'collaborator' : 'collaborators'}`);
+  }
+  if (Number(creator.connectedWorkCount || 0) > 0) {
+    const count = Number(creator.connectedWorkCount || 0);
+    badges.push(`${formatCount(count)} connected ${count === 1 ? 'work' : 'works'}`);
+  }
   if (creator.postureScore > 0) badges.push('Trusted source');
-  if (creator.premiumCount > 0) badges.push('Unlockable works');
+  const unlockableCount = Number(creator.unlockableWorkCount || creator.premiumCount || 0);
+  if (unlockableCount > 0) {
+    badges.push(`${formatCount(unlockableCount)} unlockable ${unlockableCount === 1 ? 'work' : 'works'}`);
+  }
   if (creator.freeCount > 0 && creator.premiumCount > 0) badges.push('Free + premium');
+  if (creator.itemCount > 1) badges.push(`${formatCount(creator.itemCount)} works`);
   if (creator.itemCount > 1) badges.push('Active catalog');
   return badges.slice(0, 5);
 }
@@ -362,6 +381,12 @@ function signalCreatorToSpotlight(creator: DiscoverySignalCreator): CreatorSpotl
     relationshipScore: Math.max(signalNumber(creator.scores?.topConnectedScore), signalNumber(creator.scores?.ecosystemDensityScore)),
     postureScore: labels.includes('Trusted source') || creator.signals?.originHealth === 'healthy' ? 1 : 0,
     activeScore: signalNumber(creator.scores?.creatorMomentumScore),
+    supportBucket: creator.signals?.support || null,
+    unlockBucket: creator.signals?.unlocks || null,
+    viewBucket: creator.signals?.views || null,
+    collaboratorCount: signalNumber(creator.signals?.collaborators),
+    connectedWorkCount: signalNumber(creator.signals?.connectedWorks),
+    unlockableWorkCount: Number(creator.unlockableWorkCount || 0),
     latestTitle: works[0]?.title || `${creator.workCount || 0} works`,
   };
 }
