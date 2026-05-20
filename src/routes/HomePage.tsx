@@ -136,9 +136,9 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
           className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-amber-300/25 bg-zinc-900 transition hover:border-amber-300/70 sm:h-20 sm:w-20"
         >
           {creator.avatarUrl ? (
-            <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+            <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
           ) : (
-            <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-2.5 opacity-80" loading="lazy" />
+            <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-2.5 opacity-80" loading="lazy" decoding="async" />
           )}
         </a>
         <div className="min-w-0 flex-1">
@@ -171,7 +171,7 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
           >
             <div className="aspect-[16/9] max-h-[280px] bg-zinc-950">
               {lead.coverUrl ? (
-                <img src={lead.coverUrl} alt="" className="h-full w-full object-cover opacity-90 transition group-hover:scale-[1.02]" loading="lazy" referrerPolicy="no-referrer" />
+                <img src={lead.coverUrl} alt="" className="h-full w-full object-cover opacity-90 transition group-hover:scale-[1.02]" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
               ) : (
                 <div className="flex h-full items-center justify-center text-xs uppercase tracking-[0.2em] text-zinc-500">{lead.contentType || 'Work'}</div>
               )}
@@ -193,7 +193,7 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
             >
               <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
                 {work.coverUrl ? (
-                  <img src={work.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+                  <img src={work.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
                 ) : (
                   <div className="flex h-full items-center justify-center text-[9px] uppercase tracking-wide text-zinc-500">{work.contentType || 'Work'}</div>
                 )}
@@ -233,9 +233,9 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
           className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800 transition hover:border-amber-300/60"
         >
           {creator.avatarUrl ? (
-            <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+            <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
           ) : (
-            <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-2 opacity-70" loading="lazy" />
+            <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-2 opacity-70" loading="lazy" decoding="async" />
           )}
         </a>
         <div className="min-w-0 flex-1">
@@ -265,7 +265,7 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
             title={work.title || 'Untitled'}
           >
             {work.coverUrl ? (
-              <img src={work.coverUrl} alt="" className="h-full w-full object-cover opacity-90 transition group-hover:scale-105" loading="lazy" referrerPolicy="no-referrer" />
+              <img src={work.coverUrl} alt="" className="h-full w-full object-cover opacity-90 transition group-hover:scale-105" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
             ) : (
               <div className="flex h-full items-center justify-center px-1 text-center text-[9px] uppercase tracking-wide text-zinc-500">
                 {work.contentType || 'Work'}
@@ -425,7 +425,15 @@ function RankingRow({
       </div>
       <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
         {item.coverUrl ? (
-          <img src={item.coverUrl} alt="" className="h-full w-full object-cover opacity-90" loading="lazy" referrerPolicy="no-referrer" />
+          <img
+            src={item.coverUrl}
+            alt=""
+            className="h-full w-full object-cover opacity-90"
+            loading={rank <= 2 ? 'eager' : 'lazy'}
+            decoding="async"
+            fetchPriority={rank <= 2 ? 'high' : 'auto'}
+            referrerPolicy="no-referrer"
+          />
         ) : (
           <div className="flex h-full items-center justify-center px-2 text-center text-[9px] uppercase tracking-wide text-zinc-500">
             {item.contentType || 'Work'}
@@ -449,7 +457,7 @@ function RankingRow({
                 >
                   <span className="h-4 w-4 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800">
                     {contributor.avatarUrl ? (
-                      <img src={contributor.avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+                      <img src={contributor.avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center text-[8px] font-bold text-amber-200">
                         {label.slice(0, 1).toUpperCase()}
@@ -517,9 +525,9 @@ function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank:
       </div>
       <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-900">
         {creator.avatarUrl ? (
-          <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+          <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
         ) : (
-          <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-1.5 opacity-70" loading="lazy" />
+          <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-1.5 opacity-70" loading="lazy" decoding="async" />
         )}
       </div>
       <div className="min-w-0 flex-1">
@@ -975,6 +983,8 @@ export function HomePage() {
               className="h-24 w-auto object-contain sm:h-28"
               style={{ filter: "brightness(1.14) saturate(1.16) sepia(0.14)" }}
               loading="eager"
+              decoding="async"
+              fetchPriority="high"
             />
             <a
               href="https://certifyd.me"

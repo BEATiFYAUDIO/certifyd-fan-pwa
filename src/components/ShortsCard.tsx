@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { DiscoverableItem } from '../lib/types';
 import { isLockedOrPremium } from '../lib/discoveryGuard';
 
@@ -11,7 +11,7 @@ function avatarInitials(handle: string | null): string {
   return raw.slice(0, 2).toUpperCase();
 }
 
-export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watchParams?: string }) {
+export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watchParams?: string }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -80,12 +80,13 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
             alt={item.title || 'Content cover'}
             className="h-full w-full object-cover"
             loading="lazy"
+            decoding="async"
             referrerPolicy="no-referrer"
             onError={() => setImageFailed(true)}
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 text-sm text-zinc-400">
-            <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" />
+            <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" loading="lazy" decoding="async" />
             <span>No media</span>
           </div>
         )}
@@ -108,6 +109,7 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
                   alt={`${creator} avatar`}
                   className="h-10 w-10 rounded-full object-cover"
                   loading="lazy"
+                  decoding="async"
                   referrerPolicy="no-referrer"
                   onError={() => setAvatarFailed(true)}
                 />
@@ -139,4 +141,4 @@ export function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watc
       </div>
     </article>
   );
-}
+});

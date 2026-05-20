@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { DiscoverableItem } from '../lib/types';
 import { canOpenCreator, isLockedOrPremium } from '../lib/discoveryGuard';
 
@@ -36,11 +36,40 @@ function avatarInitials(handle: string | null): string {
   return raw.slice(0, 2).toUpperCase();
 }
 
-export function FeedCard({ item }: { item: DiscoverableItem }) {
+function useNearViewport() {
+  const ref = useRef<HTMLElement | null>(null);
+  const [nearViewport, setNearViewport] = useState(false);
+
+  useEffect(() => {
+    if (nearViewport) return;
+    const node = ref.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setNearViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        setNearViewport(true);
+        observer.disconnect();
+      },
+      { root: null, rootMargin: '600px 0px', threshold: 0.01 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [nearViewport]);
+
+  return { ref, nearViewport };
+}
+
+export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableItem }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const { ref: cardRef, nearViewport } = useNearViewport();
   const watchHref = `/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`;
   const creator = item.creatorHandle || 'creator';
   const creatorHandleClean = String(item.creatorHandle || '').trim().replace(/^@+/, '');
@@ -54,6 +83,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
   const lockedForFan = isLockedOrPremium(item);
   const prefersPreviewFirst = normalizedType === 'video';
   const canShowVideo = !lockedForFan && prefersPreviewFirst && Boolean(item.previewUrl) && !videoFailed;
+  const videoSrc = canShowVideo && nearViewport ? item.previewUrl : undefined;
   const canShowImage = Boolean(item.coverUrl) && !imageFailed;
   const hasMedia = canShowVideo || canShowImage;
   const avatarUrl =
@@ -77,7 +107,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
   }, [creator]);
 
   return (
-    <article className="group overflow-hidden">
+    <article ref={cardRef} className="group overflow-hidden">
       {mediaIsExternal ? (
         <a href={mediaHref} target="_blank" rel="noreferrer" className="block">
           <div className="relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5 group-hover:ring-zinc-600">
@@ -96,7 +126,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
             {hasMedia ? (
               canShowVideo ? (
                 <video
-                  src={item.previewUrl}
+                  src={videoSrc}
                   className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                   muted
                   autoPlay
@@ -111,12 +141,13 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
                   alt={item.title || 'Content cover'}
                   className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                   loading="lazy"
+                  decoding="async"
                   referrerPolicy="no-referrer"
                   onError={() => setImageFailed(true)}
                 />
               ) : (
                 <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
-                  <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" />
+                  <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" loading="lazy" decoding="async" />
                   <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
                   <p className="mt-1 text-xs text-zinc-400">
                     {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
@@ -152,7 +183,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
           {hasMedia ? (
             canShowVideo ? (
               <video
-                src={item.previewUrl}
+                src={videoSrc}
                 className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                 muted
                 autoPlay
@@ -162,17 +193,18 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
                 onError={() => setVideoFailed(true)}
               />
             ) : canShowImage ? (
-              <img
-                src={item.coverUrl}
-                alt={item.title || 'Content cover'}
-                className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                onError={() => setImageFailed(true)}
-              />
+                <img
+                  src={item.coverUrl}
+                  alt={item.title || 'Content cover'}
+                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                  loading="lazy"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  onError={() => setImageFailed(true)}
+                />
             ) : (
               <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
-                <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" />
+                <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" loading="lazy" decoding="async" />
                 <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
                 <p className="mt-1 text-xs text-zinc-400">
                   {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
@@ -206,6 +238,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
                 alt={`${creator} avatar`}
                 className="h-8 w-8 rounded-full object-cover"
                 loading="lazy"
+                decoding="async"
                 referrerPolicy="no-referrer"
                 onError={() => setAvatarFailed(true)}
               />
@@ -224,6 +257,7 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
             alt={`${creator} avatar`}
             className="mt-0.5 h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-white/15"
             loading="lazy"
+            decoding="async"
             referrerPolicy="no-referrer"
             onError={() => setAvatarFailed(true)}
           />
@@ -260,4 +294,4 @@ export function FeedCard({ item }: { item: DiscoverableItem }) {
       </div>
     </article>
   );
-}
+});

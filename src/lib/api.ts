@@ -11,6 +11,11 @@ import type {
 } from './types';
 import { isRenderableDiscoveryItem } from './discoveryGuard';
 
+const DISCOVERABLE_CACHE_MS = 60_000;
+const SIGNALS_CACHE_MS = 60_000;
+const discoverablePageCache = new Map<string, { expiresAt: number; promise: Promise<DiscoverableResponse> }>();
+const discoverySignalsCache = new Map<string, { expiresAt: number; promise: Promise<DiscoverySignalsResponse | null> }>();
+
 function resolveUrl(value: unknown, origin: string): string {
   if (typeof value !== 'string') return '';
   const trimmed = value.trim();
@@ -36,29 +41,44 @@ export async function fetchDiscoverablePage(input: {
   if (cursor) params.set('cursor', cursor);
 
   const url = `${origin}/public/discoverable-content?${params.toString()}`;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  const res = await fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timeoutId));
-  if (!res.ok) {
-    throw new Error(`Failed ${res.status} from ${origin}`);
-  }
-  const data = (await res.json()) as DiscoverableResponse;
+  const now = Date.now();
+  const cached = discoverablePageCache.get(url);
+  if (cached && cached.expiresAt > now) return cached.promise;
 
-  return {
-    cursor: data.cursor || null,
-    items: (data.items || []).map((item) => ({
-      ...item,
-      publicOrigin: item.publicOrigin || origin,
-      coverUrl: resolveUrl(item.coverUrl, item.publicOrigin || origin),
-      previewUrl: resolveUrl(item.previewUrl, item.publicOrigin || origin),
-      buyUrl: resolveUrl(item.buyUrl, item.publicOrigin || origin),
-      offerUrl: resolveUrl(item.offerUrl, item.publicOrigin || origin),
-      creatorAvatarUrl: resolveUrl(item.creatorAvatarUrl, item.publicOrigin || origin),
-      creatorProfileImageUrl: resolveUrl(item.creatorProfileImageUrl, item.publicOrigin || origin),
-      profileImageUrl: resolveUrl(item.profileImageUrl, item.publicOrigin || origin),
-      avatarUrl: resolveUrl(item.avatarUrl, item.publicOrigin || origin),
-    })).filter((item) => isRenderableDiscoveryItem(item)),
-  };
+  const promise = (async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) {
+        throw new Error(`Failed ${res.status} from ${origin}`);
+      }
+      const data = (await res.json()) as DiscoverableResponse;
+
+      return {
+        cursor: data.cursor || null,
+        items: (data.items || []).map((item) => ({
+          ...item,
+          publicOrigin: item.publicOrigin || origin,
+          coverUrl: resolveUrl(item.coverUrl, item.publicOrigin || origin),
+          previewUrl: resolveUrl(item.previewUrl, item.publicOrigin || origin),
+          buyUrl: resolveUrl(item.buyUrl, item.publicOrigin || origin),
+          offerUrl: resolveUrl(item.offerUrl, item.publicOrigin || origin),
+          creatorAvatarUrl: resolveUrl(item.creatorAvatarUrl, item.publicOrigin || origin),
+          creatorProfileImageUrl: resolveUrl(item.creatorProfileImageUrl, item.publicOrigin || origin),
+          profileImageUrl: resolveUrl(item.profileImageUrl, item.publicOrigin || origin),
+          avatarUrl: resolveUrl(item.avatarUrl, item.publicOrigin || origin),
+        })).filter((item) => isRenderableDiscoveryItem(item)),
+      };
+    } catch (error) {
+      discoverablePageCache.delete(url);
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  })();
+  discoverablePageCache.set(url, { expiresAt: now + DISCOVERABLE_CACHE_MS, promise });
+  return promise;
 }
 
 function normalizeSignalWork(value: DiscoverySignalWork, origin: string): DiscoverySignalWork {
@@ -102,10 +122,21 @@ export async function fetchDiscoverySignals(input: {
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const endpoint = `${origin}/public/discovery/signals`;
+  const now = Date.now();
+  const cached = discoverySignalsCache.get(endpoint);
+  if (cached && cached.expiresAt > now) {
+    clearTimeout(timeoutId);
+    return cached.promise;
+  }
+
+  const promise = (async () => {
   try {
-    const endpoint = `${origin}/public/discovery/signals`;
     const res = await fetch(endpoint, { signal: controller.signal });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      discoverySignalsCache.delete(endpoint);
+      return null;
+    }
     const data = (await res.json()) as DiscoverySignalsResponse;
     return {
       ...data,
@@ -136,10 +167,14 @@ export async function fetchDiscoverySignals(input: {
       },
     };
   } catch {
+    discoverySignalsCache.delete(endpoint);
     return null;
   } finally {
     clearTimeout(timeoutId);
   }
+  })();
+  discoverySignalsCache.set(endpoint, { expiresAt: now + SIGNALS_CACHE_MS, promise });
+  return promise;
 }
 
 function normalizeContextCreator(value: ContentContextCreator | null | undefined, origin: string): ContentContextCreator | null {
