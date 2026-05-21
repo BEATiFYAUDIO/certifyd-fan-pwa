@@ -455,15 +455,11 @@ function RankingRow({
                   className="inline-flex max-w-[9rem] items-center gap-1 rounded-full border border-zinc-700/80 bg-zinc-900/80 py-0.5 pl-1 pr-2 text-[10px] text-zinc-300"
                   title={[label, contributor.role].filter(Boolean).join(' · ')}
                 >
-                  <span className="h-4 w-4 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800">
-                    {contributor.avatarUrl ? (
+                  {contributor.avatarUrl ? (
+                    <span className="h-4 w-4 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800">
                       <img src={contributor.avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
-                    ) : (
-                      <span className="flex h-full w-full items-center justify-center text-[8px] font-bold text-amber-200">
-                        {label.slice(0, 1).toUpperCase()}
-                      </span>
-                    )}
-                  </span>
+                    </span>
+                  ) : null}
                   <span className="truncate">{handle || label}</span>
                   {contributor.role ? <span className="hidden text-zinc-500 min-[440px]:inline">· {contributor.role}</span> : null}
                 </span>
