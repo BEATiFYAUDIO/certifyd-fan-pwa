@@ -429,9 +429,9 @@ function RankingRow({
             src={item.coverUrl}
             alt=""
             className="h-full w-full object-cover opacity-90"
-            loading={rank <= 2 ? 'eager' : 'lazy'}
+            loading={rank === 1 ? 'eager' : 'lazy'}
             decoding="async"
-            fetchPriority={rank <= 2 ? 'high' : 'auto'}
+            fetchPriority={rank === 1 ? 'high' : 'auto'}
             referrerPolicy="no-referrer"
           />
         ) : (
@@ -646,6 +646,10 @@ export function HomePage() {
     () => `fanfeed:v1:${topic}:${origins.slice().sort().join(',') || 'none'}`,
     [origins, topic]
   );
+  const signalsCacheKey = useMemo(
+    () => `fansignals:v1:${origins.slice().sort().join(',') || 'none'}`,
+    [origins]
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -666,20 +670,6 @@ export function HomePage() {
   function onTopicChange(next: Topic) {
     setTopic(next);
   }
-
-  useEffect(() => {
-    if (origins.length === 0) return;
-    try {
-      const raw = sessionStorage.getItem(cacheKey);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as { items?: DiscoverableItem[] };
-      if (!Array.isArray(parsed?.items)) return;
-      const warm = sortNewestFirst(dedupeDiscoveryItems(parsed.items));
-      if (warm.length > 0) setItems(warm);
-    } catch {
-      // ignore cache parse failures
-    }
-  }, [cacheKey, origins.length]);
 
   const loadMore = useCallback(async (currentFeeds: OriginFeedState[], currentItems: DiscoverableItem[]) => {
     if (origins.length === 0 || loadingRef.current) return;
@@ -766,11 +756,23 @@ export function HomePage() {
   useEffect(() => {
     if (origins.length === 0) return;
     const initialFeeds = origins.map((origin) => ({ origin, cursor: null, done: false, loading: false, error: null }));
+    let warmItems: DiscoverableItem[] = [];
+    try {
+      const raw = sessionStorage.getItem(cacheKey);
+      const parsed = raw ? JSON.parse(raw) as { items?: DiscoverableItem[] } : null;
+      if (Array.isArray(parsed?.items)) {
+        warmItems = sortNewestFirst(dedupeDiscoveryItems(parsed.items));
+      }
+    } catch {
+      warmItems = [];
+    }
     setFeeds(initialFeeds);
-    setItems([]);
+    setItems(warmItems);
     setError(null);
-    void loadMore(initialFeeds, []);
-  }, [loadMore, origins, topic]);
+    if (warmItems.length === 0) {
+      void loadMore(initialFeeds, []);
+    }
+  }, [cacheKey, loadMore, origins, topic]);
 
   useEffect(() => {
     if (origins.length === 0) {
@@ -778,10 +780,23 @@ export function HomePage() {
       return;
     }
     let cancelled = false;
+    try {
+      const raw = sessionStorage.getItem(signalsCacheKey);
+      const parsed = raw ? JSON.parse(raw) as { signals?: DiscoverySignalsResponse[] } : null;
+      if (Array.isArray(parsed?.signals)) setSignals(parsed.signals);
+    } catch {
+      // Ignore stale or unavailable session cache.
+    }
     void Promise.all(origins.map((origin) => fetchDiscoverySignals({ origin, timeoutMs: ORIGIN_TIMEOUT_MS + 1500 })))
       .then((responses) => {
         if (cancelled) return;
-        setSignals(responses.filter((response): response is DiscoverySignalsResponse => Boolean(response)));
+        const nextSignals = responses.filter((response): response is DiscoverySignalsResponse => Boolean(response));
+        setSignals(nextSignals);
+        try {
+          sessionStorage.setItem(signalsCacheKey, JSON.stringify({ signals: nextSignals }));
+        } catch {
+          // Ignore storage quota/unavailable errors.
+        }
       })
       .catch(() => {
         if (!cancelled) setSignals([]);
@@ -789,7 +804,7 @@ export function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [origins]);
+  }, [origins, signalsCacheKey]);
 
   useEffect(() => {
     const onVisible = () => {

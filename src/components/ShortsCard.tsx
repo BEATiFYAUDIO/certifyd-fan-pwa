@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { DiscoverableItem } from '../lib/types';
 import { isLockedOrPremium } from '../lib/discoveryGuard';
 
@@ -11,11 +11,40 @@ function avatarInitials(handle: string | null): string {
   return raw.slice(0, 2).toUpperCase();
 }
 
+function useNearViewport() {
+  const ref = useRef<HTMLElement | null>(null);
+  const [nearViewport, setNearViewport] = useState(false);
+
+  useEffect(() => {
+    if (nearViewport) return;
+    const node = ref.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setNearViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        setNearViewport(true);
+        observer.disconnect();
+      },
+      { root: null, rootMargin: '600px 0px', threshold: 0.01 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [nearViewport]);
+
+  return { ref, nearViewport };
+}
+
 export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watchParams?: string }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const { ref: cardRef, nearViewport } = useNearViewport();
 
   const query = watchParams || `origin=${encodeURIComponent(item.publicOrigin)}&mode=freebies&topic=all`;
   const watchHref = `/watch/${encodeURIComponent(item.contentId)}?${query}`;
@@ -39,6 +68,7 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
   const meta = [item.primaryTopic, item.contentType].filter(Boolean).join(' · ');
 
   const canShowVideo = !lockedForFan && isVideo && Boolean(item.previewUrl) && !videoFailed;
+  const videoSrc = canShowVideo && nearViewport ? item.previewUrl : undefined;
   const canShowImage = Boolean(item.coverUrl) && !imageFailed;
 
   const avatarGradient = useMemo(() => {
@@ -53,7 +83,7 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
   }, [creator]);
 
   return (
-    <article className="group relative aspect-[9/16] w-[78vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 hover:-translate-y-0.5 hover:ring-zinc-600 md:w-[280px] md:max-w-[280px] lg:w-[300px] lg:max-w-[300px]">
+    <article ref={cardRef} className="group relative aspect-[9/16] w-[78vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 hover:-translate-y-0.5 hover:ring-zinc-600 md:w-[280px] md:max-w-[280px] lg:w-[300px] lg:max-w-[300px]">
       <Link to={watchHref} state={{ item }} className="absolute inset-0 block">
         <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
           <span className="rounded-full border border-slate-300/45 bg-slate-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100">
@@ -63,9 +93,9 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
             Lightning
           </span>
         </div>
-        {canShowVideo ? (
+        {videoSrc ? (
           <video
-            src={item.previewUrl}
+            src={videoSrc}
             className="h-full w-full object-cover"
             muted
             autoPlay
