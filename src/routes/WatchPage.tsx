@@ -181,6 +181,11 @@ function workKey(work: ContentContextWork): string {
   return `${work.contentId}|${work.publicUrl || ''}`;
 }
 
+function compactPersonLabel(person: ContentContextPerson | ContentContextCreator | null | undefined): string {
+  if (!person) return '';
+  return person.displayName || person.handle || 'Creator';
+}
+
 function dedupePeople<T extends ContentContextPerson | ContentContextCreator>(rows: T[]): T[] {
   const seen = new Set<string>();
   const out: T[] = [];
@@ -221,6 +226,10 @@ function filterDisplayPeople(rows: ContentContextPerson[]): ContentContextPerson
 
 function filterDisplayCreators(rows: ContentContextCreator[]): ContentContextCreator[] {
   return rows.filter((creator) => !isLowValueGenericPerson(creator));
+}
+
+function excludePeople<T extends ContentContextPerson | ContentContextCreator>(rows: T[], exclude: Set<string>): T[] {
+  return rows.filter((row) => !exclude.has(personKey(row)));
 }
 
 function RelationshipSection({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
@@ -332,16 +341,126 @@ function ConnectedCreators({ creators }: { creators: ContentContextCreator[] }) 
   );
 }
 
+function AttributionLineageSummary({
+  creator,
+  sourceWorks,
+  upstreamCreators,
+  contributors,
+}: {
+  creator: ContentContextCreator | null;
+  sourceWorks: ContentContextWork[];
+  upstreamCreators: ContentContextCreator[];
+  contributors: ContentContextPerson[];
+}) {
+  const hasSource = sourceWorks.length > 0;
+  const people = dedupePeople([...contributors, ...upstreamCreators]).slice(0, 5);
+  if (!creator && !hasSource && people.length === 0) return null;
+
+  const source = sourceWorks[0] || null;
+  const creatorLabel = compactPersonLabel(creator);
+  const sourceCreatorLabel = compactPersonLabel(source?.creator);
+
+  return (
+    <section className="rounded-2xl border border-amber-300/20 bg-[radial-gradient(circle_at_10%_0%,rgba(217,180,92,0.12),transparent_34%),linear-gradient(135deg,rgba(24,24,27,0.86),rgba(8,8,9,0.94))] p-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-100">Attribution & lineage</h2>
+          <p className="mt-1 text-sm text-zinc-400">Where this work comes from and who is publicly connected to it.</p>
+        </div>
+        {creator?.profileUrl ? (
+          <a
+            href={creator.profileUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex shrink-0 items-center rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-amber-100 hover:bg-amber-300/15"
+          >
+            Open creator
+          </a>
+        ) : null}
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {creator ? (
+          <div className="rounded-xl border border-zinc-800 bg-black/25 p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Created by</div>
+            <div className="mt-2 flex min-w-0 items-center gap-3">
+              {creator.avatarUrl ? (
+                <img src={creator.avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full border border-zinc-700 object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+              ) : null}
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-zinc-100">{creatorLabel}</div>
+                {creator.handle ? <div className="truncate text-xs text-zinc-500">@{String(creator.handle).replace(/^@+/, '')}</div> : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {source ? (
+          <a
+            href={source.publicUrl || undefined}
+            target={source.publicUrl ? '_blank' : undefined}
+            rel={source.publicUrl ? 'noreferrer' : undefined}
+            className="rounded-xl border border-zinc-800 bg-black/25 p-3 transition hover:border-amber-300/40"
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+              {source.relationshipLabel || 'Built from'}
+            </div>
+            <div className="mt-2 flex min-w-0 gap-3">
+              <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
+                {source.coverUrl ? (
+                  <img src={source.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-[9px] uppercase tracking-wide text-zinc-500">{source.contentType || 'Work'}</div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="line-clamp-1 text-sm font-semibold text-zinc-100">{source.title || 'Untitled work'}</div>
+                <div className="truncate text-xs text-zinc-500">{sourceCreatorLabel}</div>
+              </div>
+            </div>
+          </a>
+        ) : null}
+
+        {people.length ? (
+          <div className="rounded-xl border border-zinc-800 bg-black/25 p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">People involved</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {people.map((person) => {
+                const label = compactPersonLabel(person);
+                const handle = person.handle ? `@${String(person.handle).replace(/^@+/, '')}` : '';
+                const chip = (
+                  <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-zinc-700 bg-zinc-950/70 px-2.5 py-1.5 text-xs text-zinc-200">
+                    {person.avatarUrl ? <img src={person.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
+                    <span className="truncate">{label}</span>
+                    {handle ? <span className="hidden text-zinc-500 sm:inline">{handle}</span> : null}
+                  </span>
+                );
+                return person.profileUrl ? (
+                  <a key={`summary:${personKey(person)}`} href={person.profileUrl} target="_blank" rel="noreferrer">
+                    {chip}
+                  </a>
+                ) : (
+                  <span key={`summary:${personKey(person)}`}>{chip}</span>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function RelationshipContextSections({ context }: { context: ContentRelationshipContext | null }) {
   if (!context) return null;
 
-  const peopleBehindThis = filterDisplayPeople(
+  const allPeopleBehindThis = filterDisplayPeople(
     dedupePeople(context.peopleBehindThis || []).filter((person) => !isUpstreamPerson(person)),
-  ).slice(0, 12);
+  );
   const featuring = filterDisplayPeople(dedupePeople(context.featuring || [])).slice(0, 8);
-  const createdWith = filterDisplayPeople(
+  const allCreatedWith = filterDisplayPeople(
     dedupePeople(context.createdWith || []).filter((person) => !isUpstreamPerson(person) && person.relationshipLabel !== 'Creator'),
-  ).slice(0, 10);
+  );
   const derivedFrom = dedupeWorks(context.derivedFrom || []).slice(0, 12);
   const derivedFromKeys = new Set(derivedFrom.map(workKey));
   const builtFrom = dedupeWorks(context.builtFrom || [], derivedFromKeys).slice(0, 12);
@@ -350,8 +469,30 @@ function RelationshipContextSections({ context }: { context: ContentRelationship
   const excludedRelated = new Set([...derivedFrom, ...builtFrom, ...worksThatBuiltOnThis, ...moreTheyWorkedOn].map(workKey));
   const relatedWorks = dedupeWorks(context.relatedWorks || [], excludedRelated).slice(0, 8);
   const connectedCreators = filterDisplayCreators(dedupePeople(context.connectedCreators || [])).slice(0, 8);
+  const summarySourceWorks = dedupeWorks([...derivedFrom, ...builtFrom]).slice(0, 3);
+  const summaryPeople = dedupePeople([...allPeopleBehindThis, ...allCreatedWith]).slice(0, 6);
+  const summaryPersonKeys = new Set(summaryPeople.map(personKey));
+  const sourceWorkKeys = new Set(summarySourceWorks.map(workKey));
+  const sourceCreatorKeys = new Set(
+    summarySourceWorks
+      .map((work) => work.creator)
+      .filter((creator): creator is ContentContextCreator => Boolean(creator))
+      .map(personKey),
+  );
+  const upstreamCreators = connectedCreators.filter((creator) => sourceCreatorKeys.has(personKey(creator))).slice(0, 4);
+  const peopleBehindThis = excludePeople(allPeopleBehindThis, summaryPersonKeys).slice(0, 12);
+  const peopleBehindKeys = new Set(allPeopleBehindThis.map(personKey));
+  const createdWith = excludePeople(allCreatedWith, new Set([...summaryPersonKeys, ...peopleBehindThis.map(personKey)]))
+    .filter((person) => !peopleBehindKeys.has(personKey(person)))
+    .slice(0, 10);
+  const repeatedConnectedCreators = connectedCreators
+    .filter((creator) => !summaryPersonKeys.has(personKey(creator)) && !sourceCreatorKeys.has(personKey(creator)))
+    .slice(0, 8);
+  const derivedFromSecondary = derivedFrom.filter((work) => !sourceWorkKeys.has(workKey(work)));
+  const builtFromSecondary = builtFrom.filter((work) => !sourceWorkKeys.has(workKey(work)));
 
   const hasAny =
+    context.creator ||
     peopleBehindThis.length ||
     featuring.length ||
     createdWith.length ||
@@ -371,21 +512,28 @@ function RelationshipContextSections({ context }: { context: ContentRelationship
         <p className="mt-1 text-sm text-zinc-400">Creators, collaborators, and related works around this publication.</p>
       </div>
 
-      {derivedFrom.length ? (
+      <AttributionLineageSummary
+        creator={context.creator}
+        sourceWorks={summarySourceWorks}
+        upstreamCreators={upstreamCreators}
+        contributors={summaryPeople}
+      />
+
+      {derivedFromSecondary.length ? (
         <RelationshipSection title="Derived From" subtitle="Original or upstream works this publication is connected to.">
-          <WorksList works={derivedFrom} />
+          <WorksList works={derivedFromSecondary} />
         </RelationshipSection>
       ) : null}
 
-      {builtFrom.length ? (
+      {builtFromSecondary.length ? (
         <RelationshipSection title="Built From" subtitle="Additional source material connected to this work.">
-          <WorksList works={builtFrom} />
+          <WorksList works={builtFromSecondary} />
         </RelationshipSection>
       ) : null}
 
-      {connectedCreators.length ? (
+      {repeatedConnectedCreators.length ? (
         <RelationshipSection title="Connected Creators">
-          <ConnectedCreators creators={connectedCreators} />
+          <ConnectedCreators creators={repeatedConnectedCreators} />
         </RelationshipSection>
       ) : null}
 

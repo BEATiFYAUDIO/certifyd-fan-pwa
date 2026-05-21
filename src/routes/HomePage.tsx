@@ -596,9 +596,6 @@ function TopActivityBoard({
         </a>
       </div>
       <div className="grid min-w-0 auto-rows-auto grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-        {surfaces.slice(0, 4).map((surface) => (
-          <RankedSurfaceCard key={surface.key} surface={surface} />
-        ))}
         <CreatorNetworkCard creators={networkCreators} />
         {recentItems.length > 0 ? (
           <RankedSurfaceCard
@@ -620,6 +617,9 @@ function TopActivityBoard({
             }}
           />
         ) : null}
+        {surfaces.slice(0, 4).map((surface) => (
+          <RankedSurfaceCard key={surface.key} surface={surface} />
+        ))}
       </div>
     </section>
   );
