@@ -24,8 +24,8 @@ export function TopicRail(props: { active: Topic; onChange: (t: Topic) => void }
               onClick={() => props.onChange(t.key)}
               className={`topic-pill whitespace-nowrap rounded-full border px-3 py-1.5 text-sm transition ${
                 active
-                  ? 'border-amber-300/70 bg-amber-300/15 text-amber-100 shadow-[0_0_0_1px_rgba(255,214,120,0.15)]'
-                  : 'border-zinc-700 bg-zinc-900/85 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800/90'
+                  ? 'topic-pill-active border-amber-300/70 bg-amber-300/15 text-amber-100'
+                  : 'border-zinc-700 bg-zinc-900/85 text-zinc-300 hover:border-amber-300/35 hover:bg-zinc-800/90'
               }`}
             >
               {t.label}

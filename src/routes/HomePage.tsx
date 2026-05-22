@@ -418,7 +418,7 @@ function RankingRow({
     <Link
       to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
       state={{ item }}
-      className="group flex min-w-0 items-center gap-2 rounded-xl border border-zinc-800 bg-black/25 p-2 transition hover:border-amber-300/45 sm:gap-3"
+      className="signal-row group flex min-w-0 items-center gap-2 rounded-xl border border-zinc-800 bg-black/25 p-2 transition hover:border-amber-300/45 sm:gap-3"
     >
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-amber-300/25 bg-amber-300/10 text-xs font-bold text-amber-100">
         {rank}
@@ -481,7 +481,7 @@ function RankingRow({
 function RankedSurfaceCard({ surface }: { surface: RankedSurface }) {
   if (surface.items.length === 0) return null;
   return (
-    <section className="min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
+    <section className="signal-surface-card min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">
         <div className="min-w-0">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">{surface.title}</h2>
@@ -514,7 +514,7 @@ function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank:
       href={creator.profileUrl}
       target="_blank"
       rel="noreferrer"
-      className="group flex min-w-0 items-center gap-2 rounded-xl border border-zinc-800 bg-black/25 p-2 transition hover:border-amber-300/45 sm:gap-3"
+      className="creator-row group flex min-w-0 items-center gap-2 rounded-xl border border-zinc-800 bg-black/25 p-2 transition hover:border-amber-300/45 sm:gap-3"
     >
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950 text-xs font-bold text-zinc-300">
         {rank}
@@ -548,7 +548,7 @@ function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank:
 function CreatorNetworkCard({ creators }: { creators: CreatorSpotlight[] }) {
   if (creators.length === 0) return null;
   return (
-    <section className="min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
+    <section className="creator-network-card min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">
         <div className="min-w-0">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">Active Creator Ecosystems</h2>
@@ -578,7 +578,7 @@ function TopActivityBoard({
 }) {
   if (surfaces.length === 0 && networkCreators.length === 0 && recentItems.length === 0 && unlockableItems.length === 0) return null;
   return (
-    <section className="w-full min-w-0 overflow-hidden rounded-3xl border border-zinc-800/90 bg-[radial-gradient(circle_at_10%_0%,rgba(210,166,83,0.18),transparent_30%),linear-gradient(135deg,rgba(24,24,27,0.96),rgba(5,5,6,0.98))] p-2.5 shadow-2xl shadow-black/40 sm:p-4">
+    <section className="creator-economy-board w-full min-w-0 overflow-hidden rounded-3xl border border-zinc-800/90 p-2.5 shadow-2xl shadow-black/40 sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-3 px-1">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-200/80">Creator economy board</p>
@@ -1001,7 +1001,7 @@ export function HomePage() {
               href="https://certifyd.me"
               target="_blank"
               rel="noreferrer"
-              className="absolute left-[84px] top-[61px] text-[10px] font-medium uppercase tracking-[0.14em] text-amber-200/85 transition hover:text-amber-100 hover:underline hover:decoration-amber-200/60 hover:underline-offset-2 sm:left-[98px] sm:top-[72px]"
+              className="mission-link absolute left-[84px] top-[61px] text-[10px] font-medium uppercase tracking-[0.14em] text-amber-200/85 transition hover:text-amber-100 hover:underline hover:decoration-amber-200/60 hover:underline-offset-2 sm:left-[98px] sm:top-[72px]"
             >
               Mission
             </a>
