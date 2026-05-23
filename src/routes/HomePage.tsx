@@ -400,7 +400,24 @@ function relationshipBadgesForSignalWork(work: DiscoverySignalWork): string[] {
   if (hasShared) badges.push('SHARED');
   if (hasRelated) badges.push('RELATED');
   if ((summary.isFree || work.isFree || work.accessMode === 'unlocked' || Number(work.priceSats || 0) === 0) && relationshipScoreForSignalWork(work) > 0) badges.push('FREE CONNECTED');
-  return [...new Set(badges)].slice(0, 3);
+  const priority = ['ROYALTY', 'DERIVATIVE', 'SPLIT', 'SHARED', 'RELATED', 'FREE CONNECTED'];
+  return [...new Set(badges)]
+    .filter((badge) => badge !== 'SHARED' || !badges.includes('SPLIT'))
+    .sort((a, b) => priority.indexOf(a) - priority.indexOf(b))
+    .slice(0, 3);
+}
+
+function relationshipReasonForSignalWork(work: DiscoverySignalWork): string | null {
+  const badges = relationshipBadgesForSignalWork(work);
+  const summary = work.relationshipSummary || {};
+  const connectedWorks = Math.max(signalNumber(work.signals?.connectedWorks), signalNumber(summary.relatedWorkCount || work.relatedWorkCount));
+  if (badges.includes('ROYALTY') && badges.includes('DERIVATIVE')) return 'Royalty-linked derivative';
+  if (badges.includes('SPLIT')) return 'Split-backed release';
+  if (badges.includes('FREE CONNECTED')) return 'Free connected drop';
+  if (badges.includes('DERIVATIVE') || summary.lineageLabel === 'derivative') return 'Built from another work';
+  if (connectedWorks > 0 || badges.includes('RELATED')) return 'Related work network';
+  if (badges.includes('SHARED')) return 'Connected campaign asset';
+  return null;
 }
 
 function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableItem | null {
@@ -423,6 +440,7 @@ function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableIt
     creatorAvatarUrl: work.creatorAvatarUrl || null,
     contributors: Array.isArray(work.contributors) ? work.contributors.slice(0, 4) : [],
     relationshipBadges: relationshipBadgesForSignalWork(work),
+    relationshipReason: relationshipReasonForSignalWork(work),
     relationshipSummary: work.relationshipSummary,
     relationshipTypes: work.relationshipTypes,
     splitParticipantCount: work.splitParticipantCount,
@@ -517,6 +535,39 @@ function dedupeSignalWorks(works: DiscoverySignalWork[]): DiscoverySignalWork[] 
   return [...seen.values()];
 }
 
+function normalizeRelationshipIdentity(value: string | null | undefined): string {
+  return String(value || '')
+    .trim()
+    .replace(/^@+/, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function contributorIdentityKey(contributor: NonNullable<DiscoverableItem['contributors']>[number]): string {
+  return (
+    normalizeRelationshipIdentity(contributor.profileUrl) ||
+    normalizeRelationshipIdentity(contributor.handle) ||
+    normalizeRelationshipIdentity(contributor.displayName)
+  );
+}
+
+function visibleOtherContributors(item: DiscoverableItem): NonNullable<DiscoverableItem['contributors']> {
+  const creator = normalizeRelationshipIdentity(item.creatorHandle);
+  const seen = new Set<string>();
+  return (Array.isArray(item.contributors) ? item.contributors : [])
+    .filter((contributor) => {
+      const handle = normalizeRelationshipIdentity(contributor.handle);
+      const displayName = normalizeRelationshipIdentity(contributor.displayName);
+      const key = contributorIdentityKey(contributor);
+      if (!key) return false;
+      if (creator && (handle === creator || displayName === creator)) return false;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 4);
+}
+
 function RankingRow({
   item,
   rank,
@@ -529,8 +580,10 @@ function RankingRow({
   scoreLabel?: string;
 }) {
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
-  const contributors = Array.isArray(item.contributors) ? item.contributors.slice(0, 4) : [];
+  const contributors = visibleOtherContributors(item);
   const relationshipBadges = Array.isArray(item.relationshipBadges) ? item.relationshipBadges.slice(0, contributors.length ? 2 : 3) : [];
+  const relationshipReason = String(item.relationshipReason || '').trim();
+  const showReason = Boolean(relationshipReason && (contributors.length === 0 || relationshipBadges.length < 2));
   const [imageFailed, setImageFailed] = useState(false);
   return (
     <Link
@@ -594,6 +647,9 @@ function RankingRow({
               </span>
             ))}
           </div>
+        ) : null}
+        {showReason ? (
+          <div className="mt-1 truncate text-[10px] font-medium text-zinc-400">{relationshipReason}</div>
         ) : null}
       </div>
       {score && score > 0 ? (

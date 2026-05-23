@@ -47,6 +47,7 @@ export type DiscoverableItem = {
   originHealth?: 'healthy' | 'failed' | 'cooldown' | 'unknown' | null;
   contributors?: DiscoverySignalContributor[];
   relationshipBadges?: string[];
+  relationshipReason?: string | null;
   relationshipSummary?: RelationshipSummary;
   relationshipTypes?: string[];
   splitParticipantCount?: number;
