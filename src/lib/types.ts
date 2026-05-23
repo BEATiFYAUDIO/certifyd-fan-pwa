@@ -9,6 +9,21 @@ export type Topic =
 
 export type AccessMode = 'unlocked' | 'locked' | 'owned';
 
+export type RelationshipSummary = {
+  relationshipTypes?: string[];
+  splitParticipantCount?: number;
+  royaltyRecipientCount?: number;
+  upstreamCreatorCount?: number;
+  derivedFromCount?: number;
+  relatedWorkCount?: number;
+  connectedCreatorCount?: number;
+  hasLockedSplitSnapshot?: boolean;
+  isDerivative?: boolean;
+  isFree?: boolean;
+  lineageLabel?: 'original' | 'derivative' | 'has_derivatives' | 'unknown' | string;
+  attributionLabel?: 'attributed' | 'unattributed' | 'unknown' | string;
+};
+
 export type DiscoverableItem = {
   contentId: string;
   title: string;
@@ -31,6 +46,20 @@ export type DiscoverableItem = {
   originTrust?: 'stable' | 'ephemeral' | 'provider' | null;
   originHealth?: 'healthy' | 'failed' | 'cooldown' | 'unknown' | null;
   contributors?: DiscoverySignalContributor[];
+  relationshipBadges?: string[];
+  relationshipSummary?: RelationshipSummary;
+  relationshipTypes?: string[];
+  splitParticipantCount?: number;
+  royaltyRecipientCount?: number;
+  upstreamCreatorCount?: number;
+  derivedFromCount?: number;
+  relatedWorkCount?: number;
+  connectedCreatorCount?: number;
+  hasLockedSplitSnapshot?: boolean;
+  isDerivative?: boolean;
+  isFree?: boolean;
+  lineageLabel?: RelationshipSummary['lineageLabel'];
+  attributionLabel?: RelationshipSummary['attributionLabel'];
 };
 
 export type DiscoverableResponse = {
@@ -131,6 +160,19 @@ export type DiscoverySignalWork = {
   };
   labels?: string[];
   contributors?: DiscoverySignalContributor[];
+  relationshipSummary?: RelationshipSummary;
+  relationshipTypes?: string[];
+  splitParticipantCount?: number;
+  royaltyRecipientCount?: number;
+  upstreamCreatorCount?: number;
+  derivedFromCount?: number;
+  relatedWorkCount?: number;
+  connectedCreatorCount?: number;
+  hasLockedSplitSnapshot?: boolean;
+  isDerivative?: boolean;
+  isFree?: boolean;
+  lineageLabel?: RelationshipSummary['lineageLabel'];
+  attributionLabel?: RelationshipSummary['attributionLabel'];
 };
 
 export type DiscoverySignalContributor = {

@@ -331,6 +331,78 @@ function signalWorkKey(work: DiscoverySignalWork): string {
   return `${work.publicOrigin || ''}::${work.contentId}`;
 }
 
+function hasExplicitRelationshipSummary(work: DiscoverySignalWork): boolean {
+  const summary = work.relationshipSummary;
+  if (!summary) return false;
+  return Boolean(
+    (Array.isArray(summary.relationshipTypes) && summary.relationshipTypes.length > 0) ||
+    summary.hasLockedSplitSnapshot ||
+    summary.isDerivative ||
+    signalNumber(summary.splitParticipantCount) > 0 ||
+    signalNumber(summary.royaltyRecipientCount) > 0 ||
+    signalNumber(summary.upstreamCreatorCount) > 0 ||
+    signalNumber(summary.derivedFromCount) > 0 ||
+    signalNumber(summary.relatedWorkCount) > 0 ||
+    signalNumber(summary.connectedCreatorCount) > 0
+  );
+}
+
+function relationshipScoreForSignalWork(work: DiscoverySignalWork): number {
+  const hasSummary = hasExplicitRelationshipSummary(work);
+  const summary = work.relationshipSummary || {};
+  const summaryTypes = Array.isArray(summary.relationshipTypes) ? summary.relationshipTypes : Array.isArray(work.relationshipTypes) ? work.relationshipTypes : [];
+  const contributors = Array.isArray(work.contributors) ? work.contributors.length : 0;
+  const collaborators = signalNumber(work.signals?.collaborators);
+  const connectedWorks = Math.max(signalNumber(work.signals?.connectedWorks), signalNumber(hasSummary ? summary.relatedWorkCount : work.relatedWorkCount));
+  const splitParticipants = Math.max(signalNumber(hasSummary ? summary.splitParticipantCount : work.splitParticipantCount), contributors);
+  const royaltyRecipients = signalNumber(hasSummary ? summary.royaltyRecipientCount : work.royaltyRecipientCount);
+  const upstreamCreators = signalNumber(hasSummary ? summary.upstreamCreatorCount : work.upstreamCreatorCount);
+  const connectedCreators = signalNumber(hasSummary ? summary.connectedCreatorCount : work.connectedCreatorCount);
+  const labels = Array.isArray(work.labels) ? work.labels.join(' ').toLowerCase() : '';
+  const explicitRelationship =
+    summaryTypes.length > 0 ||
+    Boolean(summary.hasLockedSplitSnapshot || work.hasLockedSplitSnapshot || summary.isDerivative || work.isDerivative) ||
+    (!hasSummary && (
+      /\b(collaborative|shared|split|royalty|upstream|derivative|lineage|related|built)\b/.test(labels) ||
+      String(work.contentType || '').toLowerCase().includes('derivative')
+    ));
+  const base = signalNumber(work.scores?.topConnectedScore);
+  return base
+    + Math.max(0, splitParticipants - 1) * 16
+    + Math.max(0, collaborators - 1) * 12
+    + connectedWorks * 10
+    + royaltyRecipients * 14
+    + upstreamCreators * 10
+    + connectedCreators * 6
+    + (explicitRelationship ? 14 : 0);
+}
+
+function relationshipBadgesForSignalWork(work: DiscoverySignalWork): string[] {
+  const hasSummary = hasExplicitRelationshipSummary(work);
+  const badges: string[] = [];
+  const summary = work.relationshipSummary || {};
+  const summaryTypes = Array.isArray(summary.relationshipTypes) ? summary.relationshipTypes : Array.isArray(work.relationshipTypes) ? work.relationshipTypes : [];
+  const labels = Array.isArray(work.labels) ? work.labels.join(' ').toLowerCase() : '';
+  const contentType = String(work.contentType || '').toLowerCase();
+  const contributors = Array.isArray(work.contributors) ? work.contributors.length : 0;
+  const collaborators = signalNumber(work.signals?.collaborators);
+  const connectedWorks = Math.max(signalNumber(work.signals?.connectedWorks), signalNumber(hasSummary ? summary.relatedWorkCount : work.relatedWorkCount));
+  const splitParticipants = Math.max(signalNumber(hasSummary ? summary.splitParticipantCount : work.splitParticipantCount), contributors);
+  const royaltyRecipients = signalNumber(hasSummary ? summary.royaltyRecipientCount : work.royaltyRecipientCount);
+  const hasSplit = splitParticipants > 1 || summaryTypes.includes('split');
+  const hasRoyalty = royaltyRecipients > 0 || summaryTypes.includes('royalty') || (!hasSummary && (labels.includes('royalty') || labels.includes('upstream')));
+  const hasDerivative = Boolean(summary.isDerivative || work.isDerivative || summaryTypes.includes('derivative') || (!hasSummary && (labels.includes('derivative') || contentType.includes('derivative'))));
+  const hasRelated = connectedWorks > 0 || summaryTypes.includes('related') || (!hasSummary && (labels.includes('related') || labels.includes('built')));
+  const hasShared = !hasSplit && (collaborators > 1 || summaryTypes.includes('shared') || (!hasSummary && labels.includes('collaborative')));
+  if (hasRoyalty) badges.push('ROYALTY');
+  if (hasDerivative) badges.push('DERIVATIVE');
+  if (hasSplit) badges.push('SPLIT');
+  if (hasShared) badges.push('SHARED');
+  if (hasRelated) badges.push('RELATED');
+  if ((summary.isFree || work.isFree || work.accessMode === 'unlocked' || Number(work.priceSats || 0) === 0) && relationshipScoreForSignalWork(work) > 0) badges.push('FREE CONNECTED');
+  return [...new Set(badges)].slice(0, 3);
+}
+
 function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableItem | null {
   if (!work.contentId || !work.publicOrigin) return null;
   const publicUrl = work.publicUrl || '';
@@ -350,9 +422,53 @@ function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableIt
     publicOrigin: work.publicOrigin,
     creatorAvatarUrl: work.creatorAvatarUrl || null,
     contributors: Array.isArray(work.contributors) ? work.contributors.slice(0, 4) : [],
+    relationshipBadges: relationshipBadgesForSignalWork(work),
+    relationshipSummary: work.relationshipSummary,
+    relationshipTypes: work.relationshipTypes,
+    splitParticipantCount: work.splitParticipantCount,
+    royaltyRecipientCount: work.royaltyRecipientCount,
+    upstreamCreatorCount: work.upstreamCreatorCount,
+    derivedFromCount: work.derivedFromCount,
+    relatedWorkCount: work.relatedWorkCount,
+    connectedCreatorCount: work.connectedCreatorCount,
+    hasLockedSplitSnapshot: work.hasLockedSplitSnapshot,
+    isDerivative: work.isDerivative,
+    isFree: work.isFree,
+    lineageLabel: work.lineageLabel,
+    attributionLabel: work.attributionLabel,
     discoveryStatus: 'live',
     originHealth: 'healthy',
   };
+}
+
+function connectedSignalWorks(signals: DiscoverySignalsResponse[]): DiscoverySignalWork[] {
+  const all = dedupeSignalWorks(signals.flatMap((signal) => [
+    ...(signal.works?.collaborativeReleases || []),
+    ...(signal.works?.topSelling || []),
+    ...(signal.works?.mostSupported || []),
+    ...(signal.works?.fastestMoving || []),
+    ...(signal.works?.recentlySupported || []),
+  ]));
+  return all
+    .filter((work) => {
+      const hasSummary = hasExplicitRelationshipSummary(work);
+      const contributors = Array.isArray(work.contributors) ? work.contributors.length : 0;
+      const collaborators = signalNumber(work.signals?.collaborators);
+      const summary = work.relationshipSummary || {};
+      const connectedWorks = Math.max(signalNumber(work.signals?.connectedWorks), signalNumber(hasSummary ? summary.relatedWorkCount : work.relatedWorkCount));
+      const relationshipTypes = Array.isArray(summary.relationshipTypes) ? summary.relationshipTypes : Array.isArray(work.relationshipTypes) ? work.relationshipTypes : [];
+      const labels = Array.isArray(work.labels) ? work.labels.join(' ').toLowerCase() : '';
+      return relationshipScoreForSignalWork(work) > 0
+        && (
+          contributors > 1 ||
+          collaborators > 1 ||
+          connectedWorks > 0 ||
+          relationshipTypes.length > 0 ||
+          Boolean(summary.hasLockedSplitSnapshot || work.hasLockedSplitSnapshot || summary.isDerivative || work.isDerivative) ||
+          (!hasSummary && /\b(collaborative|shared|split|royalty|upstream|derivative|lineage|related|built)\b/.test(labels))
+        );
+    })
+    .sort((a, b) => relationshipScoreForSignalWork(b) - relationshipScoreForSignalWork(a));
 }
 
 function signalCreatorToSpotlight(creator: DiscoverySignalCreator): CreatorSpotlight | null {
@@ -414,6 +530,7 @@ function RankingRow({
 }) {
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
   const contributors = Array.isArray(item.contributors) ? item.contributors.slice(0, 4) : [];
+  const relationshipBadges = Array.isArray(item.relationshipBadges) ? item.relationshipBadges.slice(0, contributors.length ? 2 : 3) : [];
   const [imageFailed, setImageFailed] = useState(false);
   return (
     <Link
@@ -467,6 +584,15 @@ function RankingRow({
                 </span>
               );
             })}
+          </div>
+        ) : null}
+        {relationshipBadges.length > 0 ? (
+          <div className="mt-1.5 flex min-w-0 flex-wrap gap-1">
+            {relationshipBadges.map((badge) => (
+              <span key={`${itemKey(item)}:${badge}`} className="rounded-full border border-amber-300/25 bg-amber-300/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-100/90">
+                {badge}
+              </span>
+            ))}
           </div>
         ) : null}
       </div>
@@ -567,18 +693,67 @@ function CreatorNetworkCard({ creators }: { creators: CreatorSpotlight[] }) {
   );
 }
 
+function LiveCreatorRail({ creators }: { creators: CreatorSpotlight[] }) {
+  if (creators.length === 0) return null;
+  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
+  const label = `${creators.length} ${creators.length === 1 ? 'creator' : 'creators'} active now`;
+  return (
+    <div className="mb-3 min-w-0 overflow-hidden rounded-2xl border border-zinc-800/80 bg-black/20 px-2.5 py-2 sm:px-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="shrink-0">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-100/90">
+            <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.45)]" aria-hidden="true" />
+            {label}
+          </div>
+        </div>
+        <div className="rail-scroll flex min-w-0 flex-1 snap-x gap-1.5 overflow-x-auto py-0.5">
+          {creators.slice(0, 12).map((creator) => {
+            const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+            return (
+              <a
+                key={`live-now:${creator.key}`}
+                href={creator.profileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="group inline-flex max-w-[11rem] shrink-0 snap-start items-center gap-1.5 rounded-full border border-zinc-700/80 bg-zinc-950/80 py-1 pl-1 pr-2 text-xs text-zinc-300 transition hover:border-amber-300/45 hover:text-amber-100"
+                title={`Open @${creator.handle}`}
+              >
+                <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-900">
+                  {creator.avatarUrl ? (
+                    <img src={creator.avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+                  ) : (
+                    <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-1 opacity-70" loading="lazy" decoding="async" />
+                  )}
+                  <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full border border-zinc-950 bg-emerald-300" aria-hidden="true" />
+                </span>
+                <span className="truncate">{displayName}</span>
+              </a>
+            );
+          })}
+        </div>
+        <a
+          href="#creator-ecosystems"
+          className="hidden shrink-0 rounded-full border border-amber-300/25 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-100/90 transition hover:bg-amber-300/10 sm:inline-flex"
+        >
+          View all active
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function TopActivityBoard({
   surfaces,
-  networkCreators,
+  activeCreators,
   recentItems,
   unlockableItems,
 }: {
   surfaces: RankedSurface[];
-  networkCreators: CreatorSpotlight[];
+  activeCreators: CreatorSpotlight[];
   recentItems: DiscoverableItem[];
   unlockableItems: DiscoverableItem[];
 }) {
-  if (surfaces.length === 0 && networkCreators.length === 0 && recentItems.length === 0 && unlockableItems.length === 0) return null;
+  if (surfaces.length === 0 && activeCreators.length === 0 && recentItems.length === 0 && unlockableItems.length === 0) return null;
   return (
     <section className="creator-economy-board w-full min-w-0 overflow-hidden rounded-3xl border border-zinc-800/90 p-2.5 shadow-2xl shadow-black/40 sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-3 px-1">
@@ -593,8 +768,9 @@ function TopActivityBoard({
           Explore creators
         </a>
       </div>
+      <LiveCreatorRail creators={activeCreators} />
       <div className="grid min-w-0 auto-rows-auto grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-        <CreatorNetworkCard creators={networkCreators} />
+        <CreatorNetworkCard creators={activeCreators} />
         {recentItems.length > 0 ? (
           <RankedSurfaceCard
             surface={{
@@ -866,15 +1042,18 @@ export function HomePage() {
     const mostSupported = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.mostSupported || []));
     const fastestMoving = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.fastestMoving || []));
     const collaborativeReleases = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.collaborativeReleases || []));
+    const connectedWorks = connectedSignalWorks(signals);
     return {
       topSelling,
       mostSupported,
       fastestMoving,
       collaborativeReleases,
+      connectedWorks,
       topSellingItems: topSelling.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
       mostSupportedItems: mostSupported.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
       fastestMovingItems: fastestMoving.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
       collaborativeItems: collaborativeReleases.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
+      connectedItems: connectedWorks.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
     };
   }, [signals]);
   const signalScoreByWork = useMemo(() => {
@@ -884,10 +1063,10 @@ export function HomePage() {
         support: signalNumber(work.scores?.supportMomentumScore),
         unlock: signalNumber(work.scores?.unlockMomentumScore),
         moving: signalNumber(work.scores?.fastestMovingScore),
-        connected: signalNumber(work.scores?.topConnectedScore),
+        connected: relationshipScoreForSignalWork(work),
       });
     };
-    [...signalWorks.topSelling, ...signalWorks.mostSupported, ...signalWorks.fastestMoving, ...signalWorks.collaborativeReleases].forEach(add);
+    [...signalWorks.topSelling, ...signalWorks.mostSupported, ...signalWorks.fastestMoving, ...signalWorks.collaborativeReleases, ...signalWorks.connectedWorks].forEach(add);
     return map;
   }, [signalWorks]);
   const signalCreators = useMemo(() => {
@@ -944,9 +1123,12 @@ export function HomePage() {
     const scoreFromSignal = (kind: 'support' | 'unlock' | 'moving' | 'connected') => (item: DiscoverableItem) =>
       signalScoreByWork.get(itemKey(item))?.[kind] || 0;
 
+    const connected = signalWorks.connectedItems.length > 0 ? signalWorks.connectedItems.slice(0, 6) : [];
     const topSelling = signalWorks.topSellingItems.slice(0, 6);
-    const moving = signalWorks.fastestMovingItems.length > 0 ? signalWorks.fastestMovingItems.slice(0, 6) : [];
-    const connected = signalWorks.collaborativeItems.length > 0 ? signalWorks.collaborativeItems.slice(0, 6) : [];
+    const usedSignalKeys = new Set([...connected, ...topSelling].map(itemKey));
+    const moving = signalWorks.fastestMovingItems.length > 0
+      ? signalWorks.fastestMovingItems.filter((item) => !usedSignalKeys.has(itemKey(item))).slice(0, 6)
+      : [];
 
     const surfaces: RankedSurface[] = [];
     if (topSelling.length > 0) {
@@ -963,7 +1145,7 @@ export function HomePage() {
       surfaces.push({
         key: 'top-connected',
         title: 'Top Connected',
-        subtitle: 'Collaborative and related works with public relationship signals',
+        subtitle: 'Shared, split, derivative, and free connected works',
         items: connected,
         scoreFor: scoreFromSignal('connected'),
         scoreLabel: 'links',
@@ -1042,7 +1224,7 @@ export function HomePage() {
         {hasHomepageContent ? (
           <TopActivityBoard
             surfaces={topSurfaces}
-            networkCreators={networkCreators}
+            activeCreators={homepageCreators}
             recentItems={boardRecentItems}
             unlockableItems={boardUnlockableItems}
           />

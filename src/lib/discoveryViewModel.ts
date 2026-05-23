@@ -134,8 +134,12 @@ export function publicRelationshipScore(item: DiscoverableItem): number {
     'creditCount',
     'creditsCount',
     'splitParticipantCount',
+    'royaltyRecipientCount',
+    'upstreamCreatorCount',
+    'derivedFromCount',
     'participantCount',
     'relatedWorkCount',
+    'connectedCreatorCount',
     'relationshipCount',
   ]);
 }
