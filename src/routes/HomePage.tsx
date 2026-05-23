@@ -414,6 +414,7 @@ function RankingRow({
 }) {
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
   const contributors = Array.isArray(item.contributors) ? item.contributors.slice(0, 4) : [];
+  const [imageFailed, setImageFailed] = useState(false);
   return (
     <Link
       to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
@@ -424,7 +425,7 @@ function RankingRow({
         {rank}
       </div>
       <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
-        {item.coverUrl ? (
+        {item.coverUrl && !imageFailed ? (
           <img
             src={item.coverUrl}
             alt=""
@@ -433,6 +434,7 @@ function RankingRow({
             decoding="async"
             fetchPriority={rank === 1 ? 'high' : 'auto'}
             referrerPolicy="no-referrer"
+            onError={() => setImageFailed(true)}
           />
         ) : (
           <div className="flex h-full items-center justify-center px-2 text-center text-[9px] uppercase tracking-wide text-zinc-500">
