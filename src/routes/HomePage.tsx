@@ -693,55 +693,6 @@ function CreatorNetworkCard({ creators }: { creators: CreatorSpotlight[] }) {
   );
 }
 
-function LiveCreatorRail({ creators }: { creators: CreatorSpotlight[] }) {
-  if (creators.length === 0) return null;
-  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
-  const label = `${creators.length} ${creators.length === 1 ? 'creator' : 'creators'} active now`;
-  return (
-    <div className="mb-3 min-w-0 overflow-hidden rounded-2xl border border-zinc-800/80 bg-black/20 px-2.5 py-2 sm:px-3">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="shrink-0">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-100/90">
-            <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.45)]" aria-hidden="true" />
-            {label}
-          </div>
-        </div>
-        <div className="rail-scroll flex min-w-0 flex-1 snap-x gap-1.5 overflow-x-auto py-0.5">
-          {creators.slice(0, 12).map((creator) => {
-            const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-            return (
-              <a
-                key={`live-now:${creator.key}`}
-                href={creator.profileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="group inline-flex max-w-[11rem] shrink-0 snap-start items-center gap-1.5 rounded-full border border-zinc-700/80 bg-zinc-950/80 py-1 pl-1 pr-2 text-xs text-zinc-300 transition hover:border-amber-300/45 hover:text-amber-100"
-                title={`Open @${creator.handle}`}
-              >
-                <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-900">
-                  {creator.avatarUrl ? (
-                    <img src={creator.avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
-                  ) : (
-                    <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-1 opacity-70" loading="lazy" decoding="async" />
-                  )}
-                  <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full border border-zinc-950 bg-emerald-300" aria-hidden="true" />
-                </span>
-                <span className="truncate">{displayName}</span>
-              </a>
-            );
-          })}
-        </div>
-        <a
-          href="#creator-ecosystems"
-          className="hidden shrink-0 rounded-full border border-amber-300/25 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-100/90 transition hover:bg-amber-300/10 sm:inline-flex"
-        >
-          View all active
-        </a>
-      </div>
-    </div>
-  );
-}
-
 function TopActivityBoard({
   surfaces,
   activeCreators,
@@ -768,7 +719,6 @@ function TopActivityBoard({
           Explore creators
         </a>
       </div>
-      <LiveCreatorRail creators={activeCreators} />
       <div className="grid min-w-0 auto-rows-auto grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
         <CreatorNetworkCard creators={activeCreators} />
         {recentItems.length > 0 ? (
