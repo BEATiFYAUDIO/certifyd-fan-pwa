@@ -70,6 +70,30 @@ function itemKey(item: DiscoverableItem): string {
   return `${item.publicOrigin}::${item.contentId}`;
 }
 
+function normalizeOriginKey(value: string | null | undefined): string {
+  return String(value || '').trim().replace(/\/+$/, '').toLowerCase();
+}
+
+function itemBelongsToOrigin(item: DiscoverableItem, origin: string): boolean {
+  return normalizeOriginKey(item.publicOrigin) === normalizeOriginKey(origin);
+}
+
+function signalBelongsToOrigin(signal: DiscoverySignalsResponse, origin: string): boolean {
+  const target = normalizeOriginKey(origin);
+  if (!target) return false;
+  if (normalizeOriginKey(signal.origin?.publicOrigin) === target) return true;
+  const works = [
+    ...(signal.works?.topSelling || []),
+    ...(signal.works?.mostSupported || []),
+    ...(signal.works?.fastestMoving || []),
+    ...(signal.works?.recentlySupported || []),
+    ...(signal.works?.collaborativeReleases || []),
+  ];
+  if (works.some((work) => normalizeOriginKey(work.publicOrigin) === target)) return true;
+  const creators = [...(signal.ecosystems || []), ...(signal.creators?.topCreators || [])];
+  return creators.some((creator) => normalizeOriginKey(creator.publicOrigin) === target);
+}
+
 function formatCount(value: number): string {
   if (value >= 1000000) return `${(value / 1000000).toFixed(value >= 10000000 ? 0 : 1)}M`;
   if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}K`;
@@ -881,6 +905,7 @@ export function HomePage() {
     loadingRef.current = true;
     setLoading(true);
     setError(null);
+    const failedOrigins = new Set<string>();
 
     await Promise.all(
       selectedIndexes.map(async (index) => {
@@ -900,6 +925,7 @@ export function HomePage() {
           retryMetaRef.current.delete(feed.origin);
         } catch (e: unknown) {
           feed.error = toErrorMessage(e);
+          failedOrigins.add(feed.origin);
           const prev = retryMetaRef.current.get(feed.origin) || { failCount: 0, retryAfter: 0, disabledUntil: 0 };
           const failCount = prev.failCount + 1;
           const backoff = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** (failCount - 1));
@@ -921,8 +947,16 @@ export function HomePage() {
       return;
     }
     setFeeds(nextFeeds);
-    const nextItems = sortNewestFirst(dedupeDiscoveryItems([...updates, ...currentItems]));
+    const retainedItems = failedOrigins.size > 0
+      ? currentItems.filter((item) => ![...failedOrigins].some((origin) => itemBelongsToOrigin(item, origin)))
+      : currentItems;
+    const nextItems = sortNewestFirst(dedupeDiscoveryItems([...updates, ...retainedItems]));
     setItems(nextItems);
+    if (failedOrigins.size > 0) {
+      setSignals((currentSignals) =>
+        currentSignals.filter((signal) => ![...failedOrigins].some((origin) => signalBelongsToOrigin(signal, origin)))
+      );
+    }
     try {
       sessionStorage.setItem(cacheKey, JSON.stringify({ items: nextItems }));
     } catch {
