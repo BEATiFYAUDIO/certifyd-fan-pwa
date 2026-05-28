@@ -33,13 +33,16 @@ export function TopicRail(props: { active: Topic; onChange: (t: Topic) => void }
           );
         })}
         {extraPills.map((label) => (
-          <span
+          <button
             key={label}
-            className="topic-pill whitespace-nowrap rounded-full border border-zinc-700/70 bg-zinc-900/60 px-3 py-1.5 text-sm text-zinc-500"
-            aria-hidden="true"
+            type="button"
+            disabled
+            title={`${label} scope is coming soon`}
+            className="topic-pill whitespace-nowrap rounded-full border border-zinc-700/80 bg-zinc-900/70 px-3 py-1.5 text-sm text-zinc-400 opacity-80 cursor-not-allowed"
+            aria-disabled="true"
           >
             {label}
-          </span>
+          </button>
         ))}
       </div>
     </div>

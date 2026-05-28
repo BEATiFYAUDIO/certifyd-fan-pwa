@@ -879,6 +879,16 @@ export function HomePage() {
     setTopic(next);
   }
 
+  const inActiveScope = useCallback((item: DiscoverableItem) => {
+    if (topic !== 'all') {
+      const itemTopic = String(item.primaryTopic || '').trim().toLowerCase();
+      if (itemTopic !== topic) return false;
+    }
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return searchableText(item).includes(q);
+  }, [topic, query]);
+
   const loadMore = useCallback(async (currentFeeds: OriginFeedState[], currentItems: DiscoverableItem[]) => {
     if (origins.length === 0 || loadingRef.current) return;
     const now = Date.now();
@@ -1064,9 +1074,12 @@ export function HomePage() {
 
   const filtered: DiscoverableItem[] = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const topicScoped = topic === 'all'
+      ? items
+      : items.filter((it) => String(it.primaryTopic || '').trim().toLowerCase() === topic);
     const searched = !q
-      ? items.filter((it) => isRenderableDiscoveryItem(it))
-      : items.filter((it) => {
+      ? topicScoped.filter((it) => isRenderableDiscoveryItem(it))
+      : topicScoped.filter((it) => {
       if (!isRenderableDiscoveryItem(it)) return false;
       return searchableText(it).includes(q);
     });
@@ -1163,11 +1176,15 @@ export function HomePage() {
     const scoreFromSignal = (kind: 'support' | 'unlock' | 'moving' | 'connected') => (item: DiscoverableItem) =>
       signalScoreByWork.get(itemKey(item))?.[kind] || 0;
 
-    const connected = signalWorks.connectedItems.length > 0 ? signalWorks.connectedItems.slice(0, 6) : [];
-    const topSelling = signalWorks.topSellingItems.slice(0, 6);
+    const connectedScoped = signalWorks.connectedItems.filter(inActiveScope);
+    const topSellingScoped = signalWorks.topSellingItems.filter(inActiveScope);
+    const movingScoped = signalWorks.fastestMovingItems.filter(inActiveScope);
+
+    const connected = connectedScoped.length > 0 ? connectedScoped.slice(0, 6) : [];
+    const topSelling = topSellingScoped.slice(0, 6);
     const usedSignalKeys = new Set([...connected, ...topSelling].map(itemKey));
-    const moving = signalWorks.fastestMovingItems.length > 0
-      ? signalWorks.fastestMovingItems.filter((item) => !usedSignalKeys.has(itemKey(item))).slice(0, 6)
+    const moving = movingScoped.length > 0
+      ? movingScoped.filter((item) => !usedSignalKeys.has(itemKey(item))).slice(0, 6)
       : [];
 
     const surfaces: RankedSurface[] = [];
@@ -1202,7 +1219,7 @@ export function HomePage() {
       });
     }
     return surfaces.slice(0, 3);
-  }, [signalScoreByWork, signalWorks]);
+  }, [inActiveScope, signalScoreByWork, signalWorks]);
   const boardRecentItems = useMemo(() => (discoveryView.recentRail?.items || []).slice(0, 5), [discoveryView.recentRail]);
   const boardUnlockableItems = useMemo(() => lockedItems.slice(0, 5), [lockedItems]);
   const hasHomepageContent = filtered.length > 0 || homepageCreators.length > 0 || topSurfaces.some((surface) => surface.items.length > 0);
