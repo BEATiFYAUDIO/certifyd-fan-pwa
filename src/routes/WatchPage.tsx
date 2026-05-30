@@ -1171,16 +1171,6 @@ function StandardWatch({
                 {ctaLabel(item)}
               </a>
               <button
-                onClick={() => {
-                  if (!canOpenCreator(item)) return;
-                  window.open(item.buyUrl, '_blank', 'noopener,noreferrer');
-                }}
-                disabled={!canOpenCreator(item)}
-                className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-semibold hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Open
-              </button>
-              <button
                 onClick={onShare}
                 className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-semibold hover:bg-zinc-800"
               >
