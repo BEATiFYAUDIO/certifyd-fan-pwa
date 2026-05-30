@@ -1288,13 +1288,6 @@ export function HomePage() {
         ) : null}
 
         <div className="space-y-6">
-          {homepageCreators.length > 0 ? (
-            <section id="creator-ecosystems" className="space-y-3 scroll-mt-40">
-              <RailHeader title="Creator Ecosystems" subtitle="Hub creators, connected works, and active public catalogs" />
-              <CreatorEcosystemGrid creators={homepageCreators} />
-            </section>
-          ) : null}
-
           {freeItems.length > 0 ? (
             <section className="space-y-3">
               <RailHeader title="Free Drops" subtitle="Open works fans can play while exploring creators" badge="Open" />
@@ -1310,6 +1303,13 @@ export function HomePage() {
                   );
                 })}
               </div>
+            </section>
+          ) : null}
+
+          {homepageCreators.length > 0 ? (
+            <section id="creator-ecosystems" className="space-y-3 scroll-mt-40">
+              <RailHeader title="Creator Ecosystems" subtitle="Hub creators, connected works, and active public catalogs" />
+              <CreatorEcosystemGrid creators={homepageCreators} />
             </section>
           ) : null}
 
