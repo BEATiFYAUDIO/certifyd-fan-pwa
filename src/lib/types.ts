@@ -33,10 +33,16 @@ export type DiscoverableItem = {
   primaryTopic: Exclude<Topic, 'all'> | null;
   coverUrl: string;
   previewUrl: string;
+  fullMediaUrl?: string | null;
+  fullContentUrl?: string | null;
+  mediaUrl?: string | null;
+  contentUrl?: string | null;
   buyUrl: string;
   offerUrl: string;
   priceSats: number;
   accessMode: AccessMode;
+  isLocked?: boolean;
+  hasFullAccess?: boolean;
   publicOrigin: string;
   creatorAvatarUrl?: string | null;
   creatorProfileImageUrl?: string | null;

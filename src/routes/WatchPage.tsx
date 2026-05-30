@@ -12,6 +12,32 @@ function ctaLabel(item: DiscoverableItem) {
   return 'Open on Creator';
 }
 
+type PlaybackChoice = {
+  lockedForFan: boolean;
+  mediaSrc: string;
+  usingPreview: boolean;
+  fullAccess: boolean;
+};
+
+function resolvePlaybackChoice(item: DiscoverableItem): PlaybackChoice {
+  const explicitUnlocked = item.isFree === true || item.hasFullAccess === true || item.isLocked === false || item.accessMode === 'owned' || item.accessMode === 'unlocked';
+  const explicitLocked = item.isLocked === true || (item.accessMode === 'locked' && !explicitUnlocked);
+  const fullAccess = explicitUnlocked && !explicitLocked;
+  const fullSrc =
+    String(item.fullMediaUrl || '').trim() ||
+    String(item.fullContentUrl || '').trim() ||
+    String(item.mediaUrl || '').trim() ||
+    String(item.contentUrl || '').trim();
+  const previewSrc = String(item.previewUrl || '').trim();
+  if (fullAccess) {
+    return { lockedForFan: false, mediaSrc: fullSrc || previewSrc, usingPreview: false, fullAccess: true };
+  }
+  if (explicitLocked && previewSrc) {
+    return { lockedForFan: true, mediaSrc: previewSrc, usingPreview: true, fullAccess: false };
+  }
+  return { lockedForFan: explicitLocked || isLockedOrPremium(item), mediaSrc: '', usingPreview: false, fullAccess };
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return 'Failed to load content';
@@ -783,10 +809,12 @@ function FreebiesWatch({
         <div ref={scrollerRef} className="h-[100dvh] snap-y snap-mandatory overflow-y-auto overscroll-y-contain">
           {items.map((it, index) => {
             const normalizedType = String(it.contentType || '').toLowerCase();
-            const lockedForFan = isLockedOrPremium(it);
-            const isVideo = !lockedForFan && normalizedType === 'video' && Boolean(it.previewUrl);
-            const isSong = !lockedForFan && (normalizedType === 'song' || normalizedType === 'audio') && Boolean(it.previewUrl);
-            const visualSrc = isVideo ? (it.previewUrl || it.coverUrl || '') : (it.coverUrl || '');
+            const playback = resolvePlaybackChoice(it);
+            const lockedForFan = playback.lockedForFan;
+            const playbackSrc = playback.mediaSrc;
+            const isVideo = !lockedForFan && normalizedType === 'video' && Boolean(playbackSrc);
+            const isSong = !lockedForFan && (normalizedType === 'song' || normalizedType === 'audio') && Boolean(playbackSrc);
+            const visualSrc = isVideo ? (playbackSrc || it.coverUrl || '') : (it.coverUrl || '');
             return (
               <section
                 key={`${it.publicOrigin}:${it.contentId}:${index}`}
@@ -816,7 +844,7 @@ function FreebiesWatch({
                 {isSong ? (
                   <div className="absolute inset-x-4 z-20 rounded-xl bg-black/60 p-3 backdrop-blur" style={{ bottom: 'calc(9rem + env(safe-area-inset-bottom, 0px))' }}>
                     <audio
-                      src={it.previewUrl}
+                      src={playbackSrc}
                       className="w-full"
                       controls
                       preload="metadata"
@@ -1015,7 +1043,9 @@ function StandardWatch({
                 const normalizedType = String(item.contentType || '').toLowerCase();
                 const isSong = normalizedType === 'song' || normalizedType === 'audio';
                 const isVideo = normalizedType === 'video';
-                const lockedForFan = isLockedOrPremium(item);
+                const playback = resolvePlaybackChoice(item);
+                const lockedForFan = playback.lockedForFan;
+                const playbackSrc = playback.mediaSrc;
                 if (lockedForFan) {
                   return (
                     <div className="overflow-hidden rounded-2xl border border-amber-300/20 bg-zinc-900">
@@ -1060,9 +1090,9 @@ function StandardWatch({
                           <div className="flex h-[42vh] items-center justify-center text-zinc-500">No cover art</div>
                         )}
                       </div>
-                      {item.previewUrl ? (
+                      {playbackSrc ? (
                         <audio
-                          src={item.previewUrl}
+                          src={playbackSrc}
                           className="w-full"
                           controls
                           preload="metadata"
@@ -1073,17 +1103,17 @@ function StandardWatch({
                 }
                 return (
                   <div className="overflow-hidden rounded-2xl bg-zinc-900">
-                    {item.previewUrl && isVideo ? (
+                    {playbackSrc && isVideo ? (
                       <video
-                        src={item.previewUrl}
+                        src={playbackSrc}
                         className="h-full w-full max-h-[70vh] bg-black object-contain"
                         controls
                         playsInline
                         preload="metadata"
                       />
-                    ) : item.previewUrl && isSong ? (
+                    ) : playbackSrc && isSong ? (
                       <audio
-                        src={item.previewUrl}
+                        src={playbackSrc}
                         className="w-full p-4"
                         controls
                         preload="metadata"
