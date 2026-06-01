@@ -1229,15 +1229,18 @@ export function HomePage() {
       <header className="sticky top-0 z-30 border-b border-zinc-800/70 bg-zinc-950/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-2">
           <div className="relative shrink-0">
-            <img
-              src={logoSrc}
-              alt="Certifyd Discovery"
-              className="h-24 w-auto object-contain sm:h-28"
-              style={{ filter: "brightness(1.14) saturate(1.16) sepia(0.14)" }}
-              loading="eager"
-              decoding="async"
-              fetchPriority="high"
-            />
+            <picture>
+              <source media="(max-width: 640px)" srcSet={`${import.meta.env.BASE_URL}header-logo-mobile.svg`} />
+              <img
+                src={logoSrc}
+                alt="Certifyd Discovery"
+                className="h-24 w-auto object-contain sm:h-28"
+                style={{ filter: "brightness(1.14) saturate(1.16) sepia(0.14)" }}
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
+              />
+            </picture>
           </div>
           <div className="ml-auto w-full max-w-xl">
             <input
