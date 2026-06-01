@@ -65,7 +65,7 @@ function useNearViewport() {
 }
 
 export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableItem }) {
-  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
+  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);

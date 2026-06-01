@@ -40,7 +40,7 @@ function useNearViewport() {
 }
 
 export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watchParams?: string }) {
-  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
+  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);

@@ -145,7 +145,7 @@ function creatorBadges(creator: CreatorSpotlight): string[] {
 }
 
 function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
-  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
+  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const [lead, ...rest] = creator.works;
   const badges = creatorBadges(creator);
@@ -244,7 +244,7 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
 }
 
 function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; index: number }) {
-  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
+  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const badges = creatorBadges(creator).slice(0, 3);
   return (
@@ -714,7 +714,7 @@ function RankedSurfaceCard({ surface }: { surface: RankedSurface }) {
 }
 
 function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank: number }) {
-  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.png`;
+  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const chips = creatorBadges(creator).slice(0, 2);
   return (
@@ -830,7 +830,7 @@ function TopActivityBoard({
 }
 
 export function HomePage() {
-  const logoSrc = `${import.meta.env.BASE_URL}header-logo.png`;
+  const logoSrc = `${import.meta.env.BASE_URL}header-logo.svg`;
   const [origins, setOrigins] = useState<string[]>([]);
   const [originsLoaded, setOriginsLoaded] = useState(false);
   const [topic, setTopic] = useState<Topic>('all');
