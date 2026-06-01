@@ -1238,14 +1238,6 @@ export function HomePage() {
               decoding="async"
               fetchPriority="high"
             />
-            <a
-              href="https://certifyd.me"
-              target="_blank"
-              rel="noreferrer"
-              className="mission-link absolute left-[84px] top-[61px] text-[10px] font-medium uppercase tracking-[0.14em] text-amber-200/85 transition hover:text-amber-100 hover:underline hover:decoration-amber-200/60 hover:underline-offset-2 sm:left-[98px] sm:top-[72px]"
-            >
-              Mission
-            </a>
           </div>
           <div className="ml-auto w-full max-w-xl">
             <input
