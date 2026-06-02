@@ -1234,7 +1234,7 @@ export function HomePage() {
               <img
                 src={logoSrc}
                 alt="Certifyd Discovery"
-                className="h-24 w-auto object-contain sm:h-28"
+                className="h-14 w-auto object-contain sm:h-16"
                 style={{ filter: "brightness(1.14) saturate(1.16) sepia(0.14)" }}
                 loading="eager"
                 decoding="async"

@@ -17,8 +17,8 @@ export default defineConfig({
         navigateFallback: `${BASE}index.html`,
       },
       manifest: {
-        name: 'Certifyd Discovery',
-        short_name: 'Discovery',
+        name: 'Certifyd',
+        short_name: 'Certifyd',
         description: 'Discover creators and drops across the Certifyd network',
         theme_color: '#09090b',
         background_color: '#09090b',
