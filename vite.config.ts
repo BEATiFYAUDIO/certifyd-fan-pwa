@@ -12,7 +12,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.ico', 'favicon-16.png', 'favicon-32.png', 'favicon-64.png', 'apple-touch-icon.png'],
       workbox: {
         navigateFallback: `${BASE}index.html`,
       },
@@ -27,9 +27,15 @@ export default defineConfig({
         scope: BASE,
         icons: [
           {
-            src: `${BASE}favicon.svg`,
-            sizes: 'any',
-            type: 'image/svg+xml',
+            src: `${BASE}pwa-192.png`,
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
+          {
+            src: `${BASE}pwa-512.png`,
+            sizes: '512x512',
+            type: 'image/png',
             purpose: 'any maskable',
           },
         ],
