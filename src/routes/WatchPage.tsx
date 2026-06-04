@@ -128,7 +128,7 @@ function WatchActions({ item, onShare, className = '' }: { item: DiscoverableIte
         rel={canOpenCreator(item) ? "noreferrer" : undefined}
         className={`block w-full rounded-xl px-4 py-3 text-center text-sm font-bold ${
           canOpenCreator(item)
-            ? "bg-amber-300 text-zinc-950 hover:bg-amber-200"
+            ? "watch-action-primary"
             : "border border-zinc-700 bg-zinc-900 text-zinc-500 cursor-not-allowed"
         }`}
         onClick={(e) => {
@@ -139,7 +139,7 @@ function WatchActions({ item, onShare, className = '' }: { item: DiscoverableIte
       </a>
       <button
         onClick={onShare}
-        className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-semibold hover:bg-zinc-800"
+        className="watch-action-secondary w-full rounded-xl border px-4 py-3 text-sm font-semibold"
       >
         Share
       </button>
@@ -563,7 +563,7 @@ function excludePeople<T extends ContentContextPerson | ContentContextCreator>(r
 
 function RelationshipSection({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-zinc-800/80 bg-zinc-900/35 p-4">
+    <section className="watch-panel rounded-2xl border p-4">
       <div>
         <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-100">{title}</h2>
         {subtitle ? <p className="mt-1 text-xs text-zinc-400">{subtitle}</p> : null}
@@ -581,11 +581,11 @@ function PeopleList({ people }: { people: ContentContextPerson[] }) {
         const label = person.displayName || person.handle || 'Contributor';
         const handle = person.handle ? `@${String(person.handle).replace(/^@+/, '')}` : null;
         const body = (
-          <div className="flex min-w-0 items-center gap-3 rounded-xl border border-zinc-800 bg-black/25 p-3 transition hover:border-amber-300/40">
+          <div className="watch-card watch-card-hover flex min-w-0 items-center gap-3 rounded-xl border p-3 transition">
             {person.avatarUrl ? (
               <img src={person.avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-zinc-700 object-cover" loading="lazy" referrerPolicy="no-referrer" />
             ) : (
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-xs font-bold text-amber-200">
+              <div className="watch-card flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-xs font-bold watch-accent-text">
                 {label.slice(0, 1).toUpperCase()}
               </div>
             )}
@@ -616,7 +616,7 @@ function WorksList({ works }: { works: ContentContextWork[] }) {
       {works.map((work) => {
         const creator = work.creator?.displayName || work.creator?.handle || 'Creator';
         const body = (
-          <div className="overflow-hidden rounded-xl border border-zinc-800 bg-black/25 transition hover:border-amber-300/40">
+          <div className="watch-card watch-card-hover overflow-hidden rounded-xl border transition">
             <div className="aspect-video bg-zinc-950">
               {work.coverUrl ? (
                 <img src={work.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
@@ -629,7 +629,7 @@ function WorksList({ works }: { works: ContentContextWork[] }) {
             <div className="space-y-1 p-3">
               <div className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100">{work.title || 'Untitled work'}</div>
               <div className="truncate text-xs text-zinc-400">{creator} • {work.contentType || 'work'}</div>
-              <div className="truncate text-xs font-semibold text-amber-200/90">{work.relationshipLabel || 'Related work'}</div>
+              <div className="watch-accent-text truncate text-xs font-semibold">{work.relationshipLabel || 'Related work'}</div>
             </div>
           </div>
         );
@@ -653,7 +653,7 @@ function ConnectedCreators({ creators }: { creators: ContentContextCreator[] }) 
       {rows.map((creator) => {
         const label = creator.displayName || creator.handle || 'Creator';
         const chip = (
-          <span className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-black/25 px-3 py-2 text-sm text-zinc-200 hover:border-amber-300/50">
+          <span className="watch-card watch-card-hover inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm text-zinc-200">
             {creator.avatarUrl ? <img src={creator.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : null}
             <span>{label}</span>
           </span>
@@ -690,10 +690,10 @@ function AttributionLineageSummary({
   const sourceCreatorLabel = compactPersonLabel(source?.creator);
 
   return (
-    <section className="rounded-2xl border border-amber-300/20 bg-[radial-gradient(circle_at_10%_0%,rgba(217,180,92,0.12),transparent_34%),linear-gradient(135deg,rgba(24,24,27,0.86),rgba(8,8,9,0.94))] p-4">
+    <section className="watch-panel rounded-2xl border p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-100">Attribution & lineage</h2>
+          <h2 className="watch-accent-text text-sm font-semibold uppercase tracking-[0.18em]">Attribution & lineage</h2>
           <p className="mt-1 text-sm text-zinc-400">Where this work comes from and who is publicly connected to it.</p>
         </div>
         {creator?.profileUrl ? (
@@ -701,7 +701,7 @@ function AttributionLineageSummary({
             href={creator.profileUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex shrink-0 items-center rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-amber-100 hover:bg-amber-300/15"
+            className="watch-action-secondary inline-flex shrink-0 items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
           >
             Open creator
           </a>
@@ -710,7 +710,7 @@ function AttributionLineageSummary({
 
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
         {creator ? (
-          <div className="rounded-xl border border-zinc-800 bg-black/25 p-3">
+          <div className="watch-card rounded-xl border p-3">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Created by</div>
             <div className="mt-2 flex min-w-0 items-center gap-3">
               {creator.avatarUrl ? (
@@ -729,7 +729,7 @@ function AttributionLineageSummary({
             href={source.publicUrl || undefined}
             target={source.publicUrl ? '_blank' : undefined}
             rel={source.publicUrl ? 'noreferrer' : undefined}
-            className="rounded-xl border border-zinc-800 bg-black/25 p-3 transition hover:border-amber-300/40"
+            className="watch-card watch-card-hover rounded-xl border p-3 transition"
           >
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
               {source.relationshipLabel || 'Built from'}
@@ -751,14 +751,14 @@ function AttributionLineageSummary({
         ) : null}
 
         {people.length ? (
-          <div className="rounded-xl border border-zinc-800 bg-black/25 p-3">
+          <div className="watch-card rounded-xl border p-3">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">People involved</div>
             <div className="mt-2 flex flex-wrap gap-2">
               {people.map((person) => {
                 const label = compactPersonLabel(person);
                 const handle = person.handle ? `@${String(person.handle).replace(/^@+/, '')}` : '';
                 const chip = (
-                  <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-zinc-700 bg-zinc-950/70 px-2.5 py-1.5 text-xs text-zinc-200">
+                  <span className="watch-card inline-flex max-w-full items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs text-zinc-200">
                     {person.avatarUrl ? <img src={person.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
                     <span className="truncate">{label}</span>
                     {handle ? <span className="hidden text-zinc-500 sm:inline">{handle}</span> : null}
@@ -835,7 +835,7 @@ function RelationshipContextSections({ context }: { context: ContentRelationship
   if (!hasAny) return null;
 
   return (
-    <div className="mt-8 space-y-6 border-t border-zinc-800 pt-6">
+    <div className="mt-8 space-y-6 border-t border-blue-300/15 pt-6">
       <div>
         <h2 className="text-base font-semibold text-zinc-100">Explore the connections</h2>
         <p className="mt-1 text-sm text-zinc-400">Creators, collaborators, and related works around this publication.</p>
@@ -920,7 +920,7 @@ function FreebiesRelationshipPanel({ context, open, onToggle }: { context: Conte
 
   return (
     <div
-      className="absolute inset-x-3 z-30 rounded-2xl border border-zinc-700/80 bg-black/80 p-3 shadow-2xl backdrop-blur-md md:left-auto md:right-4 md:w-[420px]"
+      className="watch-panel absolute inset-x-3 z-30 rounded-2xl border p-3 shadow-2xl backdrop-blur-md md:left-auto md:right-4 md:w-[420px]"
       style={{ bottom: 'calc(7.25rem + env(safe-area-inset-bottom, 0px))' }}
     >
       <button
@@ -929,7 +929,7 @@ function FreebiesRelationshipPanel({ context, open, onToggle }: { context: Conte
         className="flex w-full items-center justify-between gap-3 text-left"
       >
         <span>
-          <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">Explore this work</span>
+          <span className="watch-accent-text block text-xs font-semibold uppercase tracking-[0.18em]">Explore this work</span>
           <span className="mt-1 block text-xs text-zinc-300">People and related works</span>
         </span>
         <span className="rounded-full border border-zinc-600 px-2 py-1 text-xs font-semibold text-zinc-200">
@@ -1194,7 +1194,7 @@ function FreebiesWatch({
                       href={it.buyUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="shrink-0 rounded-xl bg-amber-300 px-4 py-2 text-sm font-bold text-zinc-950 hover:bg-amber-200"
+                      className="watch-action-primary shrink-0 rounded-xl px-4 py-2 text-sm font-bold"
                     >
                       {ctaLabel(it)}
                     </a>
@@ -1367,18 +1367,18 @@ function StandardWatch({
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100">
+    <main className="watch-shell min-h-screen text-zinc-100">
       <div className="mx-auto max-w-6xl px-4 py-4">
-        <Link to="/" className="text-sm text-zinc-400 hover:text-zinc-200">← Back</Link>
+        <Link to="/" className="text-sm text-blue-200/75 hover:text-blue-100">← Back</Link>
 
-        {loading ? <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">Loading…</div> : null}
+        {loading ? <div className="watch-panel mt-4 rounded-xl border p-4">Loading…</div> : null}
         {error ? (
-          <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 text-zinc-100">
+          <div className="watch-panel mt-4 rounded-xl border p-6 text-zinc-100">
             <div className="text-lg font-semibold">This creator’s node is temporarily offline.</div>
             <div className="mt-2 text-sm text-zinc-400">Try again shortly or return to discovery.</div>
             <Link
               to="/"
-              className="mt-4 inline-flex rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-semibold hover:bg-zinc-800"
+              className="watch-action-secondary mt-4 inline-flex rounded-lg border px-3 py-2 text-sm font-semibold"
             >
               Back to Discovery
             </Link>
@@ -1400,19 +1400,19 @@ function StandardWatch({
                 const isImage = mediaKind === 'image';
                 if (lockedForFan && !canPlaySelectedSource) {
                   return (
-                    <div className="overflow-hidden rounded-2xl border border-amber-300/20 bg-zinc-900">
+                    <div className="watch-panel overflow-hidden rounded-2xl border">
                       <div className="relative flex min-h-[45vh] items-center justify-center overflow-hidden bg-black">
                         {item.coverUrl ? (
                           <img src={item.coverUrl} alt={item.title} className="h-full w-full max-h-[70vh] object-contain opacity-90" />
                         ) : (
                           <div className="flex h-[50vh] w-full flex-col items-center justify-center px-4 text-center text-zinc-500">
-                            <div className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-200/80">Premium Work</div>
+                            <div className="watch-accent-text text-sm font-semibold uppercase tracking-[0.2em]">Premium Work</div>
                             <div className="mt-2 max-w-sm text-sm text-zinc-400">Official playback is available on the creator page.</div>
                           </div>
                         )}
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-5">
                           <div className="max-w-xl">
-                            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200/90">Official access required</div>
+                            <div className="watch-accent-text text-xs font-semibold uppercase tracking-[0.18em]">Official access required</div>
                             <p className="mt-2 text-sm text-zinc-200">
                               Fan discovery can show context and artwork for this work. Unlock and protected playback stay on the official creator page.
                             </p>
@@ -1421,7 +1421,7 @@ function StandardWatch({
                                 href={item.buyUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="mt-4 inline-flex rounded-xl bg-amber-300 px-4 py-2 text-sm font-bold text-zinc-950 hover:bg-amber-200"
+                                className="watch-action-primary mt-4 inline-flex rounded-xl px-4 py-2 text-sm font-bold"
                               >
                                 Unlock on Creator
                               </a>
@@ -1434,7 +1434,7 @@ function StandardWatch({
                 }
                 if (isSong) {
                   return (
-                    <div className="space-y-3 overflow-hidden rounded-2xl bg-zinc-900 p-4">
+                    <div className="watch-panel space-y-3 overflow-hidden rounded-2xl border p-4">
                       <div className="overflow-hidden rounded-xl bg-black">
                         {item.coverUrl ? (
                           <img src={item.coverUrl} alt={item.title} className="h-full w-full max-h-[60vh] object-contain" />
@@ -1456,7 +1456,7 @@ function StandardWatch({
                   );
                 }
                 return (
-                  <div className="overflow-hidden rounded-2xl bg-zinc-900">
+                  <div className="watch-panel overflow-hidden rounded-2xl border">
                     {playbackSrc && isVideo ? (
                       <video
                         src={playbackSrc}
@@ -1523,7 +1523,7 @@ function StandardWatch({
         ) : null}
 
         {item && explorationRails.length > 0 ? (
-          <div className="mt-8 space-y-8 border-t border-zinc-800 pt-6">
+          <div className="mt-8 space-y-8 border-t border-blue-300/15 pt-6">
             {explorationRails.map((rail) => (
               <ExplorationRail key={rail.key} rail={rail} />
             ))}

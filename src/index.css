@@ -125,6 +125,66 @@ body::after {
     0 8px 28px rgba(84, 148, 255, 0.09);
 }
 
+.watch-shell {
+  background:
+    radial-gradient(980px 620px at 12% 0%, rgba(84, 148, 255, 0.14), transparent 58%),
+    radial-gradient(780px 460px at 88% 8%, rgba(111, 168, 255, 0.1), transparent 62%),
+    radial-gradient(760px 460px at 20% 100%, rgba(255, 159, 10, 0.025), transparent 68%),
+    linear-gradient(180deg, #050914 0%, #03060c 54%, #030509 100%);
+}
+
+.watch-panel {
+  border-color: rgba(111, 168, 255, 0.18) !important;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(84, 148, 255, 0.12), transparent 34%),
+    linear-gradient(135deg, rgba(8, 16, 30, 0.92), rgba(4, 8, 14, 0.96)) !important;
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.34),
+    0 0 0 1px rgba(84, 148, 255, 0.06),
+    0 0 42px rgba(84, 148, 255, 0.07);
+}
+
+.watch-card {
+  border-color: rgba(111, 168, 255, 0.16) !important;
+  background: rgba(3, 8, 16, 0.62) !important;
+}
+
+.watch-card-hover:hover {
+  border-color: rgba(255, 159, 10, 0.48) !important;
+  box-shadow:
+    0 0 0 1px rgba(84, 148, 255, 0.12),
+    0 12px 30px rgba(84, 148, 255, 0.08);
+}
+
+.watch-action-primary {
+  background: rgb(var(--certifyd-orange)) !important;
+  color: #05070b !important;
+  box-shadow: 0 10px 28px rgba(255, 159, 10, 0.18);
+}
+
+.watch-action-primary:hover {
+  background: #ffb13a !important;
+}
+
+.watch-action-secondary {
+  border-color: rgba(111, 168, 255, 0.22) !important;
+  background: rgba(8, 16, 30, 0.82) !important;
+  color: #dce8ff !important;
+}
+
+.watch-action-secondary:hover {
+  border-color: rgba(111, 168, 255, 0.42) !important;
+  background: rgba(13, 24, 42, 0.95) !important;
+}
+
+.watch-accent-text {
+  color: rgb(var(--certifyd-orange)) !important;
+}
+
+.watch-structure-text {
+  color: rgb(var(--certifyd-blue)) !important;
+}
+
 @media (min-width: 1280px) {
   .top-activity-grid {
     align-items: stretch;
