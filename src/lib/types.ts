@@ -242,6 +242,7 @@ export type DiscoverySignalsResponse = {
     topSelling?: DiscoverySignalWork[];
     mostSupported?: DiscoverySignalWork[];
     fastestMoving?: DiscoverySignalWork[];
+    recentlyAdded?: DiscoverySignalWork[];
     recentlySupported?: DiscoverySignalWork[];
     collaborativeReleases?: DiscoverySignalWork[];
   };

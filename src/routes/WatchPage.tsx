@@ -81,15 +81,26 @@ function resolvePlaybackChoice(item: DiscoverableItem): PlaybackChoice {
 
 async function hydrateFullAccessPlayback(item: DiscoverableItem): Promise<DiscoverableItem> {
   if (!isFullAccessItem(item) || resolveFullMediaSource(item)) return item;
-  const offerUrl =
-    String(item.offerUrl || '').trim() ||
-    resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, item.publicOrigin);
-  if (!offerUrl) return item;
+  const canonicalOfferUrl = resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, item.publicOrigin);
+  const offerUrls = [...new Set([String(item.offerUrl || '').trim(), canonicalOfferUrl].filter(Boolean))];
+  let offer: Record<string, unknown> | null = null;
 
-  const response = await fetch(offerUrl);
-  if (!response.ok) return item;
-  const payload = await response.json();
-  const offer = payload?.offer && typeof payload.offer === 'object' ? payload.offer : payload;
+  for (const offerUrl of offerUrls) {
+    try {
+      const response = await fetch(offerUrl);
+      if (!response.ok) continue;
+      const payload = await response.json();
+      const candidate = payload?.offer && typeof payload.offer === 'object' ? payload.offer : payload;
+      if (candidate && typeof candidate === 'object') {
+        offer = candidate as Record<string, unknown>;
+        break;
+      }
+    } catch {
+      continue;
+    }
+  }
+  if (!offer) return item;
+
   const origin = item.publicOrigin;
   const fullMediaUrl =
     resolveAbsoluteUrl(offer?.fullMediaUrl, origin) ||

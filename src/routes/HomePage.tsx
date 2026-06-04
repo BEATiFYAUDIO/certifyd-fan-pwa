@@ -87,6 +87,7 @@ function signalBelongsToOrigin(signal: DiscoverySignalsResponse, origin: string)
     ...(signal.works?.topSelling || []),
     ...(signal.works?.mostSupported || []),
     ...(signal.works?.fastestMoving || []),
+    ...(signal.works?.recentlyAdded || []),
     ...(signal.works?.recentlySupported || []),
     ...(signal.works?.collaborativeReleases || []),
   ];
@@ -448,6 +449,7 @@ function relationshipReasonForSignalWork(work: DiscoverySignalWork): string | nu
 function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableItem | null {
   if (!work.contentId || !work.publicOrigin) return null;
   const publicUrl = work.publicUrl || '';
+  const offerUrl = `${work.publicOrigin}/buy/content/${encodeURIComponent(work.contentId)}/offer`;
   return {
     contentId: work.contentId,
     title: work.title || 'Untitled',
@@ -461,7 +463,7 @@ function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableIt
     coverUrl: work.coverUrl || '',
     previewUrl: work.previewUrl || '',
     buyUrl: publicUrl,
-    offerUrl: publicUrl,
+    offerUrl,
     priceSats: Number(work.priceSats || 0),
     accessMode: work.accessMode || 'unlocked',
     publicOrigin: work.publicOrigin,
@@ -493,6 +495,7 @@ function connectedSignalWorks(signals: DiscoverySignalsResponse[]): DiscoverySig
     ...(signal.works?.topSelling || []),
     ...(signal.works?.mostSupported || []),
     ...(signal.works?.fastestMoving || []),
+    ...(signal.works?.recentlyAdded || []),
     ...(signal.works?.recentlySupported || []),
   ]));
   return all
@@ -1121,6 +1124,7 @@ export function HomePage() {
     const topSelling = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.topSelling || []));
     const mostSupported = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.mostSupported || []));
     const fastestMoving = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.fastestMoving || []));
+    const recentlyAdded = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.recentlyAdded || []));
     const recentlySupported = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.recentlySupported || []));
     const collaborativeReleases = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.collaborativeReleases || []));
     const connectedWorks = connectedSignalWorks(signals);
@@ -1128,12 +1132,14 @@ export function HomePage() {
       topSelling,
       mostSupported,
       fastestMoving,
+      recentlyAdded,
       recentlySupported,
       collaborativeReleases,
       connectedWorks,
       topSellingItems: topSelling.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
       mostSupportedItems: mostSupported.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
       fastestMovingItems: fastestMoving.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
+      recentlyAddedItems: recentlyAdded.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
       recentlySupportedItems: recentlySupported.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
       collaborativeItems: collaborativeReleases.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
       connectedItems: connectedWorks.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
@@ -1149,7 +1155,7 @@ export function HomePage() {
         connected: relationshipScoreForSignalWork(work),
       });
     };
-    [...signalWorks.topSelling, ...signalWorks.mostSupported, ...signalWorks.fastestMoving, ...signalWorks.recentlySupported, ...signalWorks.collaborativeReleases, ...signalWorks.connectedWorks].forEach(add);
+    [...signalWorks.topSelling, ...signalWorks.mostSupported, ...signalWorks.fastestMoving, ...signalWorks.recentlyAdded, ...signalWorks.recentlySupported, ...signalWorks.collaborativeReleases, ...signalWorks.connectedWorks].forEach(add);
     return map;
   }, [signalWorks]);
   const signalCreators = useMemo(() => {
@@ -1252,13 +1258,14 @@ export function HomePage() {
   }, [inActiveScope, signalScoreByWork, signalWorks]);
   const boardRecentItems = useMemo(() => {
     const signalRecent = [
+      ...signalWorks.recentlyAddedItems,
       ...signalWorks.recentlySupportedItems,
       ...signalWorks.collaborativeItems,
       ...signalWorks.fastestMovingItems,
     ].filter(inActiveScope);
     const discoverableRecent = discoveryView.recentRail?.items || [];
     return sortNewestFirst(dedupeDiscoveryItems([...signalRecent, ...discoverableRecent])).slice(0, 5);
-  }, [discoveryView.recentRail, inActiveScope, signalWorks.collaborativeItems, signalWorks.fastestMovingItems, signalWorks.recentlySupportedItems]);
+  }, [discoveryView.recentRail, inActiveScope, signalWorks.collaborativeItems, signalWorks.fastestMovingItems, signalWorks.recentlyAddedItems, signalWorks.recentlySupportedItems]);
   const boardUnlockableItems = useMemo(() => lockedItems.slice(0, 5), [lockedItems]);
   const hasHomepageContent = filtered.length > 0 || homepageCreators.length > 0 || topSurfaces.some((surface) => surface.items.length > 0);
 

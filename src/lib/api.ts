@@ -162,6 +162,9 @@ export async function fetchDiscoverySignals(input: {
         fastestMoving: Array.isArray(data.works?.fastestMoving)
           ? data.works.fastestMoving.map((work) => normalizeSignalWork(work, origin))
           : [],
+        recentlyAdded: Array.isArray(data.works?.recentlyAdded)
+          ? data.works.recentlyAdded.map((work) => normalizeSignalWork(work, origin))
+          : [],
         recentlySupported: Array.isArray(data.works?.recentlySupported)
           ? data.works.recentlySupported.map((work) => normalizeSignalWork(work, origin))
           : [],
