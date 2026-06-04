@@ -47,6 +47,24 @@ function resolveFullMediaSource(item: DiscoverableItem): string {
   );
 }
 
+function mediaPath(value: string): string {
+  try {
+    const parsed = new URL(value);
+    return decodeURIComponent(`${parsed.pathname}${parsed.search}`).toLowerCase();
+  } catch {
+    return decodeURIComponent(value).toLowerCase();
+  }
+}
+
+function inferMediaKind(contentType: string, src: string): 'audio' | 'video' | 'image' | 'file' {
+  const type = contentType.toLowerCase();
+  const path = mediaPath(src);
+  if (type === 'video' || /\.(mp4|webm|mov|m4v)(?:$|[?&#])/.test(path)) return 'video';
+  if (type === 'song' || type === 'audio' || type === 'music' || /\.(mp3|m4a|aac|wav|ogg|flac)(?:$|[?&#])/.test(path)) return 'audio';
+  if (type === 'image' || /\.(png|jpe?g|webp|gif|avif|svg)(?:$|[?&#])/.test(path)) return 'image';
+  return 'file';
+}
+
 function resolvePlaybackChoice(item: DiscoverableItem): PlaybackChoice {
   const explicitLocked = isExplicitlyLockedItem(item);
   const fullAccess = isFullAccessItem(item) && !explicitLocked;
@@ -888,9 +906,11 @@ function FreebiesWatch({
             const lockedForFan = playback.lockedForFan;
             const playbackSrc = playback.mediaSrc;
             const canPlaySelectedSource = Boolean(playbackSrc) && (!lockedForFan || playback.usingPreview);
-            const isVideo = canPlaySelectedSource && normalizedType === 'video';
-            const isSong = canPlaySelectedSource && (normalizedType === 'song' || normalizedType === 'audio');
-            const visualSrc = isVideo ? (playbackSrc || it.coverUrl || '') : (it.coverUrl || '');
+            const mediaKind = canPlaySelectedSource ? inferMediaKind(normalizedType, playbackSrc) : 'file';
+            const isVideo = mediaKind === 'video';
+            const isSong = mediaKind === 'audio';
+            const isImage = mediaKind === 'image';
+            const visualSrc = isVideo || isImage ? (playbackSrc || it.coverUrl || '') : (it.coverUrl || '');
             return (
               <section
                 key={`${it.publicOrigin}:${it.contentId}:${index}`}
@@ -1134,12 +1154,14 @@ function StandardWatch({
             <section className="space-y-4">
               {(() => {
                 const normalizedType = String(item.contentType || '').toLowerCase();
-                const isSong = normalizedType === 'song' || normalizedType === 'audio';
-                const isVideo = normalizedType === 'video';
                 const playback = resolvePlaybackChoice(item);
                 const lockedForFan = playback.lockedForFan;
                 const playbackSrc = playback.mediaSrc;
                 const canPlaySelectedSource = Boolean(playbackSrc) && (!lockedForFan || playback.usingPreview);
+                const mediaKind = canPlaySelectedSource ? inferMediaKind(normalizedType, playbackSrc) : 'file';
+                const isSong = mediaKind === 'audio';
+                const isVideo = mediaKind === 'video';
+                const isImage = mediaKind === 'image';
                 if (lockedForFan && !canPlaySelectedSource) {
                   return (
                     <div className="overflow-hidden rounded-2xl border border-amber-300/20 bg-zinc-900">
@@ -1212,6 +1234,8 @@ function StandardWatch({
                         controls
                         preload="metadata"
                       />
+                    ) : playbackSrc && isImage ? (
+                      <img src={playbackSrc} alt={item.title} className="h-full w-full max-h-[70vh] bg-black object-contain" />
                     ) : item.coverUrl ? (
                       <img src={item.coverUrl} alt={item.title} className="h-full w-full max-h-[70vh] bg-black object-contain" />
                     ) : (
