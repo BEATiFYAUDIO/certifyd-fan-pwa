@@ -438,8 +438,6 @@ function relationshipReasonForSignalWork(work: DiscoverySignalWork): string | nu
   const summary = work.relationshipSummary || {};
   const connectedWorks = Math.max(signalNumber(work.signals?.connectedWorks), signalNumber(summary.relatedWorkCount || work.relatedWorkCount));
   if (badges.includes('ROYALTY') && badges.includes('DERIVATIVE')) return 'Royalty-linked derivative';
-  if (badges.includes('SPLIT')) return 'Split-backed release';
-  if (badges.includes('FREE CONNECTED')) return 'Free connected drop';
   if (badges.includes('DERIVATIVE') || summary.lineageLabel === 'derivative') return 'Built from another work';
   if (connectedWorks > 0 || badges.includes('RELATED')) return 'Related work network';
   if (badges.includes('SHARED')) return 'Connected campaign asset';
