@@ -24,6 +24,7 @@ const RETRY_MAX_MS = 60000;
 const ORIGIN_SOFT_DISABLE_AFTER_FAILS = 3;
 const ORIGIN_SOFT_DISABLE_MS = 5 * 60 * 1000;
 const MAX_ORIGINS_PER_PASS = 6;
+const HOME_REFRESH_INTERVAL_MS = 90_000;
 
 function hashString(input: string): number {
   let h = 2166136261;
@@ -905,10 +906,10 @@ export function HomePage() {
       pendingIndexes.push(i);
     }
     if (pendingIndexes.length === 0) return;
-    const isInitialLoadPass = currentItems.length === 0;
+    const isFirstPagePass = currentItems.length === 0 || currentFeeds.every((feed) => feed.cursor === null && !feed.done);
     const startOffset = pendingIndexes.length > 0 ? originPassOffsetRef.current % pendingIndexes.length : 0;
     const rotated = pendingIndexes.slice(startOffset).concat(pendingIndexes.slice(0, startOffset));
-    const selectedIndexes = isInitialLoadPass ? rotated : rotated.slice(0, MAX_ORIGINS_PER_PASS);
+    const selectedIndexes = isFirstPagePass ? rotated : rotated.slice(0, MAX_ORIGINS_PER_PASS);
     originPassOffsetRef.current += 1;
 
     const requestId = ++requestIdRef.current;
@@ -924,7 +925,7 @@ export function HomePage() {
           const data = await fetchDiscoverablePage({
             origin: feed.origin,
             topic,
-            limit: currentItems.length === 0 ? INITIAL_PAGE_LIMIT : NEXT_PAGE_LIMIT,
+            limit: isFirstPagePass ? INITIAL_PAGE_LIMIT : NEXT_PAGE_LIMIT,
             cursor: feed.cursor,
             timeoutMs: ORIGIN_TIMEOUT_MS,
           });
@@ -997,9 +998,7 @@ export function HomePage() {
     setFeeds(initialFeeds);
     setItems(warmItems);
     setError(null);
-    if (warmItems.length === 0) {
-      void loadMore(initialFeeds, []);
-    }
+    void loadMore(initialFeeds, warmItems);
   }, [cacheKey, loadMore, origins, topic]);
 
   useEffect(() => {
@@ -1033,6 +1032,31 @@ export function HomePage() {
       cancelled = true;
     };
   }, [origins, signalsCacheKey]);
+
+  useEffect(() => {
+    if (origins.length === 0) return;
+    const refresh = () => {
+      if (document.visibilityState !== 'visible' || loadingRef.current) return;
+      const refreshFeeds = origins.map((origin) => ({ origin, cursor: null, done: false, loading: false, error: null }));
+      setFeeds(refreshFeeds);
+      void loadMore(refreshFeeds, items);
+      void Promise.all(origins.map((origin) => fetchDiscoverySignals({ origin, timeoutMs: ORIGIN_TIMEOUT_MS + 1500 })))
+        .then((responses) => {
+          const nextSignals = responses.filter((response): response is DiscoverySignalsResponse => Boolean(response));
+          setSignals(nextSignals);
+          try {
+            sessionStorage.setItem(signalsCacheKey, JSON.stringify({ signals: nextSignals }));
+          } catch {
+            // Ignore storage quota/unavailable errors.
+          }
+        })
+        .catch(() => {
+          // Keep the last known signal board when a background refresh fails.
+        });
+    };
+    const intervalId = window.setInterval(refresh, HOME_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
+  }, [items, loadMore, origins, signalsCacheKey]);
 
   useEffect(() => {
     const onVisible = () => {
@@ -1094,17 +1118,20 @@ export function HomePage() {
     const topSelling = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.topSelling || []));
     const mostSupported = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.mostSupported || []));
     const fastestMoving = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.fastestMoving || []));
+    const recentlySupported = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.recentlySupported || []));
     const collaborativeReleases = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.collaborativeReleases || []));
     const connectedWorks = connectedSignalWorks(signals);
     return {
       topSelling,
       mostSupported,
       fastestMoving,
+      recentlySupported,
       collaborativeReleases,
       connectedWorks,
       topSellingItems: topSelling.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
       mostSupportedItems: mostSupported.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
       fastestMovingItems: fastestMoving.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
+      recentlySupportedItems: recentlySupported.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
       collaborativeItems: collaborativeReleases.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
       connectedItems: connectedWorks.map(signalWorkToDiscoverableItem).filter((item): item is DiscoverableItem => Boolean(item)),
     };
@@ -1119,7 +1146,7 @@ export function HomePage() {
         connected: relationshipScoreForSignalWork(work),
       });
     };
-    [...signalWorks.topSelling, ...signalWorks.mostSupported, ...signalWorks.fastestMoving, ...signalWorks.collaborativeReleases, ...signalWorks.connectedWorks].forEach(add);
+    [...signalWorks.topSelling, ...signalWorks.mostSupported, ...signalWorks.fastestMoving, ...signalWorks.recentlySupported, ...signalWorks.collaborativeReleases, ...signalWorks.connectedWorks].forEach(add);
     return map;
   }, [signalWorks]);
   const signalCreators = useMemo(() => {
@@ -1220,7 +1247,11 @@ export function HomePage() {
     }
     return surfaces.slice(0, 3);
   }, [inActiveScope, signalScoreByWork, signalWorks]);
-  const boardRecentItems = useMemo(() => (discoveryView.recentRail?.items || []).slice(0, 5), [discoveryView.recentRail]);
+  const boardRecentItems = useMemo(() => {
+    const signalRecent = signalWorks.recentlySupportedItems.filter(inActiveScope);
+    const discoverableRecent = discoveryView.recentRail?.items || [];
+    return dedupeDiscoveryItems([...signalRecent, ...discoverableRecent]).slice(0, 5);
+  }, [discoveryView.recentRail, inActiveScope, signalWorks.recentlySupportedItems]);
   const boardUnlockableItems = useMemo(() => lockedItems.slice(0, 5), [lockedItems]);
   const hasHomepageContent = filtered.length > 0 || homepageCreators.length > 0 || topSurfaces.some((surface) => surface.items.length > 0);
 
