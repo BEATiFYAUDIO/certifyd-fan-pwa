@@ -608,22 +608,32 @@ function visibleOtherContributors(item: DiscoverableItem): NonNullable<Discovera
     .slice(0, 4);
 }
 
+function formatSatsPrice(value: unknown): string | null {
+  const sats = Number(value);
+  if (!Number.isFinite(sats) || sats < 0) return null;
+  if (sats === 0) return null;
+  return `⚡ ${Math.round(sats).toLocaleString()} sats`;
+}
+
 function RankingRow({
   item,
   rank,
   score,
   scoreLabel,
+  showPrice = false,
 }: {
   item: DiscoverableItem;
   rank: number;
   score?: number;
   scoreLabel?: string;
+  showPrice?: boolean;
 }) {
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
   const contributors = visibleOtherContributors(item);
   const relationshipBadges = Array.isArray(item.relationshipBadges) ? item.relationshipBadges.slice(0, contributors.length ? 2 : 3) : [];
   const relationshipReason = String(item.relationshipReason || '').trim();
   const showReason = Boolean(relationshipReason && (contributors.length === 0 || relationshipBadges.length < 2));
+  const priceLine = showPrice ? formatSatsPrice(item.priceSats) : null;
   const [imageFailed, setImageFailed] = useState(false);
   return (
     <Link
@@ -655,6 +665,7 @@ function RankingRow({
       <div className="min-w-0 flex-1">
         <div className="line-clamp-1 text-sm font-semibold text-zinc-100 group-hover:text-amber-100">{item.title || 'Untitled'}</div>
         <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator} · {item.primaryTopic || item.contentType || 'work'}</div>
+        {priceLine ? <div className="mt-0.5 truncate text-[11px] font-medium text-amber-100/85">{priceLine}</div> : null}
         {contributors.length > 0 ? (
           <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">With</span>
@@ -704,6 +715,7 @@ function RankingRow({
 
 function RankedSurfaceCard({ surface }: { surface: RankedSurface }) {
   if (surface.items.length === 0) return null;
+  const showPrice = surface.key === 'unlockable-works';
   return (
     <section className="signal-surface-card min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">
@@ -722,6 +734,7 @@ function RankedSurfaceCard({ surface }: { surface: RankedSurface }) {
             rank={index + 1}
             score={surface.scoreFor?.(item)}
             scoreLabel={surface.scoreLabel}
+            showPrice={showPrice}
           />
         ))}
       </div>
