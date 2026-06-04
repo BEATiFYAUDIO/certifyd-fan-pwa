@@ -46,6 +46,15 @@ export type DiscoverableItem = {
   accessMode: AccessMode;
   isLocked?: boolean;
   hasFullAccess?: boolean;
+  owned?: boolean;
+  previewSeconds?: number | string | null;
+  primaryFileMime?: string | null;
+  paymentAccessProof?: {
+    paymentState?: string | null;
+    entitlementState?: string | null;
+    paymentReceiptId?: string | null;
+  } | null;
+  canonicalOfferHydrated?: boolean;
   publicOrigin: string;
   creatorAvatarUrl?: string | null;
   creatorProfileImageUrl?: string | null;

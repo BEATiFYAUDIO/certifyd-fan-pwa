@@ -17,6 +17,8 @@ type PlaybackChoice = {
   mediaSrc: string;
   usingPreview: boolean;
   fullAccess: boolean;
+  sourceField: string | null;
+  previewLimitSeconds: number | null;
 };
 
 type WatchAccess = {
@@ -28,6 +30,15 @@ type WatchAccess = {
   isPaid: boolean;
   locked: boolean;
 };
+
+type SourceChoice = {
+  src: string;
+  field: string | null;
+};
+
+type CanonicalOffer = Record<string, unknown>;
+
+const DEFAULT_PREVIEW_SECONDS = 20;
 
 function resolveAbsoluteUrl(value: unknown, origin: string): string {
   if (typeof value !== 'string') return '';
@@ -61,12 +72,11 @@ function explicitTrue(value: unknown): boolean {
 function resolveWatchAccess(item: DiscoverableItem): WatchAccess {
   const { priceSats, priceKnown } = normalizedPriceInfo(item.priceSats);
   const accessMode = normalizedAccessMode(item.accessMode);
-  const hasFullAccess = explicitTrue(item.hasFullAccess) || accessMode === 'owned';
-  const hasFreeMarker = explicitTrue(item.isFree) || explicitTrue(item.relationshipSummary?.isFree);
-  const hasFreeAccessMode = priceKnown && priceSats === 0 && accessMode === 'unlocked';
-  const isExplicitlyFree = (hasFreeMarker || hasFreeAccessMode) && priceSats === 0;
+  const canonicalOfferHydrated = explicitTrue(item.canonicalOfferHydrated);
+  const hasFullAccess = canonicalOfferHydrated && (explicitTrue(item.hasFullAccess) || explicitTrue(item.owned));
+  const isExplicitlyFree = canonicalOfferHydrated && priceKnown && priceSats === 0 && !explicitTrue(item.isLocked);
   const isPaid = priceSats > 0;
-  const locked = !hasFullAccess && (isPaid || explicitTrue(item.isLocked) || accessMode === 'locked');
+  const locked = !hasFullAccess && !isExplicitlyFree && (!canonicalOfferHydrated || isPaid || explicitTrue(item.isLocked) || accessMode === 'locked');
 
   return {
     priceSats,
@@ -79,17 +89,16 @@ function resolveWatchAccess(item: DiscoverableItem): WatchAccess {
   };
 }
 
-function isFullAccessItem(item: DiscoverableItem): boolean {
-  return resolveWatchAccess(item).hasFullAccess;
+function resolveFirstSource(item: DiscoverableItem, fields: Array<keyof DiscoverableItem>): SourceChoice {
+  for (const field of fields) {
+    const src = String(item[field] || '').trim();
+    if (src) return { src, field: String(field) };
+  }
+  return { src: '', field: null };
 }
 
-function resolveFullMediaSource(item: DiscoverableItem): string {
-  return (
-    String(item.fullMediaUrl || '').trim() ||
-    String(item.fullContentUrl || '').trim() ||
-    String(item.mediaUrl || '').trim() ||
-    String(item.contentUrl || '').trim()
-  );
+function resolveFullMediaChoice(item: DiscoverableItem): SourceChoice {
+  return resolveFirstSource(item, ['fullMediaUrl', 'fullContentUrl', 'mediaUrl', 'contentUrl']);
 }
 
 function mediaPath(value: string): string {
@@ -142,58 +151,190 @@ function resolvePlaybackChoice(item: DiscoverableItem): PlaybackChoice {
   const access = resolveWatchAccess(item);
   const explicitLocked = access.locked;
   const fullAccess = access.hasFullAccess && !explicitLocked;
-  const fullSrc = resolveFullMediaSource(item);
+  const fullSource = resolveFullMediaChoice(item);
   const previewSrc = String(item.previewUrl || '').trim();
   if (fullAccess) {
-    return { lockedForFan: false, mediaSrc: fullSrc, usingPreview: false, fullAccess: true };
+    const choice = { lockedForFan: false, mediaSrc: fullSource.src, usingPreview: false, fullAccess: true, sourceField: fullSource.field, previewLimitSeconds: null };
+    debugWatchResolution(item, access, choice, 'full-access');
+    return choice;
   }
   if (explicitLocked && previewSrc) {
-    return { lockedForFan: true, mediaSrc: previewSrc, usingPreview: true, fullAccess: false };
+    const choice = {
+      lockedForFan: true,
+      mediaSrc: previewSrc,
+      usingPreview: true,
+      fullAccess: false,
+      sourceField: 'previewUrl',
+      previewLimitSeconds: resolvePreviewLimitSeconds(item),
+    };
+    debugWatchResolution(item, access, choice, 'locked-preview');
+    return choice;
   }
-  return { lockedForFan: explicitLocked || isLockedOrPremium(item), mediaSrc: '', usingPreview: false, fullAccess };
+  const choice = {
+    lockedForFan: explicitLocked || isLockedOrPremium(item),
+    mediaSrc: '',
+    usingPreview: false,
+    fullAccess,
+    sourceField: null,
+    previewLimitSeconds: null,
+  };
+  debugWatchResolution(item, access, choice, 'no-source');
+  return choice;
 }
 
-async function hydrateFullAccessPlayback(item: DiscoverableItem): Promise<DiscoverableItem> {
-  if (!isFullAccessItem(item) || resolveFullMediaSource(item)) return item;
+function resolvePreviewLimitSeconds(item: DiscoverableItem): number {
+  const parsed = Number(item.previewSeconds);
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  return DEFAULT_PREVIEW_SECONDS;
+}
+
+function enforcePreviewLimit(media: HTMLMediaElement, previewLimitSeconds: number | null) {
+  if (!previewLimitSeconds || !Number.isFinite(previewLimitSeconds)) return;
+  if (media.currentTime < previewLimitSeconds) return;
+  try {
+    media.currentTime = Math.max(0, previewLimitSeconds);
+  } catch {
+    // Some streams do not allow precise seeking.
+  }
+  media.pause();
+}
+
+function debugWatchResolution(item: DiscoverableItem, access: WatchAccess, choice: PlaybackChoice, phase: string) {
+  if (!import.meta.env.DEV) return;
+  console.debug('[Certifyd WatchPage resolver]', {
+    phase,
+    contentId: item.contentId,
+    title: item.title,
+    priceSats: access.priceSats,
+    priceKnown: access.priceKnown,
+    isLocked: item.isLocked,
+    accessMode: access.accessMode,
+    hasFullAccess: access.hasFullAccess,
+    owned: item.owned,
+    entitlementState: item.paymentAccessProof?.entitlementState || null,
+    selectedSourceType: choice.mediaSrc ? (choice.usingPreview ? 'preview' : 'full') : 'none',
+    selectedUrlField: choice.sourceField,
+    previewLimitSeconds: choice.previewLimitSeconds,
+  });
+}
+
+function normalizeCanonicalOffer(payload: unknown): CanonicalOffer | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const maybeOffer = (payload as { offer?: unknown }).offer;
+  if (maybeOffer && typeof maybeOffer === 'object') return maybeOffer as CanonicalOffer;
+  return payload as CanonicalOffer;
+}
+
+async function fetchCanonicalOffer(item: DiscoverableItem): Promise<CanonicalOffer | null> {
   const canonicalOfferUrl = resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, item.publicOrigin);
   const offerUrls = [...new Set([String(item.offerUrl || '').trim(), canonicalOfferUrl].filter(Boolean))];
-  let offer: Record<string, unknown> | null = null;
 
   for (const offerUrl of offerUrls) {
     try {
       const response = await fetch(offerUrl);
       if (!response.ok) continue;
       const payload = await response.json();
-      const candidate = payload?.offer && typeof payload.offer === 'object' ? payload.offer : payload;
-      if (candidate && typeof candidate === 'object') {
-        offer = candidate as Record<string, unknown>;
-        break;
-      }
+      const offer = normalizeCanonicalOffer(payload);
+      if (offer) return offer;
     } catch {
       continue;
     }
   }
-  if (!offer) return item;
+  return null;
+}
 
+function offerPriceSats(offer: CanonicalOffer): number | null {
+  const candidates = [offer.priceSats, offer.price_sat, offer.unlockPriceSats, offer.amountSats, offer.price];
+  for (const value of candidates) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+  }
+  return null;
+}
+
+function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer): DiscoverableItem {
   const origin = item.publicOrigin;
-  const fullMediaUrl =
-    resolveAbsoluteUrl(offer?.fullMediaUrl, origin) ||
-    resolveAbsoluteUrl(offer?.fullContentUrl, origin) ||
-    resolveAbsoluteUrl(offer?.mediaUrl, origin) ||
-    resolveAbsoluteUrl(offer?.contentUrl, origin);
-  if (!fullMediaUrl) return item;
+  const canonicalPriceSats = offerPriceSats(offer);
+  const priceSats = canonicalPriceSats ?? item.priceSats;
+  const accessMode = normalizedAccessMode(offer.accessMode || item.accessMode);
+  const hasFullAccess = explicitTrue(offer.hasFullAccess) || explicitTrue(offer.owned);
+  const isLocked =
+    explicitTrue(offer.isLocked) ||
+    accessMode === 'locked' ||
+    (canonicalPriceSats == null && !explicitTrue(offer.isFree) && !hasFullAccess);
+  const isFree = canonicalPriceSats != null && priceSats === 0 && !isLocked;
+  const fullMediaUrl = resolveAbsoluteUrl(offer.fullMediaUrl, origin);
+  const fullContentUrl = resolveAbsoluteUrl(offer.fullContentUrl, origin);
+  const mediaUrl = resolveAbsoluteUrl(offer.mediaUrl, origin);
+  const contentUrl = resolveAbsoluteUrl(offer.contentUrl, origin);
+  const fullAllowed = hasFullAccess || isFree;
+  const previewSeconds = offer.previewSeconds ?? offer.previewDurationSeconds ?? offer.previewLimitSeconds ?? item.previewSeconds ?? null;
+
+  const merged: DiscoverableItem = {
+    ...item,
+    title: typeof offer.title === 'string' && offer.title.trim() ? offer.title : item.title,
+    description: typeof offer.description === 'string' ? offer.description : item.description,
+    contentType: typeof offer.type === 'string' && offer.type.trim()
+      ? offer.type
+      : (typeof offer.contentType === 'string' && offer.contentType.trim() ? offer.contentType : item.contentType),
+    primaryTopic: typeof offer.primaryTopic === 'string' && offer.primaryTopic.trim()
+      ? (offer.primaryTopic as DiscoverableItem['primaryTopic'])
+      : item.primaryTopic,
+    creatorHandle: typeof offer.creatorHandle === 'string' && offer.creatorHandle.trim() ? offer.creatorHandle : item.creatorHandle,
+    coverUrl: resolveAbsoluteUrl(offer.coverUrl, origin) || item.coverUrl,
+    previewUrl: resolveAbsoluteUrl(offer.previewUrl, origin) || item.previewUrl,
+    buyUrl: resolveAbsoluteUrl(offer.buyUrl, origin) || item.buyUrl,
+    offerUrl: resolveAbsoluteUrl(offer.offerUrl, origin) || item.offerUrl || resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, origin),
+    priceSats,
+    accessMode: (accessMode === 'owned' || accessMode === 'unlocked' || accessMode === 'locked' ? accessMode : item.accessMode) as DiscoverableItem['accessMode'],
+    isLocked,
+    isFree,
+    hasFullAccess,
+    owned: explicitTrue(offer.owned),
+    canonicalOfferHydrated: true,
+    previewSeconds: previewSeconds as DiscoverableItem['previewSeconds'],
+    primaryFileMime: typeof offer.primaryFileMime === 'string' ? offer.primaryFileMime : item.primaryFileMime,
+    paymentAccessProof: offer.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
+      ? offer.paymentAccessProof as DiscoverableItem['paymentAccessProof']
+      : item.paymentAccessProof,
+  };
 
   return {
-    ...item,
-    fullMediaUrl,
-    fullContentUrl: resolveAbsoluteUrl(offer?.fullContentUrl, origin) || fullMediaUrl,
-    mediaUrl: resolveAbsoluteUrl(offer?.mediaUrl, origin) || item.mediaUrl || null,
-    contentUrl: resolveAbsoluteUrl(offer?.contentUrl, origin) || item.contentUrl || null,
-    hasFullAccess: true,
-    isFree: offer?.isFree === true || item.isFree === true,
-    isLocked: false,
-    accessMode: item.accessMode === 'owned' ? 'owned' : 'unlocked',
+    ...merged,
+    fullMediaUrl: fullAllowed ? (fullMediaUrl || fullContentUrl || mediaUrl || contentUrl || item.fullMediaUrl || null) : null,
+    fullContentUrl: fullAllowed ? (fullContentUrl || fullMediaUrl || item.fullContentUrl || null) : null,
+    mediaUrl: fullAllowed ? (mediaUrl || item.mediaUrl || null) : null,
+    contentUrl: fullAllowed ? (contentUrl || item.contentUrl || null) : null,
   };
+}
+
+async function hydrateCanonicalOffer(item: DiscoverableItem): Promise<DiscoverableItem> {
+  const offer = await fetchCanonicalOffer(item);
+  if (!offer) {
+    if (import.meta.env.DEV) {
+      console.debug('[Certifyd WatchPage resolver]', {
+        phase: 'canonical-offer-missing',
+        contentId: item.contentId,
+        title: item.title,
+      });
+    }
+    return item;
+  }
+  const hydrated = mergeCanonicalOffer(item, offer);
+  if (import.meta.env.DEV) {
+    console.debug('[Certifyd WatchPage resolver]', {
+      phase: 'canonical-offer-hydrated',
+      contentId: hydrated.contentId,
+      title: hydrated.title,
+      priceSats: hydrated.priceSats,
+      isLocked: hydrated.isLocked,
+      accessMode: hydrated.accessMode,
+      hasFullAccess: hydrated.hasFullAccess,
+      previewUrl: Boolean(hydrated.previewUrl),
+      fullMediaUrl: Boolean(hydrated.fullMediaUrl),
+    });
+  }
+  return hydrated;
 }
 
 function toErrorMessage(error: unknown): string {
@@ -857,6 +998,7 @@ function FreebiesWatch({
   const [relationshipOpenKey, setRelationshipOpenKey] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Array<HTMLElement | null>>([]);
+  const canonicalHydrationKeys = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let active = true;
@@ -958,10 +1100,11 @@ function FreebiesWatch({
 
   useEffect(() => {
     let active = true;
-    if (!activeItem || !activeItemKey || resolveFullMediaSource(activeItem) || !isFullAccessItem(activeItem)) return;
-    void hydrateFullAccessPlayback(activeItem)
+    if (!activeItem || !activeItemKey || canonicalHydrationKeys.current.has(activeItemKey)) return;
+    canonicalHydrationKeys.current.add(activeItemKey);
+    void hydrateCanonicalOffer(activeItem)
       .then((hydrated) => {
-        if (!active || hydrated === activeItem || !resolveFullMediaSource(hydrated)) return;
+        if (!active || hydrated === activeItem) return;
         setItems((current) =>
           current.map((row) => (`${row.publicOrigin}::${row.contentId}` === activeItemKey ? hydrated : row)),
         );
@@ -1014,6 +1157,8 @@ function FreebiesWatch({
                       playsInline
                       autoPlay={index === activeIndex}
                       preload="metadata"
+                      onTimeUpdate={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
+                      onSeeking={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
                     />
                   ) : (
                     <img src={visualSrc} alt={it.title || 'content'} className="h-full w-full object-cover md:object-contain" loading="lazy" referrerPolicy="no-referrer" />
@@ -1029,6 +1174,8 @@ function FreebiesWatch({
                       className="w-full"
                       controls
                       preload="metadata"
+                      onTimeUpdate={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
+                      onSeeking={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
                     />
                   </div>
                 ) : null}
@@ -1087,6 +1234,7 @@ function StandardWatch({
   const [credits, setCredits] = useState<CreditItem[]>([]);
   const [discoveryItems, setDiscoveryItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [relationshipContextState, setRelationshipContextState] = useState<{ key: string; context: ContentRelationshipContext | null } | null>(null);
+  const canonicalHydrationKeys = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let active = true;
@@ -1177,10 +1325,13 @@ function StandardWatch({
 
   useEffect(() => {
     let active = true;
-    if (!item || resolveFullMediaSource(item) || !isFullAccessItem(item)) return;
-    void hydrateFullAccessPlayback(item)
+    if (!item) return;
+    const key = `${item.publicOrigin}::${item.contentId}`;
+    if (canonicalHydrationKeys.current.has(key)) return;
+    canonicalHydrationKeys.current.add(key);
+    void hydrateCanonicalOffer(item)
       .then((hydrated) => {
-        if (!active || hydrated === item || !resolveFullMediaSource(hydrated)) return;
+        if (!active || hydrated === item) return;
         setItem(hydrated);
         setDiscoveryItems((current) =>
           dedupeDiscoveryItems([hydrated, ...current.filter((row) => row.contentId !== hydrated.contentId || row.publicOrigin !== hydrated.publicOrigin)]),
@@ -1297,6 +1448,8 @@ function StandardWatch({
                           className="w-full"
                           controls
                           preload="metadata"
+                          onTimeUpdate={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
+                          onSeeking={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
                         />
                       ) : null}
                     </div>
@@ -1311,6 +1464,8 @@ function StandardWatch({
                         controls
                         playsInline
                         preload="metadata"
+                        onTimeUpdate={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
+                        onSeeking={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
                       />
                     ) : playbackSrc && isSong ? (
                       <audio
@@ -1318,6 +1473,8 @@ function StandardWatch({
                         className="w-full p-4"
                         controls
                         preload="metadata"
+                        onTimeUpdate={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
+                        onSeeking={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
                       />
                     ) : playbackSrc && isImage ? (
                       <img src={playbackSrc} alt={item.title} className="h-full w-full max-h-[70vh] bg-black object-contain" />
