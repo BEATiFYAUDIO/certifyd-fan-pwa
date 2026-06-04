@@ -450,6 +450,15 @@ function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableIt
   if (!work.contentId || !work.publicOrigin) return null;
   const publicUrl = work.publicUrl || '';
   const offerUrl = `${work.publicOrigin}/buy/content/${encodeURIComponent(work.contentId)}/offer`;
+  const rawPriceSats = Number(work.priceSats);
+  const priceKnown = Number.isFinite(rawPriceSats);
+  const priceSats = priceKnown && rawPriceSats > 0 ? rawPriceSats : 0;
+  const rawAccessMode = String(work.accessMode || '').trim().toLowerCase();
+  const hasFreeMarker = work.isFree === true || work.relationshipSummary?.isFree === true;
+  const isZeroPriceUnlocked = priceKnown && priceSats === 0 && rawAccessMode === 'unlocked';
+  const accessMode = (rawAccessMode === 'owned' || rawAccessMode === 'unlocked' || rawAccessMode === 'locked'
+    ? rawAccessMode
+    : (hasFreeMarker || isZeroPriceUnlocked ? 'unlocked' : 'locked')) as DiscoverableItem['accessMode'];
   return {
     contentId: work.contentId,
     title: work.title || 'Untitled',
@@ -464,8 +473,8 @@ function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableIt
     previewUrl: work.previewUrl || '',
     buyUrl: publicUrl,
     offerUrl,
-    priceSats: Number(work.priceSats || 0),
-    accessMode: work.accessMode || 'unlocked',
+    priceSats,
+    accessMode,
     publicOrigin: work.publicOrigin,
     creatorAvatarUrl: work.creatorAvatarUrl || null,
     contributors: Array.isArray(work.contributors) ? work.contributors.slice(0, 4) : [],

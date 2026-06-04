@@ -19,6 +19,16 @@ type PlaybackChoice = {
   fullAccess: boolean;
 };
 
+type WatchAccess = {
+  priceSats: number;
+  priceKnown: boolean;
+  accessMode: string;
+  isExplicitlyFree: boolean;
+  hasFullAccess: boolean;
+  isPaid: boolean;
+  locked: boolean;
+};
+
 function resolveAbsoluteUrl(value: unknown, origin: string): string {
   if (typeof value !== 'string') return '';
   const trimmed = value.trim();
@@ -30,12 +40,47 @@ function resolveAbsoluteUrl(value: unknown, origin: string): string {
   }
 }
 
-function isFullAccessItem(item: DiscoverableItem): boolean {
-  return item.isFree === true || item.hasFullAccess === true || item.isLocked === false || item.accessMode === 'owned' || item.accessMode === 'unlocked';
+function normalizedPriceInfo(value: unknown): { priceSats: number; priceKnown: boolean } {
+  const raw = String(value ?? '').trim();
+  const priceKnown = value !== null && value !== undefined && raw !== '';
+  const parsed = Number(value);
+  return {
+    priceSats: Number.isFinite(parsed) && parsed > 0 ? parsed : 0,
+    priceKnown,
+  };
 }
 
-function isExplicitlyLockedItem(item: DiscoverableItem): boolean {
-  return item.isLocked === true || (item.accessMode === 'locked' && !isFullAccessItem(item));
+function normalizedAccessMode(value: unknown): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function explicitTrue(value: unknown): boolean {
+  return value === true || String(value).trim().toLowerCase() === 'true';
+}
+
+function resolveWatchAccess(item: DiscoverableItem): WatchAccess {
+  const { priceSats, priceKnown } = normalizedPriceInfo(item.priceSats);
+  const accessMode = normalizedAccessMode(item.accessMode);
+  const hasFullAccess = explicitTrue(item.hasFullAccess) || accessMode === 'owned';
+  const hasFreeMarker = explicitTrue(item.isFree) || explicitTrue(item.relationshipSummary?.isFree);
+  const hasFreeAccessMode = priceKnown && priceSats === 0 && accessMode === 'unlocked';
+  const isExplicitlyFree = (hasFreeMarker || hasFreeAccessMode) && priceSats === 0;
+  const isPaid = priceSats > 0;
+  const locked = !hasFullAccess && (isPaid || explicitTrue(item.isLocked) || accessMode === 'locked');
+
+  return {
+    priceSats,
+    priceKnown,
+    accessMode,
+    isExplicitlyFree,
+    hasFullAccess: hasFullAccess || isExplicitlyFree,
+    isPaid,
+    locked,
+  };
+}
+
+function isFullAccessItem(item: DiscoverableItem): boolean {
+  return resolveWatchAccess(item).hasFullAccess;
 }
 
 function resolveFullMediaSource(item: DiscoverableItem): string {
@@ -66,8 +111,9 @@ function inferMediaKind(contentType: string, src: string): 'audio' | 'video' | '
 }
 
 function resolvePlaybackChoice(item: DiscoverableItem): PlaybackChoice {
-  const explicitLocked = isExplicitlyLockedItem(item);
-  const fullAccess = isFullAccessItem(item) && !explicitLocked;
+  const access = resolveWatchAccess(item);
+  const explicitLocked = access.locked;
+  const fullAccess = access.hasFullAccess && !explicitLocked;
   const fullSrc = resolveFullMediaSource(item);
   const previewSrc = String(item.previewUrl || '').trim();
   if (fullAccess) {
