@@ -19,23 +19,78 @@ type PlaybackChoice = {
   fullAccess: boolean;
 };
 
-function resolvePlaybackChoice(item: DiscoverableItem): PlaybackChoice {
-  const explicitUnlocked = item.isFree === true || item.hasFullAccess === true || item.isLocked === false || item.accessMode === 'owned' || item.accessMode === 'unlocked';
-  const explicitLocked = item.isLocked === true || (item.accessMode === 'locked' && !explicitUnlocked);
-  const fullAccess = explicitUnlocked && !explicitLocked;
-  const fullSrc =
+function resolveAbsoluteUrl(value: unknown, origin: string): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  try {
+    return new URL(trimmed, `${origin}/`).toString();
+  } catch {
+    return '';
+  }
+}
+
+function isFullAccessItem(item: DiscoverableItem): boolean {
+  return item.isFree === true || item.hasFullAccess === true || item.isLocked === false || item.accessMode === 'owned' || item.accessMode === 'unlocked';
+}
+
+function isExplicitlyLockedItem(item: DiscoverableItem): boolean {
+  return item.isLocked === true || (item.accessMode === 'locked' && !isFullAccessItem(item));
+}
+
+function resolveFullMediaSource(item: DiscoverableItem): string {
+  return (
     String(item.fullMediaUrl || '').trim() ||
     String(item.fullContentUrl || '').trim() ||
     String(item.mediaUrl || '').trim() ||
-    String(item.contentUrl || '').trim();
+    String(item.contentUrl || '').trim()
+  );
+}
+
+function resolvePlaybackChoice(item: DiscoverableItem): PlaybackChoice {
+  const explicitLocked = isExplicitlyLockedItem(item);
+  const fullAccess = isFullAccessItem(item) && !explicitLocked;
+  const fullSrc = resolveFullMediaSource(item);
   const previewSrc = String(item.previewUrl || '').trim();
   if (fullAccess) {
-    return { lockedForFan: false, mediaSrc: fullSrc || previewSrc, usingPreview: false, fullAccess: true };
+    return { lockedForFan: false, mediaSrc: fullSrc, usingPreview: false, fullAccess: true };
   }
   if (explicitLocked && previewSrc) {
     return { lockedForFan: true, mediaSrc: previewSrc, usingPreview: true, fullAccess: false };
   }
   return { lockedForFan: explicitLocked || isLockedOrPremium(item), mediaSrc: '', usingPreview: false, fullAccess };
+}
+
+async function hydrateFullAccessPlayback(item: DiscoverableItem): Promise<DiscoverableItem> {
+  if (!isFullAccessItem(item) || resolveFullMediaSource(item)) return item;
+  const offerUrl =
+    String(item.offerUrl || '').trim() ||
+    resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, item.publicOrigin);
+  if (!offerUrl) return item;
+
+  const response = await fetch(offerUrl);
+  if (!response.ok) return item;
+  const payload = await response.json();
+  const offer = payload?.offer && typeof payload.offer === 'object' ? payload.offer : payload;
+  const origin = item.publicOrigin;
+  const fullMediaUrl =
+    resolveAbsoluteUrl(offer?.fullMediaUrl, origin) ||
+    resolveAbsoluteUrl(offer?.fullContentUrl, origin) ||
+    resolveAbsoluteUrl(offer?.mediaUrl, origin) ||
+    resolveAbsoluteUrl(offer?.contentUrl, origin);
+  if (!fullMediaUrl) return item;
+
+  return {
+    ...item,
+    fullMediaUrl,
+    fullContentUrl: resolveAbsoluteUrl(offer?.fullContentUrl, origin) || fullMediaUrl,
+    mediaUrl: resolveAbsoluteUrl(offer?.mediaUrl, origin) || item.mediaUrl || null,
+    contentUrl: resolveAbsoluteUrl(offer?.contentUrl, origin) || item.contentUrl || null,
+    hasFullAccess: true,
+    isFree: offer?.isFree === true || item.isFree === true,
+    isLocked: false,
+    accessMode: item.accessMode === 'owned' ? 'owned' : 'unlocked',
+  };
 }
 
 function toErrorMessage(error: unknown): string {
@@ -798,6 +853,22 @@ function FreebiesWatch({
   const activeRelationshipContext =
     activeItemKey && relationshipContextState?.key === activeItemKey ? relationshipContextState.context : null;
 
+  useEffect(() => {
+    let active = true;
+    if (!activeItem || !activeItemKey || resolveFullMediaSource(activeItem) || !isFullAccessItem(activeItem)) return;
+    void hydrateFullAccessPlayback(activeItem)
+      .then((hydrated) => {
+        if (!active || hydrated === activeItem || !resolveFullMediaSource(hydrated)) return;
+        setItems((current) =>
+          current.map((row) => (`${row.publicOrigin}::${row.contentId}` === activeItemKey ? hydrated : row)),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [activeItem, activeItemKey]);
+
   return (
     <main className="h-[100dvh] overflow-hidden bg-black text-white">
       <div className="fixed left-3 z-40" style={{ top: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
@@ -993,6 +1064,23 @@ function StandardWatch({
         if (!active) return;
         setRelationshipContextState({ key, context: null });
       });
+    return () => {
+      active = false;
+    };
+  }, [item]);
+
+  useEffect(() => {
+    let active = true;
+    if (!item || resolveFullMediaSource(item) || !isFullAccessItem(item)) return;
+    void hydrateFullAccessPlayback(item)
+      .then((hydrated) => {
+        if (!active || hydrated === item || !resolveFullMediaSource(hydrated)) return;
+        setItem(hydrated);
+        setDiscoveryItems((current) =>
+          dedupeDiscoveryItems([hydrated, ...current.filter((row) => row.contentId !== hydrated.contentId || row.publicOrigin !== hydrated.publicOrigin)]),
+        );
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
