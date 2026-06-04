@@ -330,7 +330,7 @@ export async function fetchContentContext(input: {
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const endpoint = `${origin}/public/content/${encodeURIComponent(contentId)}/context`;
-    const res = await fetch(endpoint, { signal: controller.signal });
+    const res = await fetch(endpoint, { cache: 'no-store', signal: controller.signal });
     if (!res.ok) return null;
     const data = (await res.json()) as ContentRelationshipContext;
     const creator = await enrichContextCreatorAvatar(normalizeContextCreator(data.creator, origin));
