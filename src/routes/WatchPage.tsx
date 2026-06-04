@@ -243,8 +243,11 @@ function isUpstreamPerson(person: ContentContextPerson): boolean {
 function isLowValueGenericPerson(person: ContentContextPerson | ContentContextCreator): boolean {
   const display = String(person.displayName || '').trim().toLowerCase();
   const handle = String(person.handle || '').trim().replace(/^@+/, '').toLowerCase();
-  const hasPublicIdentity = Boolean(person.profileUrl || person.avatarUrl);
-  return display === 'contributor' && (!handle || handle === 'contributor') && !hasPublicIdentity;
+  const profileUrl = String(person.profileUrl || '').trim().toLowerCase();
+  const isPlaceholderContributor = display === 'contributor' && (!handle || handle === 'contributor');
+  const hasPlaceholderProfile = /\/u\/contributor(?:[/?#]|$)/i.test(profileUrl);
+  const hasRealPublicIdentity = Boolean(person.avatarUrl || (person.profileUrl && !hasPlaceholderProfile));
+  return isPlaceholderContributor && !hasRealPublicIdentity;
 }
 
 function filterDisplayPeople(rows: ContentContextPerson[]): ContentContextPerson[] {
