@@ -887,8 +887,9 @@ function FreebiesWatch({
             const playback = resolvePlaybackChoice(it);
             const lockedForFan = playback.lockedForFan;
             const playbackSrc = playback.mediaSrc;
-            const isVideo = !lockedForFan && normalizedType === 'video' && Boolean(playbackSrc);
-            const isSong = !lockedForFan && (normalizedType === 'song' || normalizedType === 'audio') && Boolean(playbackSrc);
+            const canPlaySelectedSource = Boolean(playbackSrc) && (!lockedForFan || playback.usingPreview);
+            const isVideo = canPlaySelectedSource && normalizedType === 'video';
+            const isSong = canPlaySelectedSource && (normalizedType === 'song' || normalizedType === 'audio');
             const visualSrc = isVideo ? (playbackSrc || it.coverUrl || '') : (it.coverUrl || '');
             return (
               <section
@@ -1138,7 +1139,8 @@ function StandardWatch({
                 const playback = resolvePlaybackChoice(item);
                 const lockedForFan = playback.lockedForFan;
                 const playbackSrc = playback.mediaSrc;
-                if (lockedForFan) {
+                const canPlaySelectedSource = Boolean(playbackSrc) && (!lockedForFan || playback.usingPreview);
+                if (lockedForFan && !canPlaySelectedSource) {
                   return (
                     <div className="overflow-hidden rounded-2xl border border-amber-300/20 bg-zinc-900">
                       <div className="relative flex min-h-[45vh] items-center justify-center overflow-hidden bg-black">
