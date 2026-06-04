@@ -37,6 +37,9 @@ export type DiscoverableItem = {
   fullContentUrl?: string | null;
   mediaUrl?: string | null;
   contentUrl?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  publishedAt?: string | null;
   buyUrl: string;
   offerUrl: string;
   priceSats: number;
@@ -143,6 +146,9 @@ export type DiscoverySignalWork = {
   title: string;
   contentType: string;
   primaryTopic: Exclude<Topic, 'all'> | string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  publishedAt?: string | null;
   creatorHandle: string | null;
   creatorDisplayName?: string | null;
   creatorAvatarUrl?: string | null;

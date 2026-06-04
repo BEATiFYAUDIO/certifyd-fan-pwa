@@ -452,6 +452,9 @@ function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableIt
     contentId: work.contentId,
     title: work.title || 'Untitled',
     description: null,
+    createdAt: work.createdAt || null,
+    updatedAt: work.updatedAt || null,
+    publishedAt: work.publishedAt || work.createdAt || null,
     creatorHandle: work.creatorHandle || null,
     contentType: work.contentType || 'work',
     primaryTopic: (work.primaryTopic || null) as DiscoverableItem['primaryTopic'],
@@ -1254,7 +1257,7 @@ export function HomePage() {
       ...signalWorks.fastestMovingItems,
     ].filter(inActiveScope);
     const discoverableRecent = discoveryView.recentRail?.items || [];
-    return dedupeDiscoveryItems([...signalRecent, ...discoverableRecent]).slice(0, 5);
+    return sortNewestFirst(dedupeDiscoveryItems([...signalRecent, ...discoverableRecent])).slice(0, 5);
   }, [discoveryView.recentRail, inActiveScope, signalWorks.collaborativeItems, signalWorks.fastestMovingItems, signalWorks.recentlySupportedItems]);
   const boardUnlockableItems = useMemo(() => lockedItems.slice(0, 5), [lockedItems]);
   const hasHomepageContent = filtered.length > 0 || homepageCreators.length > 0 || topSurfaces.some((surface) => surface.items.length > 0);
