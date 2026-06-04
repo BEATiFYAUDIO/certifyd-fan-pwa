@@ -125,6 +125,28 @@ body::after {
     0 8px 28px rgba(84, 148, 255, 0.09);
 }
 
+@media (min-width: 1280px) {
+  .top-activity-grid {
+    align-items: stretch;
+  }
+
+  .top-activity-grid > .signal-surface-card,
+  .top-activity-grid > .creator-network-card {
+    min-height: 25.5rem;
+  }
+
+  .top-activity-grid .signal-row,
+  .top-activity-grid .creator-row {
+    min-height: 4.65rem;
+  }
+
+  .top-activity-grid .signal-row .mt-1,
+  .top-activity-grid .signal-row .mt-1\.5,
+  .top-activity-grid .creator-row .mt-1 {
+    margin-top: 0.25rem;
+  }
+}
+
 .section-title {
   letter-spacing: 0.18em;
 }

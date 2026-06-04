@@ -800,7 +800,7 @@ function TopActivityBoard({
           Explore creators
         </a>
       </div>
-      <div className="grid min-w-0 auto-rows-auto grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="top-activity-grid grid min-w-0 auto-rows-auto grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
         <CreatorNetworkCard creators={activeCreators} />
         {recentItems.length > 0 ? (
           <RankedSurfaceCard
@@ -1248,10 +1248,14 @@ export function HomePage() {
     return surfaces.slice(0, 3);
   }, [inActiveScope, signalScoreByWork, signalWorks]);
   const boardRecentItems = useMemo(() => {
-    const signalRecent = signalWorks.recentlySupportedItems.filter(inActiveScope);
+    const signalRecent = [
+      ...signalWorks.recentlySupportedItems,
+      ...signalWorks.collaborativeItems,
+      ...signalWorks.fastestMovingItems,
+    ].filter(inActiveScope);
     const discoverableRecent = discoveryView.recentRail?.items || [];
     return dedupeDiscoveryItems([...signalRecent, ...discoverableRecent]).slice(0, 5);
-  }, [discoveryView.recentRail, inActiveScope, signalWorks.recentlySupportedItems]);
+  }, [discoveryView.recentRail, inActiveScope, signalWorks.collaborativeItems, signalWorks.fastestMovingItems, signalWorks.recentlySupportedItems]);
   const boardUnlockableItems = useMemo(() => lockedItems.slice(0, 5), [lockedItems]);
   const hasHomepageContent = filtered.length > 0 || homepageCreators.length > 0 || topSurfaces.some((surface) => surface.items.length > 0);
 
