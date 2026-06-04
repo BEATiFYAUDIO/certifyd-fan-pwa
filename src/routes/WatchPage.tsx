@@ -110,6 +110,34 @@ function inferMediaKind(contentType: string, src: string): 'audio' | 'video' | '
   return 'file';
 }
 
+function WatchActions({ item, onShare, className = '' }: { item: DiscoverableItem; onShare: () => void; className?: string }) {
+  return (
+    <div className={`space-y-3 ${className}`}>
+      <a
+        href={canOpenCreator(item) ? item.buyUrl : undefined}
+        target={canOpenCreator(item) ? "_blank" : undefined}
+        rel={canOpenCreator(item) ? "noreferrer" : undefined}
+        className={`block w-full rounded-xl px-4 py-3 text-center text-sm font-bold ${
+          canOpenCreator(item)
+            ? "bg-amber-300 text-zinc-950 hover:bg-amber-200"
+            : "border border-zinc-700 bg-zinc-900 text-zinc-500 cursor-not-allowed"
+        }`}
+        onClick={(e) => {
+          if (!canOpenCreator(item)) e.preventDefault();
+        }}
+      >
+        {ctaLabel(item)}
+      </a>
+      <button
+        onClick={onShare}
+        className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-semibold hover:bg-zinc-800"
+      >
+        Share
+      </button>
+    </div>
+  );
+}
+
 function resolvePlaybackChoice(item: DiscoverableItem): PlaybackChoice {
   const access = resolveWatchAccess(item);
   const explicitLocked = access.locked;
@@ -1305,6 +1333,8 @@ function StandardWatch({
                 );
               })()}
 
+              <WatchActions item={item} onShare={onShare} className="lg:hidden" />
+
               <h1 className="text-2xl font-bold">{item.title || 'Untitled'}</h1>
               <p className="text-sm text-zinc-400">
                 @{item.creatorHandle || 'creator'} • {item.primaryTopic || 'topic'} • {item.contentType}
@@ -1329,28 +1359,8 @@ function StandardWatch({
               <RelationshipContextSections context={relationshipContext} />
             </section>
 
-            <aside className="space-y-3">
-              <a
-                href={canOpenCreator(item) ? item.buyUrl : undefined}
-                target={canOpenCreator(item) ? "_blank" : undefined}
-                rel={canOpenCreator(item) ? "noreferrer" : undefined}
-                className={`block w-full rounded-xl px-4 py-3 text-center text-sm font-bold ${
-                  canOpenCreator(item)
-                    ? "bg-amber-300 text-zinc-950 hover:bg-amber-200"
-                    : "border border-zinc-700 bg-zinc-900 text-zinc-500 cursor-not-allowed"
-                }`}
-                onClick={(e) => {
-                  if (!canOpenCreator(item)) e.preventDefault();
-                }}
-              >
-                {ctaLabel(item)}
-              </a>
-              <button
-                onClick={onShare}
-                className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-semibold hover:bg-zinc-800"
-              >
-                Share
-              </button>
+            <aside className="hidden lg:block">
+              <WatchActions item={item} onShare={onShare} />
             </aside>
           </div>
         ) : null}
