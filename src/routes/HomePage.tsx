@@ -403,6 +403,36 @@ function relationshipScoreForSignalWork(work: DiscoverySignalWork): number {
     + (explicitRelationship ? 14 : 0);
 }
 
+function hasStrongFreeConnection(work: DiscoverySignalWork): boolean {
+  const hasSummary = hasExplicitRelationshipSummary(work);
+  const summary = work.relationshipSummary || {};
+  const summaryTypes = Array.isArray(summary.relationshipTypes) ? summary.relationshipTypes : Array.isArray(work.relationshipTypes) ? work.relationshipTypes : [];
+  const normalizedTypes = summaryTypes.map((type) => String(type || '').trim().toLowerCase());
+  const contributors = Array.isArray(work.contributors) ? work.contributors.length : 0;
+  const collaborators = signalNumber(work.signals?.collaborators);
+  const connectedWorks = Math.max(signalNumber(work.signals?.connectedWorks), signalNumber(hasSummary ? summary.relatedWorkCount : work.relatedWorkCount));
+  const splitParticipants = Math.max(signalNumber(hasSummary ? summary.splitParticipantCount : work.splitParticipantCount), contributors);
+  const royaltyRecipients = signalNumber(hasSummary ? summary.royaltyRecipientCount : work.royaltyRecipientCount);
+  const upstreamCreators = signalNumber(hasSummary ? summary.upstreamCreatorCount : work.upstreamCreatorCount);
+  const connectedCreators = signalNumber(hasSummary ? summary.connectedCreatorCount : work.connectedCreatorCount);
+  const derivedFromCount = signalNumber(hasSummary ? summary.derivedFromCount : work.derivedFromCount);
+  const isDerivative = Boolean(summary.isDerivative || work.isDerivative || normalizedTypes.includes('derivative'));
+  const explicitStrongType = normalizedTypes.some((type) => ['related', 'split', 'shared', 'royalty', 'derivative'].includes(type));
+
+  return (
+    splitParticipants > 1 ||
+    contributors > 1 ||
+    collaborators > 1 ||
+    connectedCreators > 1 ||
+    connectedWorks > 0 ||
+    royaltyRecipients > 0 ||
+    upstreamCreators > 0 ||
+    derivedFromCount > 0 ||
+    isDerivative ||
+    explicitStrongType
+  );
+}
+
 function relationshipBadgesForSignalWork(work: DiscoverySignalWork): string[] {
   const hasSummary = hasExplicitRelationshipSummary(work);
   const badges: string[] = [];
@@ -425,7 +455,7 @@ function relationshipBadgesForSignalWork(work: DiscoverySignalWork): string[] {
   if (hasSplit) badges.push('SPLIT');
   if (hasShared) badges.push('SHARED');
   if (hasRelated) badges.push('RELATED');
-  if ((summary.isFree || work.isFree || work.accessMode === 'unlocked' || Number(work.priceSats || 0) === 0) && relationshipScoreForSignalWork(work) > 0) badges.push('FREE CONNECTED');
+  if ((summary.isFree || work.isFree || work.accessMode === 'unlocked' || Number(work.priceSats || 0) === 0) && hasStrongFreeConnection(work)) badges.push('FREE CONNECTED');
   const priority = ['ROYALTY', 'DERIVATIVE', 'SPLIT', 'SHARED', 'RELATED', 'FREE CONNECTED'];
   return [...new Set(badges)]
     .filter((badge) => badge !== 'SHARED' || !badges.includes('SPLIT'))
