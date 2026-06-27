@@ -81,14 +81,6 @@ async function fetchPublicCreatorTheme(
 ): Promise<ProfileTheme | null> {
   const normalizedProfileUrl = normalizeProfileUrl(origin, handle, profileUrl);
   if (!normalizedProfileUrl) return null;
-  try {
-    if (typeof window !== 'undefined' && new URL(normalizedProfileUrl).origin !== window.location.origin) {
-      return null;
-    }
-  } catch {
-    return null;
-  }
-
   let cached = creatorProfileThemeCache.get(normalizedProfileUrl);
   if (!cached) {
     cached = (async () => {

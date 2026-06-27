@@ -2,9 +2,9 @@
 
 :root {
   color-scheme: dark;
-  --certifyd-gold: 217 180 92;
-  --certifyd-orange: 255 159 10;
-  --certifyd-blue: 111 168 255;
+  --certifyd-gold: 217, 180, 92;
+  --certifyd-orange: 255, 159, 10;
+  --certifyd-blue: 111, 168, 255;
 }
 
 * {

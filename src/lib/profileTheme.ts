@@ -54,7 +54,7 @@ function mixWithWhite(hex: string, amount = 0.36): string {
 
 function rgbTriplet(hex: string): string {
   const { r, g, b } = hexToRgb(hex);
-  return `${r} ${g} ${b}`;
+  return `${r}, ${g}, ${b}`;
 }
 
 function pickString(source: Record<string, unknown>, keys: string[]): string | undefined {
