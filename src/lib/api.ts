@@ -49,11 +49,19 @@ function cssVarHex(html: string, name: string): string | null {
   return null;
 }
 
-function extractPublishedProfileTheme(html: string): ProfileTheme | null {
+function firstProfileWallpaper(html: string, origin: string): string | null {
+  const quoted = /url\(["']?([^"')]+profile-wallpapers[^"')]+)["']?\)/i.exec(html);
+  const path = quoted?.[1] || /([\w./:-]*profile-wallpapers\/[^"'\s)<>]+)/i.exec(html)?.[1];
+  if (!path) return null;
+  return resolveUrl(path.startsWith('/') ? path : `/${path.replace(/^\/+/, '')}`, origin);
+}
+
+function extractPublishedProfileTheme(html: string, origin: string): ProfileTheme | null {
   const accentColor = cssVarHex(html, '--profile-accent');
   const primaryColor = cssVarHex(html, '--profile-button-border') || cssVarHex(html, '--profile-card-border') || accentColor;
   const secondaryColor = cssVarHex(html, '--profile-card-bg') || '#0b1220';
-  if (!accentColor && !primaryColor) return null;
+  const wallpaperUrl = firstProfileWallpaper(html, origin);
+  if (!accentColor && !primaryColor && !wallpaperUrl) return null;
   const accent = accentColor || primaryColor || '#ff9f0a';
   const primary = primaryColor || accent;
   return {
@@ -62,6 +70,7 @@ function extractPublishedProfileTheme(html: string): ProfileTheme | null {
     accentColor: accent,
     backgroundGradient: `linear-gradient(135deg, ${secondaryColor} 0%, rgba(0,0,0,0.88) 48%, ${accent} 140%)`,
     tileStyle: 'published-profile',
+    themeWallpaperImageUrl: wallpaperUrl,
   };
 }
 
@@ -89,7 +98,7 @@ async function fetchPublicCreatorTheme(
       try {
         const res = await fetch(normalizedProfileUrl, { signal: controller.signal });
         if (!res.ok) return null;
-        return extractPublishedProfileTheme(await res.text());
+        return extractPublishedProfileTheme(await res.text(), new URL(normalizedProfileUrl).origin);
       } catch {
         return null;
       } finally {
@@ -99,6 +108,17 @@ async function fetchPublicCreatorTheme(
     creatorProfileThemeCache.set(normalizedProfileUrl, cached);
   }
   return cached;
+}
+
+
+function normalizeProfileThemeUrls(theme: ProfileTheme | null | undefined, origin: string): ProfileTheme | null | undefined {
+  if (!theme || typeof theme !== 'object') return theme;
+  return {
+    ...theme,
+    themeWallpaperImageUrl: resolveUrl(theme.themeWallpaperImageUrl, origin) || theme.themeWallpaperImageUrl || null,
+    themeBackgroundImageUrl: resolveUrl(theme.themeBackgroundImageUrl, origin) || theme.themeBackgroundImageUrl || null,
+    themeTextureImageUrl: resolveUrl(theme.themeTextureImageUrl, origin) || theme.themeTextureImageUrl || null,
+  };
 }
 
 async function normalizeDiscoverableItem(item: DiscoverableItem, origin: string): Promise<DiscoverableItem> {
@@ -121,7 +141,7 @@ async function normalizeDiscoverableItem(item: DiscoverableItem, origin: string)
   };
   return {
     ...normalized,
-    profileTheme: normalized.profileTheme || await fetchPublicCreatorTheme(publicOrigin, normalized.creatorHandle),
+    profileTheme: normalizeProfileThemeUrls(normalized.profileTheme, publicOrigin) || await fetchPublicCreatorTheme(publicOrigin, normalized.creatorHandle),
   };
 }
 
@@ -171,7 +191,7 @@ export async function fetchDiscoverablePage(input: {
 
 async function normalizeSignalWork(value: DiscoverySignalWork, origin: string, fallbackTheme?: ProfileTheme | null): Promise<DiscoverySignalWork> {
   const publicOrigin = value.publicOrigin || origin;
-  const profileTheme = value.profileTheme || fallbackTheme || await fetchPublicCreatorTheme(publicOrigin, value.creatorHandle);
+  const profileTheme = normalizeProfileThemeUrls(value.profileTheme, publicOrigin) || fallbackTheme || await fetchPublicCreatorTheme(publicOrigin, value.creatorHandle);
   return {
     ...value,
     publicOrigin,
@@ -185,7 +205,7 @@ async function normalizeSignalWork(value: DiscoverySignalWork, origin: string, f
           ...contributor,
           avatarUrl: resolveUrl(contributor.avatarUrl, publicOrigin),
           profileUrl: resolveUrl(contributor.profileUrl, publicOrigin),
-          profileTheme: contributor.profileTheme || await fetchPublicCreatorTheme(publicOrigin, contributor.handle, contributor.profileUrl),
+          profileTheme: normalizeProfileThemeUrls(contributor.profileTheme, publicOrigin) || await fetchPublicCreatorTheme(publicOrigin, contributor.handle, contributor.profileUrl),
         })))
       : [],
   };
@@ -193,7 +213,7 @@ async function normalizeSignalWork(value: DiscoverySignalWork, origin: string, f
 
 async function normalizeSignalCreator(value: DiscoverySignalCreator, origin: string): Promise<DiscoverySignalCreator> {
   const publicOrigin = value.publicOrigin || origin;
-  const profileTheme = value.profileTheme || await fetchPublicCreatorTheme(publicOrigin, value.creatorHandle, value.profileUrl);
+  const profileTheme = normalizeProfileThemeUrls(value.profileTheme, publicOrigin) || await fetchPublicCreatorTheme(publicOrigin, value.creatorHandle, value.profileUrl);
   return {
     ...value,
     profileTheme,
@@ -283,7 +303,7 @@ async function normalizeContextCreator(value: ContentContextCreator | null | und
     avatarUrl: resolveUrl(value.avatarUrl, publicOrigin),
     profileUrl: resolveUrl(value.profileUrl, publicOrigin),
     publicOrigin,
-    profileTheme: value.profileTheme || await fetchPublicCreatorTheme(publicOrigin, value.handle, value.profileUrl),
+    profileTheme: normalizeProfileThemeUrls(value.profileTheme, publicOrigin) || await fetchPublicCreatorTheme(publicOrigin, value.handle, value.profileUrl),
   };
 }
 
@@ -310,7 +330,7 @@ async function normalizeContextWork(value: ContentContextWork, origin: string): 
     previewUrl: resolveUrl(value.previewUrl, workOrigin),
     publicUrl: resolveUrl(value.publicUrl, workOrigin),
     creator,
-    profileTheme: value.profileTheme || creator?.profileTheme || null,
+    profileTheme: normalizeProfileThemeUrls(value.profileTheme, workOrigin) || creator?.profileTheme || null,
   };
 }
 

@@ -15,6 +15,12 @@ export type ProfileTheme = {
   accentColor: string;
   backgroundGradient?: string;
   tileStyle?: string;
+  themeWallpaperImageUrl?: string | null;
+  themeBackgroundImageUrl?: string | null;
+  themeTextureImageUrl?: string | null;
+  themeOverlayStrength?: string | null;
+  themeCardOpacityOverride?: number | null;
+  themeCardBlurOverride?: number | null;
 };
 
 export type RelationshipSummary = {

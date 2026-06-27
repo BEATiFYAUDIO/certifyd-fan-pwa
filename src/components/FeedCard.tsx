@@ -109,7 +109,7 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
   }, [creator]);
 
   return (
-    <article ref={cardRef} className="group overflow-hidden" style={themeVars}>
+    <article ref={cardRef} className="creator-themed-card group overflow-hidden rounded-2xl border p-2" style={themeVars}>
       {mediaIsExternal ? (
         <a href={mediaHref} target="_blank" rel="noreferrer" className="block">
           <div className="creator-themed-media relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5">

@@ -111,11 +111,11 @@ body::after {
 
 .creator-themed-card {
   border-color: rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.16) !important;
-  background:
+  background: var(--profile-card-background,
     linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.34)),
     radial-gradient(circle at 8% 0%, rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.72), transparent 56%),
     radial-gradient(circle at 100% 20%, rgba(var(--profile-primary-rgb, var(--certifyd-blue)), 0.58), transparent 58%),
-    linear-gradient(135deg, rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.52), rgba(var(--profile-primary-rgb, var(--certifyd-blue)), 0.44)) !important;
+    linear-gradient(135deg, rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.52), rgba(var(--profile-primary-rgb, var(--certifyd-blue)), 0.44))) !important;
   box-shadow:
     0 18px 48px rgba(0, 0, 0, 0.32),
     inset 0 1px 0 rgba(255, 255, 255, 0.04),

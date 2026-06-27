@@ -65,6 +65,15 @@ function pickString(source: Record<string, unknown>, keys: string[]): string | u
   return undefined;
 }
 
+function pickNumber(source: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  }
+  return undefined;
+}
+
 function extractProfileTheme(source: ThemeSource): ProfileTheme | null {
   if (!source) return null;
   if ('profileTheme' in source) {
@@ -75,10 +84,11 @@ function extractProfileTheme(source: ThemeSource): ProfileTheme | null {
     return source as ProfileTheme;
   }
   const row = source as Record<string, unknown>;
-  const accentColor = pickString(row, ['themeAccentOverrideColor', 'themeAccentColor', 'themeButtonColor', 'themeBorderColor']);
-  const primaryColor = pickString(row, ['themeButtonColor', 'themeAccentOverrideColor', 'themeAccentColor']);
+  const accentColor = pickString(row, ['themeResolvedAccentColor', 'themeAccentOverrideColor', 'themeAccentColor', 'themeButtonColor', 'themeBorderColor']);
+  const primaryColor = pickString(row, ['themeButtonColor', 'themeResolvedAccentColor', 'themeAccentOverrideColor', 'themeAccentColor']);
   const secondaryColor = pickString(row, ['themeBackgroundColor', 'themeCardColor', 'themeBorderColor']);
-  if (accentColor || primaryColor || secondaryColor) {
+  const wallpaperUrl = pickString(row, ['themeWallpaperImageUrl', 'themeBackgroundImageUrl', 'themeTextureImageUrl']);
+  if (accentColor || primaryColor || secondaryColor || wallpaperUrl) {
     const accent = accentColor || primaryColor || DEFAULT_PROFILE_THEME.accentColor;
     const primary = primaryColor || accent;
     const secondary = secondaryColor || DEFAULT_PROFILE_THEME.secondaryColor;
@@ -86,8 +96,14 @@ function extractProfileTheme(source: ThemeSource): ProfileTheme | null {
       primaryColor: primary,
       secondaryColor: secondary,
       accentColor: accent,
-      backgroundGradient: `linear-gradient(135deg, ${secondary} 0%, rgba(0,0,0,0.84) 48%, ${accent} 140%)`,
+      backgroundGradient: pickString(row, ['themeBackgroundGradient', 'backgroundGradient']) || `linear-gradient(135deg, ${secondary} 0%, rgba(0,0,0,0.84) 48%, ${accent} 140%)`,
       tileStyle: pickString(row, ['themeMode', 'themeButtonStyle']) || 'creator-profile',
+      themeWallpaperImageUrl: wallpaperUrl,
+      themeBackgroundImageUrl: pickString(row, ['themeBackgroundImageUrl']),
+      themeTextureImageUrl: pickString(row, ['themeTextureImageUrl']),
+      themeOverlayStrength: pickString(row, ['themeOverlayStrength']),
+      themeCardOpacityOverride: pickNumber(row, ['themeCardOpacityOverride']),
+      themeCardBlurOverride: pickNumber(row, ['themeCardBlurOverride']),
     };
   }
   return null;
@@ -99,6 +115,7 @@ export function getProfileTheme(source: ThemeSource): ProfileTheme {
   const secondaryColor = normalizeHex(profileTheme?.secondaryColor, DEFAULT_PROFILE_THEME.secondaryColor);
   const accentColor = normalizeHex(profileTheme?.accentColor, DEFAULT_PROFILE_THEME.accentColor);
   return {
+    ...profileTheme,
     primaryColor,
     secondaryColor,
     accentColor,
@@ -114,6 +131,27 @@ export function getProfileTheme(source: ThemeSource): ProfileTheme {
 export function getReadableAccentColor(source: ThemeSource): string {
   const accent = getProfileTheme(source).accentColor;
   return relativeLuminance(accent) < 0.22 ? mixWithWhite(accent) : accent;
+}
+
+function cssUrl(value: string): string {
+  return `url("${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}")`;
+}
+
+function cardBackground(theme: ProfileTheme, primaryRgb: string, accentRgb: string): string {
+  const wallpaper = theme.themeWallpaperImageUrl || theme.themeBackgroundImageUrl || theme.themeTextureImageUrl;
+  const overlayAlpha = theme.themeOverlayStrength === 'lighter' ? 0.48 : theme.themeOverlayStrength === 'darker' ? 0.68 : 0.58;
+  const tintAlpha = wallpaper ? 0.18 : 0.32;
+  const layers = [
+    `linear-gradient(180deg, rgba(0,0,0,${overlayAlpha - 0.1}), rgba(0,0,0,${overlayAlpha}))`,
+    `radial-gradient(circle at 14% 0%, rgba(${accentRgb}, ${tintAlpha}), transparent 58%)`,
+    `radial-gradient(circle at 100% 16%, rgba(${primaryRgb}, ${Math.max(0.12, tintAlpha - 0.04)}), transparent 56%)`,
+  ];
+  if (wallpaper) {
+    layers.push(`${cssUrl(wallpaper)} center / cover no-repeat`);
+  } else {
+    layers.push(theme.backgroundGradient || DEFAULT_PROFILE_THEME.backgroundGradient || 'linear-gradient(135deg, rgba(111,168,255,0.18), rgba(255,159,10,0.12))');
+  }
+  return layers.join(', ');
 }
 
 export function getCardThemeVars(source: ThemeSource): CSSProperties {
@@ -133,13 +171,10 @@ export function getCardThemeVars(source: ThemeSource): CSSProperties {
     '--profile-accent-rgb': accentRgb,
     '--profile-gradient': theme.backgroundGradient,
     '--profile-tile-style': theme.tileStyle,
-    background: [
-      'linear-gradient(180deg, rgba(0,0,0,0.16), rgba(0,0,0,0.34))',
-      `radial-gradient(circle at 8% 0%, rgba(${accentRgb}, 0.72), transparent 56%)`,
-      `radial-gradient(circle at 100% 18%, rgba(${primaryRgb}, 0.58), transparent 58%)`,
-      `linear-gradient(135deg, rgba(${accentRgb}, 0.52), rgba(${primaryRgb}, 0.44))`,
-    ].join(', '),
-    borderColor: `rgba(${accentRgb}, 0.16)`,
-    boxShadow: `0 18px 48px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 30px rgba(${accentRgb}, 0.2)`,
+    '--profile-card-wallpaper': theme.themeWallpaperImageUrl || theme.themeBackgroundImageUrl || theme.themeTextureImageUrl || '',
+    '--profile-card-background': cardBackground(theme, primaryRgb, accentRgb),
+    background: cardBackground(theme, primaryRgb, accentRgb),
+    borderColor: `rgba(${accentRgb}, 0.18)`,
+    boxShadow: `0 18px 44px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.035), 0 0 22px rgba(${accentRgb}, 0.12)`,
   } as CSSProperties;
 }
