@@ -9,7 +9,7 @@ const DEFAULT_PROFILE_THEME: ProfileTheme = {
   tileStyle: 'certifyd',
 };
 
-type ThemeSource = ProfileTheme | { profileTheme?: ProfileTheme | null } | null | undefined;
+type ThemeSource = ProfileTheme | { profileTheme?: ProfileTheme | null } | Record<string, unknown> | null | undefined;
 
 function isHexColor(value: unknown): value is string {
   return typeof value === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
@@ -57,11 +57,38 @@ function rgbTriplet(hex: string): string {
   return `${r} ${g} ${b}`;
 }
 
+function pickString(source: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
 function extractProfileTheme(source: ThemeSource): ProfileTheme | null {
   if (!source) return null;
-  if ('profileTheme' in source) return source.profileTheme || null;
+  if ('profileTheme' in source) {
+    const nested = source.profileTheme;
+    return nested && typeof nested === 'object' ? extractProfileTheme(nested as ThemeSource) : null;
+  }
   if ('primaryColor' in source || 'secondaryColor' in source || 'accentColor' in source) {
     return source as ProfileTheme;
+  }
+  const row = source as Record<string, unknown>;
+  const accentColor = pickString(row, ['themeAccentOverrideColor', 'themeAccentColor', 'themeButtonColor', 'themeBorderColor']);
+  const primaryColor = pickString(row, ['themeButtonColor', 'themeAccentOverrideColor', 'themeAccentColor']);
+  const secondaryColor = pickString(row, ['themeBackgroundColor', 'themeCardColor', 'themeBorderColor']);
+  if (accentColor || primaryColor || secondaryColor) {
+    const accent = accentColor || primaryColor || DEFAULT_PROFILE_THEME.accentColor;
+    const primary = primaryColor || accent;
+    const secondary = secondaryColor || DEFAULT_PROFILE_THEME.secondaryColor;
+    return {
+      primaryColor: primary,
+      secondaryColor: secondary,
+      accentColor: accent,
+      backgroundGradient: `linear-gradient(135deg, ${secondary} 0%, rgba(0,0,0,0.84) 48%, ${accent} 140%)`,
+      tileStyle: pickString(row, ['themeMode', 'themeButtonStyle']) || 'creator-profile',
+    };
   }
   return null;
 }

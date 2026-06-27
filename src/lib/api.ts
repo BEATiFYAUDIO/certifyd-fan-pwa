@@ -3,10 +3,12 @@ import type {
   ContentContextPerson,
   ContentContextWork,
   ContentRelationshipContext,
+  DiscoverableItem,
   DiscoverableResponse,
   DiscoverySignalCreator,
   DiscoverySignalsResponse,
   DiscoverySignalWork,
+  ProfileTheme,
   Topic,
 } from './types';
 import { isRenderableDiscoveryItem } from './discoveryGuard';
@@ -15,6 +17,7 @@ const DISCOVERABLE_CACHE_MS = 60_000;
 const SIGNALS_CACHE_MS = 60_000;
 const discoverablePageCache = new Map<string, { expiresAt: number; promise: Promise<DiscoverableResponse> }>();
 const discoverySignalsCache = new Map<string, { expiresAt: number; promise: Promise<DiscoverySignalsResponse | null> }>();
+const creatorProfileThemeCache = new Map<string, Promise<ProfileTheme | null>>();
 
 function resolveUrl(value: unknown, origin: string): string {
   if (typeof value !== 'string') return '';
@@ -25,6 +28,109 @@ function resolveUrl(value: unknown, origin: string): string {
   } catch {
     return '';
   }
+}
+
+function isHexColor(value: unknown): value is string {
+  return typeof value === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
+}
+
+function normalizeHex(value: unknown): string | null {
+  if (!isHexColor(value)) return null;
+  const hex = value.trim().toLowerCase();
+  if (hex.length === 4) return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+  return hex;
+}
+
+function cssVarHex(html: string, name: string): string | null {
+  const direct = new RegExp(`${name.replace(/[-/\\^$*+?.()|[\\]{}]/g, '\\$&')}\\s*:\\s*(#[0-9a-fA-F]{3,6})`).exec(html);
+  if (direct?.[1]) return normalizeHex(direct[1]);
+  const colorMix = new RegExp(`${name.replace(/[-/\\^$*+?.()|[\\]{}]/g, '\\$&')}\\s*:\\s*color-mix\\([^#]+(#[0-9a-fA-F]{3,6})`).exec(html);
+  if (colorMix?.[1]) return normalizeHex(colorMix[1]);
+  return null;
+}
+
+function extractPublishedProfileTheme(html: string): ProfileTheme | null {
+  const accentColor = cssVarHex(html, '--profile-accent');
+  const primaryColor = cssVarHex(html, '--profile-button-border') || cssVarHex(html, '--profile-card-border') || accentColor;
+  const secondaryColor = cssVarHex(html, '--profile-card-bg') || '#0b1220';
+  if (!accentColor && !primaryColor) return null;
+  const accent = accentColor || primaryColor || '#ff9f0a';
+  const primary = primaryColor || accent;
+  return {
+    primaryColor: primary,
+    secondaryColor,
+    accentColor: accent,
+    backgroundGradient: `linear-gradient(135deg, ${secondaryColor} 0%, rgba(0,0,0,0.88) 48%, ${accent} 140%)`,
+    tileStyle: 'published-profile',
+  };
+}
+
+function normalizeProfileUrl(origin: string | null | undefined, handle: string | null | undefined, profileUrl?: string | null): string {
+  const explicit = String(profileUrl || '').trim();
+  if (explicit) return resolveUrl(explicit, String(origin || ''));
+  const normalizedOrigin = String(origin || '').trim().replace(/\/+$/, '');
+  const normalizedHandle = normalizeHandle(handle);
+  if (!normalizedOrigin || !normalizedHandle) return '';
+  return `${normalizedOrigin}/u/${encodeURIComponent(normalizedHandle)}`;
+}
+
+async function fetchPublicCreatorTheme(
+  origin: string | null | undefined,
+  handle: string | null | undefined,
+  profileUrl?: string | null,
+): Promise<ProfileTheme | null> {
+  const normalizedProfileUrl = normalizeProfileUrl(origin, handle, profileUrl);
+  if (!normalizedProfileUrl) return null;
+  try {
+    if (typeof window !== 'undefined' && new URL(normalizedProfileUrl).origin !== window.location.origin) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  let cached = creatorProfileThemeCache.get(normalizedProfileUrl);
+  if (!cached) {
+    cached = (async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      try {
+        const res = await fetch(normalizedProfileUrl, { signal: controller.signal });
+        if (!res.ok) return null;
+        return extractPublishedProfileTheme(await res.text());
+      } catch {
+        return null;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    })();
+    creatorProfileThemeCache.set(normalizedProfileUrl, cached);
+  }
+  return cached;
+}
+
+async function normalizeDiscoverableItem(item: DiscoverableItem, origin: string): Promise<DiscoverableItem> {
+  const publicOrigin = item.publicOrigin || origin;
+  const normalized = {
+    ...item,
+    publicOrigin,
+    coverUrl: resolveUrl(item.coverUrl, publicOrigin),
+    previewUrl: resolveUrl(item.previewUrl, publicOrigin),
+    fullMediaUrl: resolveUrl(item.fullMediaUrl, publicOrigin),
+    fullContentUrl: resolveUrl(item.fullContentUrl, publicOrigin),
+    mediaUrl: resolveUrl(item.mediaUrl, publicOrigin),
+    contentUrl: resolveUrl(item.contentUrl, publicOrigin),
+    buyUrl: resolveUrl(item.buyUrl, publicOrigin),
+    offerUrl: resolveUrl(item.offerUrl, publicOrigin),
+    creatorAvatarUrl: resolveUrl(item.creatorAvatarUrl, publicOrigin),
+    creatorProfileImageUrl: resolveUrl(item.creatorProfileImageUrl, publicOrigin),
+    profileImageUrl: resolveUrl(item.profileImageUrl, publicOrigin),
+    avatarUrl: resolveUrl(item.avatarUrl, publicOrigin),
+  };
+  return {
+    ...normalized,
+    profileTheme: normalized.profileTheme || await fetchPublicCreatorTheme(publicOrigin, normalized.creatorHandle),
+  };
 }
 
 export async function fetchDiscoverablePage(input: {
@@ -55,24 +161,10 @@ export async function fetchDiscoverablePage(input: {
       }
       const data = (await res.json()) as DiscoverableResponse;
 
+      const items = await Promise.all((data.items || []).map((item) => normalizeDiscoverableItem(item, origin)));
       return {
         cursor: data.cursor || null,
-        items: (data.items || []).map((item) => ({
-          ...item,
-          publicOrigin: item.publicOrigin || origin,
-          coverUrl: resolveUrl(item.coverUrl, item.publicOrigin || origin),
-          previewUrl: resolveUrl(item.previewUrl, item.publicOrigin || origin),
-          fullMediaUrl: resolveUrl(item.fullMediaUrl, item.publicOrigin || origin),
-          fullContentUrl: resolveUrl(item.fullContentUrl, item.publicOrigin || origin),
-          mediaUrl: resolveUrl(item.mediaUrl, item.publicOrigin || origin),
-          contentUrl: resolveUrl(item.contentUrl, item.publicOrigin || origin),
-          buyUrl: resolveUrl(item.buyUrl, item.publicOrigin || origin),
-          offerUrl: resolveUrl(item.offerUrl, item.publicOrigin || origin),
-          creatorAvatarUrl: resolveUrl(item.creatorAvatarUrl, item.publicOrigin || origin),
-          creatorProfileImageUrl: resolveUrl(item.creatorProfileImageUrl, item.publicOrigin || origin),
-          profileImageUrl: resolveUrl(item.profileImageUrl, item.publicOrigin || origin),
-          avatarUrl: resolveUrl(item.avatarUrl, item.publicOrigin || origin),
-        })).filter((item) => isRenderableDiscoveryItem(item)),
+        items: items.filter((item) => isRenderableDiscoveryItem(item)),
       };
     } catch (error) {
       discoverablePageCache.delete(url);
@@ -85,34 +177,39 @@ export async function fetchDiscoverablePage(input: {
   return promise;
 }
 
-function normalizeSignalWork(value: DiscoverySignalWork, origin: string): DiscoverySignalWork {
+async function normalizeSignalWork(value: DiscoverySignalWork, origin: string, fallbackTheme?: ProfileTheme | null): Promise<DiscoverySignalWork> {
   const publicOrigin = value.publicOrigin || origin;
+  const profileTheme = value.profileTheme || fallbackTheme || await fetchPublicCreatorTheme(publicOrigin, value.creatorHandle);
   return {
     ...value,
     publicOrigin,
+    profileTheme,
     publicUrl: resolveUrl(value.publicUrl, publicOrigin),
     coverUrl: resolveUrl(value.coverUrl, publicOrigin),
     previewUrl: resolveUrl(value.previewUrl, publicOrigin),
     creatorAvatarUrl: resolveUrl(value.creatorAvatarUrl, publicOrigin),
     contributors: Array.isArray(value.contributors)
-      ? value.contributors.slice(0, 4).map((contributor) => ({
+      ? await Promise.all(value.contributors.slice(0, 4).map(async (contributor) => ({
           ...contributor,
           avatarUrl: resolveUrl(contributor.avatarUrl, publicOrigin),
           profileUrl: resolveUrl(contributor.profileUrl, publicOrigin),
-        }))
+          profileTheme: contributor.profileTheme || await fetchPublicCreatorTheme(publicOrigin, contributor.handle, contributor.profileUrl),
+        })))
       : [],
   };
 }
 
-function normalizeSignalCreator(value: DiscoverySignalCreator, origin: string): DiscoverySignalCreator {
+async function normalizeSignalCreator(value: DiscoverySignalCreator, origin: string): Promise<DiscoverySignalCreator> {
   const publicOrigin = value.publicOrigin || origin;
+  const profileTheme = value.profileTheme || await fetchPublicCreatorTheme(publicOrigin, value.creatorHandle, value.profileUrl);
   return {
     ...value,
+    profileTheme,
     publicOrigin,
     avatarUrl: resolveUrl(value.avatarUrl, publicOrigin),
     profileUrl: resolveUrl(value.profileUrl, publicOrigin),
     representativeWorks: Array.isArray(value.representativeWorks)
-      ? value.representativeWorks.map((work) => normalizeSignalWork(work, publicOrigin))
+      ? await Promise.all(value.representativeWorks.map((work) => normalizeSignalWork(work, publicOrigin, profileTheme)))
       : [],
   };
 }
@@ -142,34 +239,36 @@ export async function fetchDiscoverySignals(input: {
       return null;
     }
     const data = (await res.json()) as DiscoverySignalsResponse;
+    const topCreators = Array.isArray(data.creators?.topCreators)
+      ? await Promise.all(data.creators.topCreators.map((creator) => normalizeSignalCreator(creator, origin)))
+      : [];
+    const ecosystems = Array.isArray(data.ecosystems)
+      ? await Promise.all(data.ecosystems.map((creator) => normalizeSignalCreator(creator, origin)))
+      : [];
     return {
       ...data,
       creators: {
-        topCreators: Array.isArray(data.creators?.topCreators)
-          ? data.creators.topCreators.map((creator) => normalizeSignalCreator(creator, origin))
-          : [],
+        topCreators,
       },
-      ecosystems: Array.isArray(data.ecosystems)
-        ? data.ecosystems.map((creator) => normalizeSignalCreator(creator, origin))
-        : [],
+      ecosystems,
       works: {
         topSelling: Array.isArray(data.works?.topSelling)
-          ? data.works.topSelling.map((work) => normalizeSignalWork(work, origin))
+          ? await Promise.all(data.works.topSelling.map((work) => normalizeSignalWork(work, origin)))
           : [],
         mostSupported: Array.isArray(data.works?.mostSupported)
-          ? data.works.mostSupported.map((work) => normalizeSignalWork(work, origin))
+          ? await Promise.all(data.works.mostSupported.map((work) => normalizeSignalWork(work, origin)))
           : [],
         fastestMoving: Array.isArray(data.works?.fastestMoving)
-          ? data.works.fastestMoving.map((work) => normalizeSignalWork(work, origin))
+          ? await Promise.all(data.works.fastestMoving.map((work) => normalizeSignalWork(work, origin)))
           : [],
         recentlyAdded: Array.isArray(data.works?.recentlyAdded)
-          ? data.works.recentlyAdded.map((work) => normalizeSignalWork(work, origin))
+          ? await Promise.all(data.works.recentlyAdded.map((work) => normalizeSignalWork(work, origin)))
           : [],
         recentlySupported: Array.isArray(data.works?.recentlySupported)
-          ? data.works.recentlySupported.map((work) => normalizeSignalWork(work, origin))
+          ? await Promise.all(data.works.recentlySupported.map((work) => normalizeSignalWork(work, origin)))
           : [],
         collaborativeReleases: Array.isArray(data.works?.collaborativeReleases)
-          ? data.works.collaborativeReleases.map((work) => normalizeSignalWork(work, origin))
+          ? await Promise.all(data.works.collaborativeReleases.map((work) => normalizeSignalWork(work, origin)))
           : [],
       },
     };
@@ -184,37 +283,42 @@ export async function fetchDiscoverySignals(input: {
   return promise;
 }
 
-function normalizeContextCreator(value: ContentContextCreator | null | undefined, origin: string): ContentContextCreator | null {
+async function normalizeContextCreator(value: ContentContextCreator | null | undefined, origin: string): Promise<ContentContextCreator | null> {
   if (!value) return null;
+  const publicOrigin = value.publicOrigin || origin;
   return {
     ...value,
-    avatarUrl: resolveUrl(value.avatarUrl, value.publicOrigin || origin),
-    profileUrl: resolveUrl(value.profileUrl, value.publicOrigin || origin),
-    publicOrigin: value.publicOrigin || origin,
+    avatarUrl: resolveUrl(value.avatarUrl, publicOrigin),
+    profileUrl: resolveUrl(value.profileUrl, publicOrigin),
+    publicOrigin,
+    profileTheme: value.profileTheme || await fetchPublicCreatorTheme(publicOrigin, value.handle, value.profileUrl),
   };
 }
 
-function normalizeContextPerson(value: ContentContextPerson, origin: string): ContentContextPerson {
-  const creator = normalizeContextCreator(value, origin);
+async function normalizeContextPerson(value: ContentContextPerson, origin: string): Promise<ContentContextPerson> {
+  const creator = await normalizeContextCreator(value, origin);
   return {
     handle: creator?.handle || null,
     displayName: creator?.displayName || value.displayName || null,
     avatarUrl: creator?.avatarUrl || null,
     profileUrl: creator?.profileUrl || null,
     publicOrigin: creator?.publicOrigin || origin,
+    profileTheme: creator?.profileTheme || null,
     role: value.role || null,
     relationshipLabel: value.relationshipLabel || 'Contributor',
   };
 }
 
-function normalizeContextWork(value: ContentContextWork, origin: string): ContentContextWork {
+async function normalizeContextWork(value: ContentContextWork, origin: string): Promise<ContentContextWork> {
   const workOrigin = value.creator?.publicOrigin || origin;
+  const creator = await normalizeContextCreator(value.creator, workOrigin);
   return {
     ...value,
     coverUrl: resolveUrl(value.coverUrl, workOrigin),
     previewUrl: resolveUrl(value.previewUrl, workOrigin),
     publicUrl: resolveUrl(value.publicUrl, workOrigin),
-    creator: normalizeContextCreator(value.creator, workOrigin),
+    creator,
+    profileTheme: value.profileTheme || creator?.profileTheme || null,
   };
 }
 
@@ -336,28 +440,28 @@ export async function fetchContentContext(input: {
     const res = await fetch(endpoint, { cache: 'no-store', signal: controller.signal });
     if (!res.ok) return null;
     const data = (await res.json()) as ContentRelationshipContext;
-    const creator = await enrichContextCreatorAvatar(normalizeContextCreator(data.creator, origin));
+    const creator = await enrichContextCreatorAvatar(await normalizeContextCreator(data.creator, origin));
     const peopleBehindThis = await Promise.all(
       normalizeContextArray<ContentContextPerson>(data.peopleBehindThis)
-        .map((person) => normalizeContextPerson(person, origin))
-        .map((person) => enrichContextCreatorAvatar(person)),
+        .map(async (person) => enrichContextCreatorAvatar(await normalizeContextPerson(person, origin))),
     );
     const featuring = await Promise.all(
       normalizeContextArray<ContentContextPerson>(data.featuring)
-        .map((person) => normalizeContextPerson(person, origin))
-        .map((person) => enrichContextCreatorAvatar(person)),
+        .map(async (person) => enrichContextCreatorAvatar(await normalizeContextPerson(person, origin))),
     );
     const createdWith = await Promise.all(
       normalizeContextArray<ContentContextPerson>(data.createdWith)
-        .map((person) => normalizeContextPerson(person, origin))
-        .map((person) => enrichContextCreatorAvatar(person)),
+        .map(async (person) => enrichContextCreatorAvatar(await normalizeContextPerson(person, origin))),
     );
-    const connectedCreators = await Promise.all(
+    const connectedCreators = (await Promise.all(
       normalizeContextArray<ContentContextCreator>(data.connectedCreators)
-        .map((row) => normalizeContextCreator(row, origin))
-        .filter((row): row is ContentContextCreator => Boolean(row))
-        .map((row) => enrichContextCreatorAvatar(row)),
-    );
+        .map(async (row) => enrichContextCreatorAvatar(await normalizeContextCreator(row, origin))),
+    )).filter((row): row is ContentContextCreator => Boolean(row));
+    const builtFrom = await Promise.all(normalizeContextArray<ContentContextWork>(data.builtFrom).map((work) => normalizeContextWork(work, origin)));
+    const derivedFrom = await Promise.all(normalizeContextArray<ContentContextWork>(data.derivedFrom).map((work) => normalizeContextWork(work, origin)));
+    const worksThatBuiltOnThis = await Promise.all(normalizeContextArray<ContentContextWork>(data.worksThatBuiltOnThis).map((work) => normalizeContextWork(work, origin)));
+    const moreTheyWorkedOn = await Promise.all(normalizeContextArray<ContentContextWork>(data.moreTheyWorkedOn).map((work) => normalizeContextWork(work, origin)));
+    const relatedWorks = await Promise.all(normalizeContextArray<ContentContextWork>(data.relatedWorks).map((work) => normalizeContextWork(work, origin)));
     return {
       ...data,
       publicOrigin: data.publicOrigin || origin,
@@ -365,11 +469,11 @@ export async function fetchContentContext(input: {
       peopleBehindThis,
       featuring,
       createdWith,
-      builtFrom: normalizeContextArray<ContentContextWork>(data.builtFrom).map((work) => normalizeContextWork(work, origin)),
-      derivedFrom: normalizeContextArray<ContentContextWork>(data.derivedFrom).map((work) => normalizeContextWork(work, origin)),
-      worksThatBuiltOnThis: normalizeContextArray<ContentContextWork>(data.worksThatBuiltOnThis).map((work) => normalizeContextWork(work, origin)),
-      moreTheyWorkedOn: normalizeContextArray<ContentContextWork>(data.moreTheyWorkedOn).map((work) => normalizeContextWork(work, origin)),
-      relatedWorks: normalizeContextArray<ContentContextWork>(data.relatedWorks).map((work) => normalizeContextWork(work, origin)),
+      builtFrom,
+      derivedFrom,
+      worksThatBuiltOnThis,
+      moreTheyWorkedOn,
+      relatedWorks,
       connectedCreators,
     };
   } catch {
