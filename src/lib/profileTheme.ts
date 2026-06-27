@@ -121,14 +121,25 @@ export function getCardThemeVars(source: ThemeSource): CSSProperties {
   const accent = getReadableAccentColor(theme);
   const primary = theme.primaryColor;
   const secondary = theme.secondaryColor;
+  const primaryRgb = rgbTriplet(primary);
+  const secondaryRgb = rgbTriplet(secondary);
+  const accentRgb = rgbTriplet(accent);
   return {
     '--profile-primary': primary,
     '--profile-secondary': secondary,
     '--profile-accent': accent,
-    '--profile-primary-rgb': rgbTriplet(primary),
-    '--profile-secondary-rgb': rgbTriplet(secondary),
-    '--profile-accent-rgb': rgbTriplet(accent),
+    '--profile-primary-rgb': primaryRgb,
+    '--profile-secondary-rgb': secondaryRgb,
+    '--profile-accent-rgb': accentRgb,
     '--profile-gradient': theme.backgroundGradient,
     '--profile-tile-style': theme.tileStyle,
+    background: [
+      'linear-gradient(180deg, rgba(0,0,0,0.16), rgba(0,0,0,0.34))',
+      `radial-gradient(circle at 8% 0%, rgba(${accentRgb}, 0.72), transparent 56%)`,
+      `radial-gradient(circle at 100% 18%, rgba(${primaryRgb}, 0.58), transparent 58%)`,
+      `linear-gradient(135deg, rgba(${accentRgb}, 0.52), rgba(${primaryRgb}, 0.44))`,
+    ].join(', '),
+    borderColor: `rgba(${accentRgb}, 0.16)`,
+    boxShadow: `0 18px 48px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 30px rgba(${accentRgb}, 0.2)`,
   } as CSSProperties;
 }
