@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { DiscoverableItem } from '../lib/types';
 import { canOpenCreator, isLockedOrPremium } from '../lib/discoveryGuard';
+import { getCardThemeVars } from '../lib/profileTheme';
 
 function modeMetaText(mode: DiscoverableItem['accessMode'], priceSats: number) {
   if (mode === 'locked' || Number(priceSats || 0) > 0) return `${priceSats} sats`;
@@ -95,6 +96,7 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
   const canShowAvatar = Boolean(avatarUrl) && !avatarFailed;
   const mediaHref = watchHref;
   const mediaIsExternal = mediaHref === item.buyUrl;
+  const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
   const avatarGradient = useMemo(() => {
     const seed = creator.toLowerCase().charCodeAt(0) || 0;
     const gradients = [
@@ -107,19 +109,19 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
   }, [creator]);
 
   return (
-    <article ref={cardRef} className="group overflow-hidden">
+    <article ref={cardRef} className="group overflow-hidden" style={themeVars}>
       {mediaIsExternal ? (
         <a href={mediaHref} target="_blank" rel="noreferrer" className="block">
-          <div className="relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5 group-hover:ring-zinc-600">
+          <div className="creator-themed-media relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5">
             <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                 lockedForFan
-                  ? 'border border-amber-300/45 bg-amber-300/15 text-amber-100'
-                  : 'border border-slate-300/45 bg-slate-300/10 text-slate-100'
+                  ? 'creator-themed-badge border'
+                  : 'creator-themed-badge-muted border'
               }`}>
                 {primaryLabel(item)}
               </span>
-              <span className="rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
+              <span className="creator-themed-badge rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                 Lightning
               </span>
             </div>
@@ -167,16 +169,16 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
         </a>
       ) : (
       <Link to={watchHref} state={{ item }} className="block">
-        <div className="relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5 group-hover:ring-zinc-600">
+        <div className="creator-themed-media relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5">
           <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
               lockedForFan
-                ? 'border border-amber-300/45 bg-amber-300/15 text-amber-100'
-                : 'border border-slate-300/45 bg-slate-300/10 text-slate-100'
+                ? 'creator-themed-badge border'
+                : 'creator-themed-badge-muted border'
             }`}>
               {primaryLabel(item)}
             </span>
-            <span className="rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
+            <span className="creator-themed-badge rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
               Lightning
             </span>
           </div>
@@ -230,7 +232,7 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
             target="_blank"
             rel="noreferrer"
             aria-label={`Open ${creatorHandleClean || creator} profile`}
-            className="mt-0.5 block h-8 w-8 shrink-0 rounded-full ring-1 ring-white/15 transition hover:ring-amber-400/80"
+            className="mt-0.5 block h-8 w-8 shrink-0 rounded-full ring-1 ring-white/15 transition hover:ring-[color:var(--profile-accent)]"
           >
             {canShowAvatar ? (
               <img
@@ -281,7 +283,7 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
             target={canOpenCreator(item) ? "_blank" : undefined}
             rel={canOpenCreator(item) ? "noreferrer" : undefined}
             className={`mt-1.5 inline-block text-xs font-medium ${
-              canOpenCreator(item) ? "text-amber-300 hover:text-amber-200 hover:underline" : "text-zinc-500 cursor-not-allowed"
+              canOpenCreator(item) ? "creator-themed-link hover:underline" : "text-zinc-500 cursor-not-allowed"
             }`}
             aria-disabled={!canOpenCreator(item)}
             onClick={(e) => {

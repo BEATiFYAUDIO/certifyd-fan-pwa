@@ -6,6 +6,7 @@ import { loadConfiguredOrigins } from '../lib/config';
 import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem, Topic } from '../lib/types';
 import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { buildWatchDiscoveryRails, dedupeDiscoveryItems, sortNewestFirst, type DiscoveryRail } from '../lib/discoveryViewModel';
+import { getCardThemeVars } from '../lib/profileTheme';
 
 function ctaLabel(item: DiscoverableItem) {
   if (isLockedOrPremium(item)) return 'Unlock on Creator';
@@ -281,6 +282,9 @@ function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer): Dis
       ? (offer.primaryTopic as DiscoverableItem['primaryTopic'])
       : item.primaryTopic,
     creatorHandle: typeof offer.creatorHandle === 'string' && offer.creatorHandle.trim() ? offer.creatorHandle : item.creatorHandle,
+    profileTheme: offer.profileTheme && typeof offer.profileTheme === 'object'
+      ? offer.profileTheme as DiscoverableItem['profileTheme']
+      : item.profileTheme,
     coverUrl: resolveAbsoluteUrl(offer.coverUrl, origin) || item.coverUrl,
     previewUrl: resolveAbsoluteUrl(offer.previewUrl, origin) || item.previewUrl,
     buyUrl: resolveAbsoluteUrl(offer.buyUrl, origin) || item.buyUrl,
@@ -1139,10 +1143,12 @@ function FreebiesWatch({
             const isSong = mediaKind === 'audio';
             const isImage = mediaKind === 'image';
             const visualSrc = isVideo || isImage ? (playbackSrc || it.coverUrl || '') : (it.coverUrl || '');
+            const themeVars = getCardThemeVars(it.profileTheme);
             return (
               <section
                 key={`${it.publicOrigin}:${it.contentId}:${index}`}
-                className="relative h-[100dvh] snap-start bg-black"
+                className="watch-shell relative h-[100dvh] snap-start bg-black"
+                style={themeVars}
                 data-index={index}
                 ref={(el) => {
                   sectionRefs.current[index] = el;
@@ -1351,6 +1357,7 @@ function StandardWatch({
   const relationshipContext = item && relationshipContextState?.key === `${item.publicOrigin}::${item.contentId}`
     ? relationshipContextState.context
     : null;
+  const themeVars = useMemo(() => getCardThemeVars(item?.profileTheme), [item?.profileTheme]);
 
   async function onShare() {
     if (!item) return;
@@ -1367,7 +1374,7 @@ function StandardWatch({
   }
 
   return (
-    <main className="watch-shell min-h-screen text-zinc-100">
+    <main className="watch-shell min-h-screen text-zinc-100" style={themeVars}>
       <div className="mx-auto max-w-6xl px-4 py-4">
         <Link to="/" className="text-sm text-blue-200/75 hover:text-blue-100">← Back</Link>
 

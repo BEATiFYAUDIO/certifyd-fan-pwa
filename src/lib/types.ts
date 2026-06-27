@@ -9,6 +9,14 @@ export type Topic =
 
 export type AccessMode = 'unlocked' | 'locked' | 'owned';
 
+export type ProfileTheme = {
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  backgroundGradient?: string;
+  tileStyle?: string;
+};
+
 export type RelationshipSummary = {
   relationshipTypes?: string[];
   splitParticipantCount?: number;
@@ -60,6 +68,7 @@ export type DiscoverableItem = {
   creatorProfileImageUrl?: string | null;
   profileImageUrl?: string | null;
   avatarUrl?: string | null;
+  profileTheme?: ProfileTheme | null;
   discoveryStatus?: 'live' | 'relegated' | 'unpublished' | 'unavailable' | null;
   originTrust?: 'stable' | 'ephemeral' | 'provider' | null;
   originHealth?: 'healthy' | 'failed' | 'cooldown' | 'unknown' | null;
@@ -100,6 +109,7 @@ export type ContentContextCreator = {
   avatarUrl: string | null;
   profileUrl: string | null;
   publicOrigin: string | null;
+  profileTheme?: ProfileTheme | null;
 };
 
 export type ContentContextPerson = ContentContextCreator & {
@@ -116,6 +126,7 @@ export type ContentContextWork = {
   previewUrl: string | null;
   publicUrl: string | null;
   creator: ContentContextCreator | null;
+  profileTheme?: ProfileTheme | null;
   relationshipLabel: string;
 };
 
@@ -161,6 +172,7 @@ export type DiscoverySignalWork = {
   creatorHandle: string | null;
   creatorDisplayName?: string | null;
   creatorAvatarUrl?: string | null;
+  profileTheme?: ProfileTheme | null;
   publicUrl: string | null;
   coverUrl: string | null;
   previewUrl: string | null;
@@ -203,6 +215,7 @@ export type DiscoverySignalContributor = {
   avatarUrl: string | null;
   profileUrl: string | null;
   role: string | null;
+  profileTheme?: ProfileTheme | null;
 };
 
 export type DiscoverySignalCreator = {
@@ -211,6 +224,7 @@ export type DiscoverySignalCreator = {
   avatarUrl: string | null;
   profileUrl: string | null;
   publicOrigin: string | null;
+  profileTheme?: ProfileTheme | null;
   workCount: number;
   recentWorkCount: number;
   topicCount: number;

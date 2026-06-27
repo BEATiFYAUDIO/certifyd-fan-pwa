@@ -1,4 +1,4 @@
-import type { DiscoverableItem } from './types';
+import type { DiscoverableItem, ProfileTheme } from './types';
 import { isLockedOrPremium, isRenderableDiscoveryItem } from './discoveryGuard';
 
 export type DiscoveryRail = {
@@ -32,6 +32,7 @@ export type CreatorSpotlight = {
   connectedWorkCount?: number;
   unlockableWorkCount?: number;
   latestTitle: string;
+  profileTheme?: ProfileTheme | null;
 };
 
 export type HomeDiscoveryViewModel = {
@@ -350,6 +351,7 @@ export function buildCreatorSpotlights(items: DiscoverableItem[], limit = 6): Cr
       postureScore,
       activeScore: rows.length + supportScore + relationshipScore + postureScore,
       latestTitle: first.title || 'Untitled',
+      profileTheme: first.profileTheme || null,
     };
   });
 }

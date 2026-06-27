@@ -15,6 +15,7 @@ import {
   type CreatorSpotlight,
   type DiscoveryRail,
 } from '../lib/discoveryViewModel';
+import { getCardThemeVars } from '../lib/profileTheme';
 
 const INITIAL_PAGE_LIMIT = 8;
 const NEXT_PAGE_LIMIT = 18;
@@ -152,8 +153,9 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
   const [lead, ...rest] = creator.works;
   const badges = creatorBadges(creator);
   const hasCompanionWorks = rest.length > 0;
+  const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
   return (
-    <article className="self-start overflow-hidden rounded-3xl border border-amber-300/20 bg-[radial-gradient(circle_at_20%_0%,rgba(217,180,92,0.18),transparent_36%),linear-gradient(135deg,rgba(24,24,27,0.96),rgba(8,8,9,0.98))] p-3 shadow-2xl shadow-black/30 sm:p-4 lg:col-span-2">
+    <article className="creator-themed-card self-start overflow-hidden rounded-3xl border p-3 shadow-2xl shadow-black/30 sm:p-4 lg:col-span-2" style={themeVars}>
       <div className="flex items-start gap-3 sm:gap-4">
         <a
           href={creator.profileUrl}
@@ -168,7 +170,7 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
           )}
         </a>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-200/75">Hub creator</p>
+          <p className="creator-themed-link text-[10px] font-semibold uppercase tracking-[0.22em]">Hub creator</p>
           <h3 className="mt-1 truncate text-xl font-semibold tracking-tight text-zinc-50 sm:text-2xl">{displayName}</h3>
           <p className="mt-0.5 truncate text-sm text-zinc-400">@{creator.handle}</p>
           <p className="mt-1.5 text-sm leading-5 text-zinc-300 sm:mt-2">
@@ -179,7 +181,7 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
             {badges.map((badge) => (
               <span
                 key={badge}
-                className="rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-100"
+                className="creator-themed-badge rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide"
               >
                 {badge}
               </span>
@@ -193,7 +195,7 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
           <Link
             to={`/watch/${encodeURIComponent(lead.contentId)}?origin=${encodeURIComponent(lead.publicOrigin)}`}
             state={{ item: lead }}
-            className="group overflow-hidden rounded-2xl border border-zinc-800 bg-black/30 transition hover:border-amber-300/45"
+            className="creator-themed-media group overflow-hidden rounded-2xl border bg-black/30 transition"
           >
             <div className="aspect-[16/9] max-h-[280px] bg-zinc-950">
               {lead.coverUrl ? (
@@ -203,7 +205,7 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
               )}
             </div>
             <div className="p-2.5 sm:p-3">
-              <div className="line-clamp-2 text-base font-semibold text-zinc-100 group-hover:text-amber-100">{lead.title || 'Untitled'}</div>
+              <div className="line-clamp-2 text-base font-semibold text-zinc-100 group-hover:text-white">{lead.title || 'Untitled'}</div>
               <div className="mt-1 text-xs text-zinc-500">{lead.primaryTopic || lead.contentType || 'publication'}</div>
             </div>
           </Link>
@@ -215,7 +217,7 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
               key={itemKey(work)}
               to={`/watch/${encodeURIComponent(work.contentId)}?origin=${encodeURIComponent(work.publicOrigin)}`}
               state={{ item: work }}
-              className="group flex items-center gap-3 rounded-xl border border-zinc-800 bg-black/25 p-2 transition hover:border-amber-300/45"
+              className="creator-themed-media group flex items-center gap-3 rounded-xl border bg-black/25 p-2 transition"
             >
               <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
                 {work.coverUrl ? (
@@ -225,7 +227,7 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
                 )}
               </div>
               <div className="min-w-0">
-                <div className="line-clamp-1 text-sm font-semibold text-zinc-100 group-hover:text-amber-100">{work.title || 'Untitled'}</div>
+                <div className="line-clamp-1 text-sm font-semibold text-zinc-100 group-hover:text-white">{work.title || 'Untitled'}</div>
                 <div className="mt-0.5 truncate text-xs text-zinc-500">{work.primaryTopic || work.contentType || 'work'}</div>
               </div>
             </Link>
@@ -237,7 +239,7 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
         href={creator.profileUrl}
         target="_blank"
         rel="noreferrer"
-        className="mt-3 inline-flex min-h-9 items-center rounded-full border border-amber-300/25 bg-amber-300/10 px-3 text-[11px] font-semibold uppercase tracking-wide text-amber-100 hover:bg-amber-300/15"
+        className="creator-themed-badge mt-3 inline-flex min-h-9 items-center rounded-full border px-3 text-[11px] font-semibold uppercase tracking-wide"
       >
         Explore ecosystem →
       </a>
@@ -249,8 +251,9 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const badges = creatorBadges(creator).slice(0, 3);
+  const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
   return (
-    <article className={`self-start rounded-2xl border border-zinc-800/90 bg-zinc-900/60 p-3 shadow-xl shadow-black/20 ${index === 0 ? 'xl:col-span-2' : ''}`}>
+    <article className={`creator-themed-card self-start rounded-2xl border p-3 shadow-xl shadow-black/20 ${index === 0 ? 'xl:col-span-2' : ''}`} style={themeVars}>
       <div className="flex gap-3">
         <a
           href={creator.profileUrl}
@@ -275,7 +278,7 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {badges.map((badge) => (
-          <span key={badge} className="rounded-full border border-zinc-700 bg-black/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-300">
+          <span key={badge} className="creator-themed-badge-muted rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
             {badge}
           </span>
         ))}
@@ -287,7 +290,7 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
             key={itemKey(work)}
             to={`/watch/${encodeURIComponent(work.contentId)}?origin=${encodeURIComponent(work.publicOrigin)}`}
             state={{ item: work }}
-            className="group aspect-square overflow-hidden rounded-xl border border-zinc-800 bg-black/30 transition hover:border-amber-300/45"
+            className="creator-themed-media group aspect-square overflow-hidden rounded-xl border bg-black/30 transition"
             title={work.title || 'Untitled'}
           >
             {work.coverUrl ? (
@@ -305,7 +308,7 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
         href={creator.profileUrl}
         target="_blank"
         rel="noreferrer"
-        className="mt-3 inline-flex text-[11px] font-semibold uppercase tracking-wide text-amber-200/80 hover:text-amber-100"
+        className="creator-themed-link mt-3 inline-flex text-[11px] font-semibold uppercase tracking-wide"
       >
         View works →
       </a>
@@ -505,6 +508,7 @@ function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableIt
     accessMode,
     publicOrigin: work.publicOrigin,
     creatorAvatarUrl: work.creatorAvatarUrl || null,
+    profileTheme: work.profileTheme || null,
     contributors: Array.isArray(work.contributors) ? work.contributors.slice(0, 4) : [],
     relationshipBadges: relationshipBadgesForSignalWork(work),
     relationshipReason: relationshipReasonForSignalWork(work),
@@ -561,9 +565,14 @@ function signalCreatorToSpotlight(creator: DiscoverySignalCreator): CreatorSpotl
   const handle = String(creator.creatorHandle || '').replace(/^@+/, '').trim();
   const publicOrigin = String(creator.publicOrigin || '').trim();
   if (!handle || !publicOrigin) return null;
+  const creatorTheme = creator.profileTheme || null;
   const works = (creator.representativeWorks || [])
     .map(signalWorkToDiscoverableItem)
-    .filter((item): item is DiscoverableItem => Boolean(item));
+    .filter((item): item is DiscoverableItem => Boolean(item))
+    .map((item) => ({
+      ...item,
+      profileTheme: item.profileTheme || creatorTheme,
+    }));
   const labels = Array.isArray(creator.labels) ? creator.labels : [];
   const topics = [...new Set(works.map((item) => String(item.primaryTopic || '').trim()).filter(Boolean))].slice(0, 2);
   const types = [...new Set(works.map((item) => String(item.contentType || '').trim()).filter(Boolean))].slice(0, 2);
@@ -572,6 +581,7 @@ function signalCreatorToSpotlight(creator: DiscoverySignalCreator): CreatorSpotl
     handle,
     publicOrigin,
     avatarUrl: creator.avatarUrl || '',
+    profileTheme: creatorTheme || works[0]?.profileTheme || null,
     profileUrl: creator.profileUrl || `${publicOrigin.replace(/\/+$/, '')}/u/${encodeURIComponent(handle)}`,
     itemCount: Number(creator.workCount || works.length || 0),
     freeCount: works.filter((item) => !isLockedOrPremium(item)).length,
@@ -663,13 +673,15 @@ function RankingRow({
   const showReason = Boolean(relationshipReason && (contributors.length === 0 || relationshipBadges.length < 2));
   const priceLine = showPrice ? formatSatsPrice(item.priceSats) : null;
   const [imageFailed, setImageFailed] = useState(false);
+  const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
   return (
     <Link
       to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
       state={{ item }}
-      className="signal-row group flex min-w-0 items-center gap-2 rounded-xl border border-zinc-800 bg-black/25 p-2 transition hover:border-amber-300/45 sm:gap-3"
+      className="creator-themed-card signal-row group flex min-w-0 items-center gap-2 rounded-xl border bg-black/25 p-2 transition sm:gap-3"
+      style={themeVars}
     >
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-amber-300/25 bg-amber-300/10 text-xs font-bold text-amber-100">
+      <div className="creator-themed-rank flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold">
         {rank}
       </div>
       <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
@@ -691,9 +703,9 @@ function RankingRow({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="line-clamp-1 text-sm font-semibold text-zinc-100 group-hover:text-amber-100">{item.title || 'Untitled'}</div>
+        <div className="line-clamp-1 text-sm font-semibold text-zinc-100 group-hover:text-white">{item.title || 'Untitled'}</div>
         <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator} · {item.primaryTopic || item.contentType || 'work'}</div>
-        {priceLine ? <div className="mt-0.5 truncate text-[11px] font-medium text-amber-100/85">{priceLine}</div> : null}
+        {priceLine ? <div className="creator-themed-link mt-0.5 truncate text-[11px] font-medium">{priceLine}</div> : null}
         {contributors.length > 0 ? (
           <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">With</span>
@@ -721,7 +733,7 @@ function RankingRow({
         {relationshipBadges.length > 0 ? (
           <div className="mt-1.5 flex min-w-0 flex-wrap gap-1">
             {relationshipBadges.map((badge) => (
-              <span key={`${itemKey(item)}:${badge}`} className="rounded-full border border-amber-300/25 bg-amber-300/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-100/90">
+              <span key={`${itemKey(item)}:${badge}`} className="creator-themed-badge rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
                 {badge}
               </span>
             ))}
@@ -733,7 +745,7 @@ function RankingRow({
       </div>
       {score && score > 0 ? (
         <div className="hidden shrink-0 text-right min-[380px]:block">
-          <div className="text-sm font-bold text-amber-100">{formatCount(score)}</div>
+          <div className="creator-themed-link text-sm font-bold">{formatCount(score)}</div>
           <div className="text-[9px] uppercase tracking-wide text-zinc-500">{scoreLabel || 'signals'}</div>
         </div>
       ) : null}
@@ -774,14 +786,16 @@ function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank:
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const chips = creatorBadges(creator).slice(0, 2);
+  const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
   return (
     <a
       href={creator.profileUrl}
       target="_blank"
       rel="noreferrer"
-      className="creator-row group flex min-w-0 items-center gap-2 rounded-xl border border-zinc-800 bg-black/25 p-2 transition hover:border-amber-300/45 sm:gap-3"
+      className="creator-themed-card creator-row group flex min-w-0 items-center gap-2 rounded-xl border bg-black/25 p-2 transition sm:gap-3"
+      style={themeVars}
     >
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950 text-xs font-bold text-zinc-300">
+      <div className="creator-themed-rank flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold">
         {rank}
       </div>
       <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-900">
@@ -792,14 +806,14 @@ function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank:
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold text-zinc-100 group-hover:text-amber-100">{displayName}</div>
+        <div className="truncate text-sm font-semibold text-zinc-100 group-hover:text-white">{displayName}</div>
         <div className="mt-0.5 truncate text-xs text-zinc-500">
           @{creator.handle} · {creator.itemCount} {creator.itemCount === 1 ? 'work' : 'works'}
         </div>
         {chips.length > 0 ? (
           <div className="mt-1 flex min-w-0 gap-1 overflow-hidden">
             {chips.map((chip) => (
-              <span key={chip} className="truncate rounded-full border border-zinc-700 bg-black/30 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-zinc-300">
+              <span key={chip} className="creator-themed-badge-muted truncate rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
                 {chip}
               </span>
             ))}
