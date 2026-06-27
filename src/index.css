@@ -139,15 +139,24 @@ body::after {
 }
 
 .creator-themed-badge {
-  border-color: rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.14) !important;
-  background: rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.22) !important;
-  color: #f8fafc !important;
+  border-color: rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.18) !important;
+  background:
+    linear-gradient(135deg, rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.2), rgba(var(--profile-primary-rgb, var(--certifyd-blue)), 0.1)) !important;
+  color: rgba(248, 250, 252, 0.92) !important;
 }
 
 .creator-themed-badge-muted {
-  border-color: rgba(255, 255, 255, 0.06) !important;
-  background: rgba(0, 0, 0, 0.22) !important;
-  color: rgba(248, 250, 252, 0.86) !important;
+  border-color: rgba(var(--profile-primary-rgb, var(--certifyd-blue)), 0.14) !important;
+  background:
+    linear-gradient(135deg, rgba(var(--profile-primary-rgb, var(--certifyd-blue)), 0.13), rgba(0, 0, 0, 0.16)) !important;
+  color: rgba(248, 250, 252, 0.82) !important;
+}
+
+.creator-themed-contributor-pill {
+  border-color: rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.13) !important;
+  background:
+    linear-gradient(135deg, rgba(0, 0, 0, 0.18), rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.11)) !important;
+  color: rgba(248, 250, 252, 0.82) !important;
 }
 
 .creator-themed-link {

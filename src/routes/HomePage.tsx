@@ -678,7 +678,7 @@ function RankingRow({
     <Link
       to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
       state={{ item }}
-      className="creator-themed-card signal-row group flex min-w-0 items-center gap-2 rounded-xl border bg-black/25 p-2 transition sm:gap-3"
+      className="creator-themed-card signal-row group flex min-w-0 items-center gap-2 rounded-xl border p-2 transition sm:gap-3"
       style={themeVars}
     >
       <div className="creator-themed-rank flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold">
@@ -715,7 +715,7 @@ function RankingRow({
               return (
                 <span
                   key={`${itemKey(item)}:${label}:${contributor.role || ''}`}
-                  className="inline-flex max-w-[9rem] items-center gap-1 rounded-full border border-zinc-700/80 bg-zinc-900/80 py-0.5 pl-1 pr-2 text-[10px] text-zinc-300"
+                  className="creator-themed-contributor-pill inline-flex max-w-[9rem] items-center gap-1 rounded-full border py-0.5 pl-1 pr-2 text-[10px]"
                   title={[label, contributor.role].filter(Boolean).join(' · ')}
                 >
                   {contributor.avatarUrl ? (
@@ -792,7 +792,7 @@ function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank:
       href={creator.profileUrl}
       target="_blank"
       rel="noreferrer"
-      className="creator-themed-card creator-row group flex min-w-0 items-center gap-2 rounded-xl border bg-black/25 p-2 transition sm:gap-3"
+      className="creator-themed-card creator-row group flex min-w-0 items-center gap-2 rounded-xl border p-2 transition sm:gap-3"
       style={themeVars}
     >
       <div className="creator-themed-rank flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold">
