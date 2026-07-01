@@ -297,3 +297,207 @@ body::after {
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(120, 136, 160, 0.46), rgba(205, 168, 93, 0.5));
 }
+
+body.has-stage1a-player {
+  padding-bottom: 104px;
+}
+
+.stage1a-player-dock {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 10px;
+  border: 1px solid rgba(63, 72, 88, 0.92);
+  border-radius: 14px;
+  background: rgba(10, 14, 22, 0.9);
+  color: #f4f6f8;
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.46), 0 0 36px rgba(111, 168, 255, 0.12);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.stage1a-player-dock-idle {
+  padding: 9px 12px;
+}
+
+.stage1a-player-art {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  object-fit: cover;
+}
+
+.stage1a-player-art-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(244, 246, 248, 0.7);
+  font-weight: 800;
+}
+
+.stage1a-player-video {
+  display: none;
+  width: 96px;
+  max-height: 54px;
+  border-radius: 8px;
+  background: #000;
+}
+
+.stage1a-player-dock[data-state='playing'] .stage1a-player-video,
+.stage1a-player-dock[data-state='paused'] .stage1a-player-video,
+.stage1a-player-dock[data-state='ended'] .stage1a-player-video,
+.stage1a-player-dock[data-state='loading'] .stage1a-player-video,
+.stage1a-player-dock[data-state='error'] .stage1a-player-video {
+  display: var(--stage1a-video-display, none);
+}
+
+.stage1a-player-audio {
+  display: none;
+}
+
+.stage1a-player-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stage1a-player-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stage1a-player-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(212, 216, 223, 0.72);
+  font-size: 11px;
+}
+
+.stage1a-player-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stage1a-player-button,
+.stage1a-player-support,
+.stage1a-player-clear {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #f7f2df;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.stage1a-player-button:disabled,
+.stage1a-player-progress:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.stage1a-player-button {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage1a-player-clear {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.stage1a-player-support {
+  padding: 8px 11px;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.stage1a-player-progress {
+  min-width: 80px;
+  flex: 1;
+  accent-color: rgb(var(--certifyd-orange));
+}
+
+.stage1a-player-status,
+.stage1a-player-time {
+  color: rgba(212, 216, 223, 0.72);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.stage1a-play-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 191, 36, 0.34);
+  background: rgba(251, 191, 36, 0.11);
+  color: rgb(254, 243, 199);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  padding: 0.45rem 0.65rem;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.stage1a-play-button:hover {
+  border-color: rgba(251, 191, 36, 0.54);
+  background: rgba(251, 191, 36, 0.16);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+  body.has-stage1a-player {
+    padding-bottom: 118px;
+  }
+
+  .stage1a-player-dock {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    align-items: flex-start;
+  }
+
+  .stage1a-player-art {
+    width: 42px;
+    height: 42px;
+  }
+
+  .stage1a-player-controls {
+    flex-wrap: wrap;
+  }
+
+  .stage1a-player-support {
+    padding: 7px 9px;
+  }
+
+  .stage1a-player-video {
+    width: 72px;
+    max-height: 42px;
+  }
+}

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FeedCard } from '../components/FeedCard';
 import { ShortsCard } from '../components/ShortsCard';
 import { TopicRail } from '../components/TopicRail';
+import { useStage1APlayer } from '../components/stage1APlayerContext';
 import { fetchDiscoverablePage, fetchDiscoverySignals } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
 import type { DiscoverableItem, DiscoverySignalCreator, DiscoverySignalsResponse, DiscoverySignalWork, OriginFeedState, Topic } from '../lib/types';
@@ -26,6 +27,7 @@ const ORIGIN_SOFT_DISABLE_AFTER_FAILS = 3;
 const ORIGIN_SOFT_DISABLE_MS = 5 * 60 * 1000;
 const MAX_ORIGINS_PER_PASS = 6;
 const HOME_REFRESH_INTERVAL_MS = 90_000;
+const HOME_RANDOM_SEED = `all:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
 
 function hashString(input: string): number {
   let h = 2166136261;
@@ -666,6 +668,7 @@ function RankingRow({
   scoreLabel?: string;
   showPrice?: boolean;
 }) {
+  const { playItem } = useStage1APlayer();
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
   const contributors = visibleOtherContributors(item);
   const relationshipBadges = Array.isArray(item.relationshipBadges) ? item.relationshipBadges.slice(0, contributors.length ? 2 : 3) : [];
@@ -675,81 +678,88 @@ function RankingRow({
   const [imageFailed, setImageFailed] = useState(false);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
   return (
-    <Link
-      to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
-      state={{ item }}
+    <article
       className="creator-themed-card signal-row group flex min-w-0 items-center gap-2 rounded-xl border p-2 transition sm:gap-3"
       style={themeVars}
     >
-      <div className="creator-themed-rank flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold">
-        {rank}
-      </div>
-      <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
-        {item.coverUrl && !imageFailed ? (
-          <img
-            src={item.coverUrl}
-            alt=""
-            className="h-full w-full object-cover opacity-90"
-            loading={rank === 1 ? 'eager' : 'lazy'}
-            decoding="async"
-            fetchPriority={rank === 1 ? 'high' : 'auto'}
-            referrerPolicy="no-referrer"
-            onError={() => setImageFailed(true)}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center px-2 text-center text-[9px] uppercase tracking-wide text-zinc-500">
-            {item.contentType || 'Work'}
-          </div>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="line-clamp-1 text-sm font-semibold text-zinc-100 group-hover:text-white">{item.title || 'Untitled'}</div>
-        <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator} · {item.primaryTopic || item.contentType || 'work'}</div>
-        {priceLine ? <div className="creator-themed-link mt-0.5 truncate text-[11px] font-medium">{priceLine}</div> : null}
-        {contributors.length > 0 ? (
-          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">With</span>
-            {contributors.slice(0, 3).map((contributor) => {
-              const label = contributor.displayName || contributor.handle || 'Contributor';
-              const handle = contributor.handle ? contributor.handle.replace(/^@+/, '') : '';
-              return (
-                <span
-                  key={`${itemKey(item)}:${label}:${contributor.role || ''}`}
-                  className="creator-themed-contributor-pill inline-flex max-w-[9rem] items-center gap-1 rounded-full border py-0.5 pl-1 pr-2 text-[10px]"
-                  title={[label, contributor.role].filter(Boolean).join(' · ')}
-                >
-                  {contributor.avatarUrl ? (
-                    <span className="h-4 w-4 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800">
-                      <img src={contributor.avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
-                    </span>
-                  ) : null}
-                  <span className="truncate">{handle || label}</span>
-                  {contributor.role ? <span className="hidden text-zinc-500 min-[440px]:inline">· {contributor.role}</span> : null}
-                </span>
-              );
-            })}
-          </div>
-        ) : null}
-        {relationshipBadges.length > 0 ? (
-          <div className="mt-1.5 flex min-w-0 flex-wrap gap-1">
-            {relationshipBadges.map((badge) => (
-              <span key={`${itemKey(item)}:${badge}`} className="creator-themed-badge rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
-                {badge}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {showReason ? (
-          <div className="mt-1 truncate text-[10px] font-medium text-zinc-400">{relationshipReason}</div>
-        ) : null}
-      </div>
-      {score && score > 0 ? (
-        <div className="hidden shrink-0 text-right min-[380px]:block">
-          <div className="creator-themed-link text-sm font-bold">{formatCount(score)}</div>
-          <div className="text-[9px] uppercase tracking-wide text-zinc-500">{scoreLabel || 'signals'}</div>
+      <Link
+        to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
+        state={{ item }}
+        className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3"
+      >
+        <div className="creator-themed-rank flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold">
+          {rank}
         </div>
-      ) : null}
-    </Link>
+        <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
+          {item.coverUrl && !imageFailed ? (
+            <img
+              src={item.coverUrl}
+              alt=""
+              className="h-full w-full object-cover opacity-90"
+              loading={rank === 1 ? 'eager' : 'lazy'}
+              decoding="async"
+              fetchPriority={rank === 1 ? 'high' : 'auto'}
+              referrerPolicy="no-referrer"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center px-2 text-center text-[9px] uppercase tracking-wide text-zinc-500">
+              {item.contentType || 'Work'}
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="line-clamp-1 text-sm font-semibold text-zinc-100 group-hover:text-white">{item.title || 'Untitled'}</div>
+          <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator} · {item.primaryTopic || item.contentType || 'work'}</div>
+          {priceLine ? <div className="creator-themed-link mt-0.5 truncate text-[11px] font-medium">{priceLine}</div> : null}
+          {contributors.length > 0 ? (
+            <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">With</span>
+              {contributors.slice(0, 3).map((contributor) => {
+                const label = contributor.displayName || contributor.handle || 'Contributor';
+                const handle = contributor.handle ? contributor.handle.replace(/^@+/, '') : '';
+                return (
+                  <span
+                    key={`${itemKey(item)}:${label}:${contributor.role || ''}`}
+                    className="creator-themed-contributor-pill inline-flex max-w-[9rem] items-center gap-1 rounded-full border py-0.5 pl-1 pr-2 text-[10px]"
+                    title={[label, contributor.role].filter(Boolean).join(' · ')}
+                  >
+                    {contributor.avatarUrl ? (
+                      <span className="h-4 w-4 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800">
+                        <img src={contributor.avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+                      </span>
+                    ) : null}
+                    <span className="truncate">{handle || label}</span>
+                    {contributor.role ? <span className="hidden text-zinc-500 min-[440px]:inline">· {contributor.role}</span> : null}
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
+          {relationshipBadges.length > 0 ? (
+            <div className="mt-1.5 flex min-w-0 flex-wrap gap-1">
+              {relationshipBadges.map((badge) => (
+                <span key={`${itemKey(item)}:${badge}`} className="creator-themed-badge rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+                  {badge}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {showReason ? (
+            <div className="mt-1 truncate text-[10px] font-medium text-zinc-400">{relationshipReason}</div>
+          ) : null}
+        </div>
+        {score && score > 0 ? (
+          <div className="hidden shrink-0 text-right min-[380px]:block">
+            <div className="creator-themed-link text-sm font-bold">{formatCount(score)}</div>
+            <div className="text-[9px] uppercase tracking-wide text-zinc-500">{scoreLabel || 'signals'}</div>
+          </div>
+        ) : null}
+      </Link>
+      <button type="button" className="stage1a-play-button shrink-0" onClick={() => void playItem(item)}>
+        ▶ <span className="hidden sm:inline">Play</span>
+      </button>
+    </article>
   );
 }
 
@@ -911,10 +921,7 @@ export function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feeds, setFeeds] = useState<OriginFeedState[]>([]);
-  const randomSeed = useMemo(
-    () => `all:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`,
-    []
-  );
+  const randomSeed = HOME_RANDOM_SEED;
   const requestIdRef = useRef(0);
   const loadingRef = useRef(false);
   const originPassOffsetRef = useRef(0);
@@ -1065,22 +1072,24 @@ export function HomePage() {
     } catch {
       warmItems = [];
     }
-    setFeeds(initialFeeds);
-    setItems(warmItems);
-    setError(null);
-    void loadMore(initialFeeds, warmItems);
+    queueMicrotask(() => {
+      setFeeds(initialFeeds);
+      setItems(warmItems);
+      setError(null);
+      void loadMore(initialFeeds, warmItems);
+    });
   }, [cacheKey, loadMore, origins, topic]);
 
   useEffect(() => {
     if (origins.length === 0) {
-      setSignals([]);
+      queueMicrotask(() => setSignals([]));
       return;
     }
     let cancelled = false;
     try {
       const raw = sessionStorage.getItem(signalsCacheKey);
       const parsed = raw ? JSON.parse(raw) as { signals?: DiscoverySignalsResponse[] } : null;
-      if (Array.isArray(parsed?.signals)) setSignals(parsed.signals);
+      if (Array.isArray(parsed?.signals)) queueMicrotask(() => setSignals(parsed.signals || []));
     } catch {
       // Ignore stale or unavailable session cache.
     }

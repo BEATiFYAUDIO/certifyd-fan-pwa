@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { HomePage } from './routes/HomePage';
 import { WatchPage } from './routes/WatchPage';
+import { Stage1APlayerProvider } from './components/Stage1APlayerDock';
 
 function ScrollToTop() {
   const { pathname, search, hash } = useLocation();
@@ -20,13 +21,13 @@ function ScrollToTop() {
 
 export default function App() {
   return (
-    <>
+    <Stage1APlayerProvider>
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/watch/:contentId" element={<WatchPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </>
+    </Stage1APlayerProvider>
   );
 }

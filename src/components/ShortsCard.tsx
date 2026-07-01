@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { DiscoverableItem } from '../lib/types';
 import { isLockedOrPremium } from '../lib/discoveryGuard';
 import { getCardThemeVars } from '../lib/profileTheme';
+import { useStage1APlayer } from './stage1APlayerContext';
 
 function avatarInitials(handle: string | null): string {
   const raw = String(handle || '').replace(/^@+/, '').trim();
@@ -21,7 +22,7 @@ function useNearViewport() {
     const node = ref.current;
     if (!node) return;
     if (typeof IntersectionObserver === 'undefined') {
-      setNearViewport(true);
+      queueMicrotask(() => setNearViewport(true));
       return;
     }
 
@@ -41,6 +42,7 @@ function useNearViewport() {
 }
 
 export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watchParams?: string }) {
+  const { playItem } = useStage1APlayer();
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -168,6 +170,9 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
             </Link>
             <p className="mt-1 text-sm text-zinc-200">@{creator}</p>
             {meta ? <p className="mt-0.5 text-xs text-zinc-400">{meta}</p> : null}
+            <button type="button" className="stage1a-play-button pointer-events-auto mt-2" onClick={() => void playItem(item)}>
+              ▶ Play in Certifyd
+            </button>
           </div>
         </div>
       </div>

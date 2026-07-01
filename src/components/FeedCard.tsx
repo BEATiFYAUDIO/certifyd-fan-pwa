@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { DiscoverableItem } from '../lib/types';
 import { canOpenCreator, isLockedOrPremium } from '../lib/discoveryGuard';
 import { getCardThemeVars } from '../lib/profileTheme';
+import { useStage1APlayer } from './stage1APlayerContext';
 
 function modeMetaText(mode: DiscoverableItem['accessMode'], priceSats: number) {
   if (mode === 'locked' || Number(priceSats || 0) > 0) return `${priceSats} sats`;
@@ -46,7 +47,7 @@ function useNearViewport() {
     const node = ref.current;
     if (!node) return;
     if (typeof IntersectionObserver === 'undefined') {
-      setNearViewport(true);
+      queueMicrotask(() => setNearViewport(true));
       return;
     }
 
@@ -66,6 +67,7 @@ function useNearViewport() {
 }
 
 export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableItem }) {
+  const { playItem } = useStage1APlayer();
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -292,6 +294,9 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
           >
             {ctaLabel(item)}
           </a>
+          <button type="button" className="stage1a-play-button mt-1.5" onClick={() => void playItem(item)}>
+            ▶ Play in Certifyd
+          </button>
         </div>
       </div>
     </article>
