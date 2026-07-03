@@ -1,45 +1,21 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { FeedCard } from '../components/FeedCard';
+import { useStage1APlayer } from '../components/stage1APlayerContext';
 import { fetchContentContext, fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
 import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem, Topic } from '../lib/types';
 import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
+import { displayStateFromItem } from '../lib/playbackDisplay';
 import { buildWatchDiscoveryRails, dedupeDiscoveryItems, sortNewestFirst, type DiscoveryRail } from '../lib/discoveryViewModel';
+import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
 import { getCardThemeVars } from '../lib/profileTheme';
 
 function ctaLabel(item: DiscoverableItem) {
-  if (isLockedOrPremium(item)) return 'Unlock on Creator';
-  return 'Open on Creator';
+  return displayStateFromItem(item).ctaLabel;
 }
 
-type PlaybackChoice = {
-  lockedForFan: boolean;
-  mediaSrc: string;
-  usingPreview: boolean;
-  fullAccess: boolean;
-  sourceField: string | null;
-  previewLimitSeconds: number | null;
-};
-
-type WatchAccess = {
-  priceSats: number;
-  priceKnown: boolean;
-  accessMode: string;
-  isExplicitlyFree: boolean;
-  hasFullAccess: boolean;
-  isPaid: boolean;
-  locked: boolean;
-};
-
-type SourceChoice = {
-  src: string;
-  field: string | null;
-};
-
 type CanonicalOffer = Record<string, unknown>;
-
-const DEFAULT_PREVIEW_SECONDS = 20;
 
 function resolveAbsoluteUrl(value: unknown, origin: string): string {
   if (typeof value !== 'string') return '';
@@ -52,16 +28,6 @@ function resolveAbsoluteUrl(value: unknown, origin: string): string {
   }
 }
 
-function normalizedPriceInfo(value: unknown): { priceSats: number; priceKnown: boolean } {
-  const raw = String(value ?? '').trim();
-  const priceKnown = value !== null && value !== undefined && raw !== '';
-  const parsed = Number(value);
-  return {
-    priceSats: Number.isFinite(parsed) && parsed > 0 ? parsed : 0,
-    priceKnown,
-  };
-}
-
 function normalizedAccessMode(value: unknown): string {
   return String(value || '').trim().toLowerCase();
 }
@@ -70,153 +36,21 @@ function explicitTrue(value: unknown): boolean {
   return value === true || String(value).trim().toLowerCase() === 'true';
 }
 
-function resolveWatchAccess(item: DiscoverableItem): WatchAccess {
-  const { priceSats, priceKnown } = normalizedPriceInfo(item.priceSats);
-  const accessMode = normalizedAccessMode(item.accessMode);
-  const canonicalOfferHydrated = explicitTrue(item.canonicalOfferHydrated);
-  const hasFullAccess = canonicalOfferHydrated && (explicitTrue(item.hasFullAccess) || explicitTrue(item.owned));
-  const isExplicitlyFree = canonicalOfferHydrated && priceKnown && priceSats === 0 && !explicitTrue(item.isLocked);
-  const isPaid = priceSats > 0;
-  const locked = !hasFullAccess && !isExplicitlyFree && (!canonicalOfferHydrated || isPaid || explicitTrue(item.isLocked) || accessMode === 'locked');
-
+function canonicalPlayback(offer: CanonicalOffer): { mode: 'full' | 'preview' | 'none'; previewLimitSeconds: number | null; canPlayFull: boolean } | null {
+  const playback = offer.playback;
+  if (!playback || typeof playback !== 'object') return null;
+  const source = playback as Record<string, unknown>;
+  const mode = source.mode === 'full' || source.mode === 'preview' || source.mode === 'none' ? source.mode : 'none';
+  const previewLimitSeconds = Number(source.previewLimitSeconds);
   return {
-    priceSats,
-    priceKnown,
-    accessMode,
-    isExplicitlyFree,
-    hasFullAccess: hasFullAccess || isExplicitlyFree,
-    isPaid,
-    locked,
+    mode,
+    previewLimitSeconds: Number.isFinite(previewLimitSeconds) && previewLimitSeconds > 0 ? previewLimitSeconds : null,
+    canPlayFull: source.canPlayFull === true,
   };
 }
 
-function resolveFirstSource(item: DiscoverableItem, fields: Array<keyof DiscoverableItem>): SourceChoice {
-  for (const field of fields) {
-    const src = String(item[field] || '').trim();
-    if (src) return { src, field: String(field) };
-  }
-  return { src: '', field: null };
-}
-
-function resolveFullMediaChoice(item: DiscoverableItem): SourceChoice {
-  return resolveFirstSource(item, ['fullMediaUrl', 'fullContentUrl', 'mediaUrl', 'contentUrl']);
-}
-
-function mediaPath(value: string): string {
-  try {
-    const parsed = new URL(value);
-    return decodeURIComponent(`${parsed.pathname}${parsed.search}`).toLowerCase();
-  } catch {
-    return decodeURIComponent(value).toLowerCase();
-  }
-}
-
-function inferMediaKind(contentType: string, src: string): 'audio' | 'video' | 'image' | 'file' {
-  const type = contentType.toLowerCase();
-  const path = mediaPath(src);
-  if (type === 'video' || /\.(mp4|webm|mov|m4v)(?:$|[?&#])/.test(path)) return 'video';
-  if (type === 'song' || type === 'audio' || type === 'music' || /\.(mp3|m4a|aac|wav|ogg|flac)(?:$|[?&#])/.test(path)) return 'audio';
-  if (type === 'image' || /\.(png|jpe?g|webp|gif|avif|svg)(?:$|[?&#])/.test(path)) return 'image';
-  return 'file';
-}
-
-function WatchActions({ item, onShare, className = '' }: { item: DiscoverableItem; onShare: () => void; className?: string }) {
-  return (
-    <div className={`space-y-3 ${className}`}>
-      <a
-        href={canOpenCreator(item) ? item.buyUrl : undefined}
-        target={canOpenCreator(item) ? "_blank" : undefined}
-        rel={canOpenCreator(item) ? "noreferrer" : undefined}
-        className={`block w-full rounded-xl px-4 py-3 text-center text-sm font-bold ${
-          canOpenCreator(item)
-            ? "watch-action-primary"
-            : "border border-zinc-700 bg-zinc-900 text-zinc-500 cursor-not-allowed"
-        }`}
-        onClick={(e) => {
-          if (!canOpenCreator(item)) e.preventDefault();
-        }}
-      >
-        {ctaLabel(item)}
-      </a>
-      <button
-        onClick={onShare}
-        className="watch-action-secondary w-full rounded-xl border px-4 py-3 text-sm font-semibold"
-      >
-        Share
-      </button>
-    </div>
-  );
-}
-
-function resolvePlaybackChoice(item: DiscoverableItem): PlaybackChoice {
-  const access = resolveWatchAccess(item);
-  const explicitLocked = access.locked;
-  const fullAccess = access.hasFullAccess && !explicitLocked;
-  const fullSource = resolveFullMediaChoice(item);
-  const previewSrc = String(item.previewUrl || '').trim();
-  if (fullAccess) {
-    const choice = { lockedForFan: false, mediaSrc: fullSource.src, usingPreview: false, fullAccess: true, sourceField: fullSource.field, previewLimitSeconds: null };
-    debugWatchResolution(item, access, choice, 'full-access');
-    return choice;
-  }
-  if (explicitLocked && previewSrc) {
-    const choice = {
-      lockedForFan: true,
-      mediaSrc: previewSrc,
-      usingPreview: true,
-      fullAccess: false,
-      sourceField: 'previewUrl',
-      previewLimitSeconds: resolvePreviewLimitSeconds(item),
-    };
-    debugWatchResolution(item, access, choice, 'locked-preview');
-    return choice;
-  }
-  const choice = {
-    lockedForFan: explicitLocked || isLockedOrPremium(item),
-    mediaSrc: '',
-    usingPreview: false,
-    fullAccess,
-    sourceField: null,
-    previewLimitSeconds: null,
-  };
-  debugWatchResolution(item, access, choice, 'no-source');
-  return choice;
-}
-
-function resolvePreviewLimitSeconds(item: DiscoverableItem): number {
-  const parsed = Number(item.previewSeconds);
-  if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  return DEFAULT_PREVIEW_SECONDS;
-}
-
-function enforcePreviewLimit(media: HTMLMediaElement, previewLimitSeconds: number | null) {
-  if (!previewLimitSeconds || !Number.isFinite(previewLimitSeconds)) return;
-  if (media.currentTime < previewLimitSeconds) return;
-  try {
-    media.currentTime = Math.max(0, previewLimitSeconds);
-  } catch {
-    // Some streams do not allow precise seeking.
-  }
-  media.pause();
-}
-
-function debugWatchResolution(item: DiscoverableItem, access: WatchAccess, choice: PlaybackChoice, phase: string) {
-  if (!import.meta.env.DEV) return;
-  console.debug('[Certifyd WatchPage resolver]', {
-    phase,
-    contentId: item.contentId,
-    title: item.title,
-    priceSats: access.priceSats,
-    priceKnown: access.priceKnown,
-    isLocked: item.isLocked,
-    accessMode: access.accessMode,
-    hasFullAccess: access.hasFullAccess,
-    owned: item.owned,
-    entitlementState: item.paymentAccessProof?.entitlementState || null,
-    selectedSourceType: choice.mediaSrc ? (choice.usingPreview ? 'preview' : 'full') : 'none',
-    selectedUrlField: choice.sourceField,
-    previewLimitSeconds: choice.previewLimitSeconds,
-  });
+function priceLabel(item: DiscoverableItem): string {
+  return displayStateFromItem(item).label;
 }
 
 function normalizeCanonicalOffer(payload: unknown): CanonicalOffer | null {
@@ -255,23 +89,27 @@ function offerPriceSats(offer: CanonicalOffer): number | null {
 
 function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer): DiscoverableItem {
   const origin = item.publicOrigin;
+  const playback = canonicalPlayback(offer);
   const canonicalPriceSats = offerPriceSats(offer);
   const priceSats = canonicalPriceSats ?? item.priceSats;
   const accessMode = normalizedAccessMode(offer.accessMode || item.accessMode);
-  const hasFullAccess = explicitTrue(offer.hasFullAccess) || explicitTrue(offer.owned);
-  const isLocked =
-    explicitTrue(offer.isLocked) ||
-    accessMode === 'locked' ||
-    (canonicalPriceSats == null && !explicitTrue(offer.isFree) && !hasFullAccess);
-  const isFree = canonicalPriceSats != null && priceSats === 0 && !isLocked;
-  const fullMediaUrl = resolveAbsoluteUrl(offer.fullMediaUrl, origin);
-  const fullContentUrl = resolveAbsoluteUrl(offer.fullContentUrl, origin);
-  const mediaUrl = resolveAbsoluteUrl(offer.mediaUrl, origin);
-  const contentUrl = resolveAbsoluteUrl(offer.contentUrl, origin);
-  const fullAllowed = hasFullAccess || isFree;
-  const previewSeconds = offer.previewSeconds ?? offer.previewDurationSeconds ?? offer.previewLimitSeconds ?? item.previewSeconds ?? null;
+  const playbackIsPreview = playback?.mode === 'preview';
+  const playbackIsFull = playback?.mode === 'full';
+  const hasFullAccess = playback ? playbackIsFull : explicitTrue(offer.hasFullAccess) || explicitTrue(offer.owned);
+  const isLocked = playback ? playbackIsPreview : explicitTrue(offer.isLocked) || accessMode === 'locked';
+  const isFree = playback ? playbackIsFull && canonicalPriceSats === 0 : canonicalPriceSats != null && priceSats === 0 && !isLocked;
+  const previewSeconds = playbackIsPreview
+    ? playback?.previewLimitSeconds || 20
+    : offer.previewSeconds ?? offer.previewDurationSeconds ?? offer.previewLimitSeconds ?? item.previewSeconds ?? null;
+  const nextAccessMode = playbackIsPreview
+    ? 'locked'
+    : playbackIsFull && (explicitTrue(offer.owned) || accessMode === 'owned' || accessMode === 'unlocked' || (canonicalPriceSats != null && canonicalPriceSats > 0))
+      ? 'owned'
+      : playbackIsFull
+        ? 'unlocked'
+        : accessMode;
 
-  const merged: DiscoverableItem = {
+  return {
     ...item,
     title: typeof offer.title === 'string' && offer.title.trim() ? offer.title : item.title,
     description: typeof offer.description === 'string' ? offer.description : item.description,
@@ -290,25 +128,17 @@ function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer): Dis
     buyUrl: resolveAbsoluteUrl(offer.buyUrl, origin) || item.buyUrl,
     offerUrl: resolveAbsoluteUrl(offer.offerUrl, origin) || item.offerUrl || resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, origin),
     priceSats,
-    accessMode: (accessMode === 'owned' || accessMode === 'unlocked' || accessMode === 'locked' ? accessMode : item.accessMode) as DiscoverableItem['accessMode'],
+    accessMode: (nextAccessMode === 'owned' || nextAccessMode === 'unlocked' || nextAccessMode === 'locked' ? nextAccessMode : item.accessMode) as DiscoverableItem['accessMode'],
     isLocked,
     isFree,
     hasFullAccess,
-    owned: explicitTrue(offer.owned),
+    owned: hasFullAccess && !isFree,
     canonicalOfferHydrated: true,
     previewSeconds: previewSeconds as DiscoverableItem['previewSeconds'],
     primaryFileMime: typeof offer.primaryFileMime === 'string' ? offer.primaryFileMime : item.primaryFileMime,
     paymentAccessProof: offer.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
       ? offer.paymentAccessProof as DiscoverableItem['paymentAccessProof']
       : item.paymentAccessProof,
-  };
-
-  return {
-    ...merged,
-    fullMediaUrl: fullAllowed ? (fullMediaUrl || fullContentUrl || mediaUrl || contentUrl || item.fullMediaUrl || null) : null,
-    fullContentUrl: fullAllowed ? (fullContentUrl || fullMediaUrl || item.fullContentUrl || null) : null,
-    mediaUrl: fullAllowed ? (mediaUrl || item.mediaUrl || null) : null,
-    contentUrl: fullAllowed ? (contentUrl || item.contentUrl || null) : null,
   };
 }
 
@@ -510,6 +340,45 @@ function workKey(work: ContentContextWork): string {
   return `${work.contentId}|${work.publicUrl || ''}`;
 }
 
+function watchHrefForWork(work: ContentContextWork): string {
+  let origin: string;
+  try {
+    origin = work.publicUrl ? new URL(work.publicUrl).origin : '';
+  } catch {
+    origin = '';
+  }
+  const params = origin ? `?origin=${encodeURIComponent(origin)}` : '';
+  return `/watch/${encodeURIComponent(work.contentId)}${params}`;
+}
+
+function workToDiscoverableItem(work: ContentContextWork): DiscoverableItem | null {
+  let publicOrigin = (work as ContentContextWork & { publicOrigin?: string | null }).publicOrigin || '';
+  try {
+    publicOrigin = publicOrigin || (work.publicUrl ? new URL(work.publicUrl).origin : '');
+  } catch {
+    publicOrigin = publicOrigin || '';
+  }
+  if (!work.contentId || !publicOrigin) return null;
+  const buyUrl = work.publicUrl || `${publicOrigin}/buy/${encodeURIComponent(work.contentId)}`;
+  const normalizedTopic = normalizeTopic(work.primaryTopic || 'all');
+  return {
+    contentId: work.contentId,
+    title: work.title || 'Untitled work',
+    description: null,
+    creatorHandle: work.creator?.handle || work.creator?.displayName || null,
+    contentType: work.contentType || 'work',
+    primaryTopic: normalizedTopic === 'all' ? null : normalizedTopic,
+    coverUrl: work.coverUrl || '',
+    previewUrl: work.previewUrl || '',
+    buyUrl,
+    offerUrl: `${publicOrigin}/buy/content/${encodeURIComponent(work.contentId)}/offer`,
+    priceSats: 0,
+    accessMode: 'unlocked',
+    publicOrigin,
+    profileTheme: work.profileTheme || work.creator?.profileTheme || null,
+  };
+}
+
 function compactPersonLabel(person: ContentContextPerson | ContentContextCreator | null | undefined): string {
   if (!person) return '';
   return person.displayName || person.handle || 'Creator';
@@ -614,13 +483,15 @@ function PeopleList({ people }: { people: ContentContextPerson[] }) {
 }
 
 function WorksList({ works }: { works: ContentContextWork[] }) {
+  const { playItem } = useStage1APlayer();
   if (!works.length) return null;
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {works.map((work) => {
         const creator = work.creator?.displayName || work.creator?.handle || 'Creator';
-        const body = (
-          <div className="watch-card watch-card-hover overflow-hidden rounded-xl border transition">
+        const playableWork = workToDiscoverableItem(work);
+        const card = (
+          <div className="watch-card watch-card-hover overflow-hidden rounded-xl border text-left transition">
             <div className="aspect-video bg-zinc-950">
               {work.coverUrl ? (
                 <img src={work.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
@@ -637,12 +508,27 @@ function WorksList({ works }: { works: ContentContextWork[] }) {
             </div>
           </div>
         );
-        return work.publicUrl ? (
-          <a key={workKey(work)} href={work.publicUrl} target="_blank" rel="noreferrer" className="block">
-            {body}
-          </a>
+        return playableWork ? (
+          <button
+            key={workKey(work)}
+            type="button"
+            className="block w-full text-left"
+            onClick={() => void playItem(playableWork)}
+          >
+            {card}
+          </button>
+        ) : work.contentId ? (
+          <Link
+            key={workKey(work)}
+            to={watchHrefForWork(work)}
+            className="block"
+          >
+            {card}
+          </Link>
+        ) : work.publicUrl ? (
+          <a key={workKey(work)} href={work.publicUrl} target="_blank" rel="noreferrer" className="block">{card}</a>
         ) : (
-          <div key={workKey(work)}>{body}</div>
+          <div key={workKey(work)}>{card}</div>
         );
       })}
     </div>
@@ -839,11 +725,17 @@ function RelationshipContextSections({ context }: { context: ContentRelationship
   if (!hasAny) return null;
 
   return (
-    <div className="mt-8 space-y-6 border-t border-blue-300/15 pt-6">
+    <div className="watch-relationship-flow space-y-5">
       <div>
         <h2 className="text-base font-semibold text-zinc-100">Explore the connections</h2>
         <p className="mt-1 text-sm text-zinc-400">Creators, collaborators, and related works around this publication.</p>
       </div>
+
+      {moreTheyWorkedOn.length ? (
+        <RelationshipSection title="More They Worked On">
+          <WorksList works={moreTheyWorkedOn} />
+        </RelationshipSection>
+      ) : null}
 
       <AttributionLineageSummary
         creator={context.creator}
@@ -873,12 +765,6 @@ function RelationshipContextSections({ context }: { context: ContentRelationship
       {worksThatBuiltOnThis.length ? (
         <RelationshipSection title="Works That Built On This">
           <WorksList works={worksThatBuiltOnThis} />
-        </RelationshipSection>
-      ) : null}
-
-      {moreTheyWorkedOn.length ? (
-        <RelationshipSection title="More They Worked On">
-          <WorksList works={moreTheyWorkedOn} />
         </RelationshipSection>
       ) : null}
 
@@ -994,6 +880,7 @@ function FreebiesWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
+  const { playItem } = useStage1APlayer();
   const [items, setItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1061,24 +948,6 @@ function FreebiesWatch({
     return () => observer.disconnect();
   }, [items]);
 
-  useEffect(() => {
-    sectionRefs.current.forEach((section, index) => {
-      if (!section) return;
-      const mediaEls = section.querySelectorAll<HTMLMediaElement>('video, audio');
-      mediaEls.forEach((mediaEl) => {
-        if (index !== activeIndex) {
-          mediaEl.pause();
-          return;
-        }
-        if (mediaEl.tagName.toLowerCase() === 'video' && mediaEl.paused) {
-          void mediaEl.play().catch(() => {
-            // autoplay can be blocked by browser policy
-          });
-        }
-      });
-    });
-  }, [activeIndex, items]);
-
   const activeItem = items[activeIndex] || null;
   const activeItemKey = activeItem ? `${activeItem.publicOrigin}::${activeItem.contentId}` : null;
 
@@ -1133,16 +1002,7 @@ function FreebiesWatch({
       {!loading && !error ? (
         <div ref={scrollerRef} className="h-[100dvh] snap-y snap-mandatory overflow-y-auto overscroll-y-contain">
           {items.map((it, index) => {
-            const normalizedType = String(it.contentType || '').toLowerCase();
-            const playback = resolvePlaybackChoice(it);
-            const lockedForFan = playback.lockedForFan;
-            const playbackSrc = playback.mediaSrc;
-            const canPlaySelectedSource = Boolean(playbackSrc) && (!lockedForFan || playback.usingPreview);
-            const mediaKind = canPlaySelectedSource ? inferMediaKind(normalizedType, playbackSrc) : 'file';
-            const isVideo = mediaKind === 'video';
-            const isSong = mediaKind === 'audio';
-            const isImage = mediaKind === 'image';
-            const visualSrc = isVideo || isImage ? (playbackSrc || it.coverUrl || '') : (it.coverUrl || '');
+            const visualSrc = it.coverUrl || '';
             const themeVars = getCardThemeVars(it.profileTheme);
             return (
               <section
@@ -1154,37 +1014,18 @@ function FreebiesWatch({
                   sectionRefs.current[index] = el;
                 }}
               >
-                {visualSrc ? (
-                  isVideo ? (
-                    <video
-                      src={visualSrc}
-                      className="h-full w-full object-cover md:object-contain"
-                      controls
-                      playsInline
-                      autoPlay={index === activeIndex}
-                      preload="metadata"
-                      onTimeUpdate={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
-                      onSeeking={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
-                    />
-                  ) : (
+                <button
+                  type="button"
+                  className="block h-full w-full bg-black text-left"
+                  onClick={() => void playItem(it)}
+                  aria-label={`Play ${it.title || 'Free Drop'}`}
+                >
+                  {visualSrc ? (
                     <img src={visualSrc} alt={it.title || 'content'} className="h-full w-full object-cover md:object-contain" loading="lazy" referrerPolicy="no-referrer" />
-                  )
-                ) : (
-                  <div className="flex h-full items-center justify-center text-zinc-500">No media</div>
-                )}
-
-                {isSong ? (
-                  <div className="absolute inset-x-4 z-20 rounded-xl bg-black/60 p-3 backdrop-blur" style={{ bottom: 'calc(9rem + env(safe-area-inset-bottom, 0px))' }}>
-                    <audio
-                      src={playbackSrc}
-                      className="w-full"
-                      controls
-                      preload="metadata"
-                      onTimeUpdate={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
-                      onSeeking={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
-                    />
-                  </div>
-                ) : null}
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-zinc-500">No media</div>
+                  )}
+                </button>
 
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/90 via-black/55 to-transparent" />
                 <div
@@ -1234,6 +1075,15 @@ function StandardWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
+  const { playItem } = useStage1APlayer();
+  const {
+    followedCreatorKeys,
+    savedCreatorKeys,
+    savedWorkKeys,
+    toggleFollowedCreator,
+    toggleSavedCreator,
+    toggleSavedWork,
+  } = useLocalLibrary();
   const [item, setItem] = useState<DiscoverableItem | null>(stateItem && isRenderableDiscoveryItem(stateItem) ? stateItem : null);
   const [loading, setLoading] = useState(!(stateItem && isRenderableDiscoveryItem(stateItem)));
   const [error, setError] = useState<string | null>(null);
@@ -1358,6 +1208,19 @@ function StandardWatch({
     ? relationshipContextState.context
     : null;
   const themeVars = useMemo(() => getCardThemeVars(item?.profileTheme), [item?.profileTheme]);
+  const creatorLabel = item?.creatorHandle ? item.creatorHandle.replace(/^@+/, '') : 'creator';
+  const localCreator = useMemo(() => (item ? creatorFromItem(item) : null), [item]);
+  const localCreatorKey = localCreator?.key || '';
+  const localWorkKey = item ? `${item.publicOrigin}::${item.contentId}` : '';
+  const isSavedWork = Boolean(localWorkKey && savedWorkKeys.has(localWorkKey));
+  const isSavedCreator = Boolean(localCreatorKey && savedCreatorKeys.has(localCreatorKey));
+  const isFollowingCreator = Boolean(localCreatorKey && followedCreatorKeys.has(localCreatorKey));
+  const heroStyle = item?.coverUrl
+    ? {
+      ...themeVars,
+      '--watch-cover-url': `url("${item.coverUrl.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}")`,
+    } as CSSProperties
+    : themeVars;
 
   async function onShare() {
     if (!item) return;
@@ -1375,8 +1238,8 @@ function StandardWatch({
 
   return (
     <main className="watch-shell min-h-screen text-zinc-100" style={themeVars}>
-      <div className="mx-auto max-w-6xl px-4 py-4">
-        <Link to="/" className="text-sm text-blue-200/75 hover:text-blue-100">← Back</Link>
+      <div className="watch-page mx-auto max-w-7xl px-4 py-5 lg:px-6">
+        <Link to="/" className="watch-back-link text-sm">← Back</Link>
 
         {loading ? <div className="watch-panel mt-4 rounded-xl border p-4">Loading…</div> : null}
         {error ? (
@@ -1393,121 +1256,90 @@ function StandardWatch({
         ) : null}
 
         {item ? (
-          <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_280px]">
-            <section className="space-y-4">
-              {(() => {
-                const normalizedType = String(item.contentType || '').toLowerCase();
-                const playback = resolvePlaybackChoice(item);
-                const lockedForFan = playback.lockedForFan;
-                const playbackSrc = playback.mediaSrc;
-                const canPlaySelectedSource = Boolean(playbackSrc) && (!lockedForFan || playback.usingPreview);
-                const mediaKind = canPlaySelectedSource ? inferMediaKind(normalizedType, playbackSrc) : 'file';
-                const isSong = mediaKind === 'audio';
-                const isVideo = mediaKind === 'video';
-                const isImage = mediaKind === 'image';
-                if (lockedForFan && !canPlaySelectedSource) {
-                  return (
-                    <div className="watch-panel overflow-hidden rounded-2xl border">
-                      <div className="relative flex min-h-[45vh] items-center justify-center overflow-hidden bg-black">
-                        {item.coverUrl ? (
-                          <img src={item.coverUrl} alt={item.title} className="h-full w-full max-h-[70vh] object-contain opacity-90" />
-                        ) : (
-                          <div className="flex h-[50vh] w-full flex-col items-center justify-center px-4 text-center text-zinc-500">
-                            <div className="watch-accent-text text-sm font-semibold uppercase tracking-[0.2em]">Premium Work</div>
-                            <div className="mt-2 max-w-sm text-sm text-zinc-400">Official playback is available on the creator page.</div>
-                          </div>
-                        )}
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-5">
-                          <div className="max-w-xl">
-                            <div className="watch-accent-text text-xs font-semibold uppercase tracking-[0.18em]">Official access required</div>
-                            <p className="mt-2 text-sm text-zinc-200">
-                              Fan discovery can show context and artwork for this work. Unlock and protected playback stay on the official creator page.
-                            </p>
-                            {canOpenCreator(item) ? (
-                              <a
-                                href={item.buyUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="watch-action-primary mt-4 inline-flex rounded-xl px-4 py-2 text-sm font-bold"
-                              >
-                                Unlock on Creator
-                              </a>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
+          <section className="watch-detail-space mt-4 space-y-5">
+            <div className="watch-hero-card relative overflow-hidden rounded-[28px] border" style={heroStyle}>
+              {item.coverUrl ? (
+                <img src={item.coverUrl} alt="" className="watch-hero-backdrop" loading="eager" decoding="async" referrerPolicy="no-referrer" />
+              ) : null}
+              <div className="watch-hero-content relative z-10 grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.58fr)] lg:p-6">
+                <div className="flex min-h-[300px] flex-col justify-end lg:min-h-[360px]">
+                  <div className="max-w-3xl">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="watch-pill">{priceLabel(item)}</span>
+                      {item.primaryTopic ? <span className="watch-topic">{item.primaryTopic}</span> : null}
+                      {item.contentType ? <span className="watch-topic">{item.contentType}</span> : null}
                     </div>
-                  );
-                }
-                if (isSong) {
-                  return (
-                    <div className="watch-panel space-y-3 overflow-hidden rounded-2xl border p-4">
-                      <div className="overflow-hidden rounded-xl bg-black">
-                        {item.coverUrl ? (
-                          <img src={item.coverUrl} alt={item.title} className="h-full w-full max-h-[60vh] object-contain" />
-                        ) : (
-                          <div className="flex h-[42vh] items-center justify-center text-zinc-500">No cover art</div>
-                        )}
-                      </div>
-                      {playbackSrc ? (
-                        <audio
-                          src={playbackSrc}
-                          className="w-full"
-                          controls
-                          preload="metadata"
-                          onTimeUpdate={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
-                          onSeeking={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
-                        />
+                    <h1 className="watch-title text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">{item.title || 'Untitled'}</h1>
+                    <div className="mt-4 flex flex-wrap items-center gap-3 text-lg font-semibold text-zinc-100">
+                      <span>{creatorLabel}</span>
+                      <span className="watch-verified-dot" aria-hidden="true">●</span>
+                    </div>
+                    {item.description ? (
+                      <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-zinc-100 sm:text-base">{item.description}</p>
+                    ) : null}
+                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                      <a
+                        href={canOpenCreator(item) ? item.buyUrl : undefined}
+                        target={canOpenCreator(item) ? '_blank' : undefined}
+                        rel={canOpenCreator(item) ? 'noreferrer' : undefined}
+                        className={`watch-secondary-button inline-flex items-center ${canOpenCreator(item) ? '' : 'watch-support-button-disabled'}`}
+                        onClick={(e) => {
+                          if (!canOpenCreator(item)) e.preventDefault();
+                        }}
+                      >
+                        Support Creator
+                      </a>
+                      <button type="button" onClick={() => toggleSavedWork(item)} className="watch-secondary-button">
+                        {isSavedWork ? 'Saved' : 'Save Work'}
+                      </button>
+                      <button type="button" onClick={() => toggleFollowedCreator(localCreator)} className="watch-secondary-button">
+                        {isFollowingCreator ? 'Following' : 'Follow'}
+                      </button>
+                      {localCreator ? (
+                        <button type="button" onClick={() => toggleSavedCreator(localCreator)} className="watch-secondary-button">
+                          {isSavedCreator ? 'Creator Saved' : 'Save Creator'}
+                        </button>
                       ) : null}
+                      <button type="button" onClick={onShare} className="watch-secondary-button">Share</button>
                     </div>
-                  );
-                }
-                return (
-                  <div className="watch-panel overflow-hidden rounded-2xl border">
-                    {playbackSrc && isVideo ? (
-                      <video
-                        src={playbackSrc}
-                        className="h-full w-full max-h-[70vh] bg-black object-contain"
-                        controls
-                        playsInline
-                        preload="metadata"
-                        onTimeUpdate={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
-                        onSeeking={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
-                      />
-                    ) : playbackSrc && isSong ? (
-                      <audio
-                        src={playbackSrc}
-                        className="w-full p-4"
-                        controls
-                        preload="metadata"
-                        onTimeUpdate={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
-                        onSeeking={(event) => enforcePreviewLimit(event.currentTarget, playback.previewLimitSeconds)}
-                      />
-                    ) : playbackSrc && isImage ? (
-                      <img src={playbackSrc} alt={item.title} className="h-full w-full max-h-[70vh] bg-black object-contain" />
-                    ) : item.coverUrl ? (
-                      <img src={item.coverUrl} alt={item.title} className="h-full w-full max-h-[70vh] bg-black object-contain" />
+                  </div>
+                </div>
+
+                <div className="watch-preview-stack self-end">
+                  <button
+                    type="button"
+                    className="watch-preview-frame group overflow-hidden rounded-2xl border text-left"
+                    onClick={() => void playItem(item)}
+                    aria-label={`Play ${item.title || 'work'}`}
+                  >
+                    {item.coverUrl ? (
+                      <img src={item.coverUrl} alt={item.title} className="h-full w-full object-cover" loading="eager" decoding="async" referrerPolicy="no-referrer" />
                     ) : (
-                      <div className="flex h-[50vh] flex-col items-center justify-center px-4 text-center text-zinc-500">
-                        <div className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-400">{item.contentType || 'Work'}</div>
-                        <div className="mt-2 max-w-sm text-sm text-zinc-500">Preview this work on the official creator page.</div>
+                      <div className="flex aspect-video h-full w-full items-center justify-center bg-black text-xs uppercase tracking-[0.22em] text-zinc-500">
+                        {item.contentType || 'Work'}
                       </div>
                     )}
-                  </div>
-                );
-              })()}
+                  </button>
+                </div>
+              </div>
 
-              <WatchActions item={item} onShare={onShare} className="lg:hidden" />
+            </div>
 
-              <h1 className="text-2xl font-bold">{item.title || 'Untitled'}</h1>
-              <p className="text-sm text-zinc-400">
-                @{item.creatorHandle || 'creator'} • {item.primaryTopic || 'topic'} • {item.contentType}
-              </p>
-              {item.description ? <p className="text-sm text-zinc-300">{item.description}</p> : null}
-              <section>
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">Credits</h2>
-                <div className="mt-2 space-y-1">
-                  {credits.map((credit, idx) => {
+            {explorationRails.length > 0 ? (
+              <div className="watch-related-area space-y-6">
+                {explorationRails.map((rail) => (
+                  <ExplorationRail key={rail.key} rail={rail} />
+                ))}
+              </div>
+            ) : null}
+
+            <RelationshipContextSections context={relationshipContext} />
+
+            <section className="watch-context-block">
+              <div>
+                <h2 className="watch-section-title">Credits</h2>
+                <div className="mt-3 space-y-1">
+                  {credits.length ? credits.map((credit, idx) => {
                     const name = credit.displayName || credit.participantName || 'Contributor';
                     const handle = credit.handle ? `@${String(credit.handle).replace(/^@+/, '')}` : null;
                     const role = credit.role || null;
@@ -1517,24 +1349,14 @@ function StandardWatch({
                         {name}{handle ? ` (${handle})` : ''}{role ? ` • ${role}` : ''}{pct != null ? ` • ${pct}%` : ''}
                       </p>
                     );
-                  })}
+                  }) : (
+                    <p className="text-sm text-zinc-400">Credits and contributor details appear here when the creator publishes them.</p>
+                  )}
                 </div>
-              </section>
-              <RelationshipContextSections context={relationshipContext} />
+              </div>
             </section>
 
-            <aside className="hidden lg:block">
-              <WatchActions item={item} onShare={onShare} />
-            </aside>
-          </div>
-        ) : null}
-
-        {item && explorationRails.length > 0 ? (
-          <div className="mt-8 space-y-8 border-t border-blue-300/15 pt-6">
-            {explorationRails.map((rail) => (
-              <ExplorationRail key={rail.key} rail={rail} />
-            ))}
-          </div>
+          </section>
         ) : null}
       </div>
     </main>
