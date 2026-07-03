@@ -32,7 +32,8 @@ export type Stage1APlayerItem = {
 };
 
 export type Stage1APlayerContextValue = {
-  playItem: (item: DiscoverableItem) => Promise<void>;
+  playItem: (item: DiscoverableItem, options?: { muted?: boolean; openPlayer?: boolean }) => Promise<void>;
+  setMobilePlayerOpen: (open: boolean) => void;
   setFreeDropQueue: (items: DiscoverableItem[]) => void;
   togglePlay: () => void;
   playNextFreeDrop: () => void;
@@ -55,6 +56,7 @@ export function useStage1APlayer() {
   const value = useContext(Stage1APlayerContext);
   return value || {
     playItem: async () => undefined,
+    setMobilePlayerOpen: () => undefined,
     setFreeDropQueue: () => undefined,
     togglePlay: () => undefined,
     playNextFreeDrop: () => undefined,

@@ -132,11 +132,42 @@ function normalizePlayback(offer: CanonicalOffer | null): CanonicalPlayback | nu
   return null;
 }
 
+function firstText(record: Record<string, unknown> | null | undefined, keys: string[]): string {
+  if (!record) return '';
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
 function mediaKind(offer: CanonicalOffer | null, item: DiscoverableItem, streamUrl: string): MediaKind {
-  const type = String(offer?.type || offer?.contentType || item.contentType || '').toLowerCase();
-  const mime = String(offer?.primaryFileMime || item.primaryFileMime || '').toLowerCase();
-  const src = streamUrl.toLowerCase();
-  if (type === 'video' || mime.startsWith('video/') || /\.(mp4|webm|mov|m4v)(?:$|[?&#])/.test(src)) return 'video';
+  const itemRecord = item as unknown as Record<string, unknown>;
+  const playbackRecord = offer?.playback && typeof offer.playback === 'object' ? offer.playback as Record<string, unknown> : null;
+  const type = [
+    firstText(playbackRecord, ['mediaKind', 'mediaType', 'type', 'contentType', 'kind']),
+    firstText(offer, ['mediaKind', 'mediaType', 'type', 'contentType', 'kind', 'fileType']),
+    item.contentType,
+  ].join(' ').toLowerCase();
+  const mime = [
+    firstText(playbackRecord, ['mime', 'mimeType', 'contentType', 'streamMimeType']),
+    firstText(offer, ['mime', 'mimeType', 'primaryFileMime', 'fileMime', 'streamMimeType']),
+    item.primaryFileMime || '',
+  ].join(' ').toLowerCase();
+  const urlHints = [
+    streamUrl,
+    firstText(playbackRecord, ['streamUrl', 'url']),
+    firstText(offer, ['previewUrl', 'fullMediaUrl', 'fullContentUrl', 'mediaUrl', 'contentUrl', 'coverUrl']),
+    firstText(itemRecord, ['previewUrl', 'fullMediaUrl', 'fullContentUrl', 'mediaUrl', 'contentUrl', 'coverUrl']),
+  ].join(' ').toLowerCase();
+  if (
+    /\b(video|movie|film|short|reel|visualizer|mp4|webm|mov|m4v)\b/.test(type) ||
+    mime.includes('video/') ||
+    /\.(mp4|webm|mov|m4v)(?:$|[?&#\s])/.test(urlHints) ||
+    /(?:format|mime|type)=video/.test(urlHints)
+  ) {
+    return 'video';
+  }
   return 'audio';
 }
 
@@ -313,13 +344,16 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const [recentItems, setRecentItems] = useState<DiscoverableItem[]>(() => safeRecentItemsFromStorage());
   const [detailPanel, setDetailPanel] = useState<DetailPanel>(null);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [mediaMuted, setMediaMuted] = useState(false);
   const [autoplayNext, setAutoplayNext] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(AUTOPLAY_STORAGE_KEY) === 'true';
   });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const visualRef = useRef<HTMLDivElement | null>(null);
   const activeMediaRef = useRef<HTMLMediaElement | null>(null);
+  const mutedAutoplayRef = useRef(false);
   const endingRef = useRef(false);
 
   useEffect(() => {
@@ -331,6 +365,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     const current = activeMediaRef.current;
     if (current) {
       try { current.pause(); } catch { /* ignore */ }
+      current.muted = false;
       current.removeAttribute('src');
       try { current.load(); } catch { /* ignore */ }
     }
@@ -339,11 +374,14 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     setProgress(0);
     setDuration(0);
     setMediaAspect('square');
+    setMediaMuted(false);
   }, []);
 
-  const playItem = useCallback(async (nextItem: DiscoverableItem) => {
+  const playItem = useCallback(async (nextItem: DiscoverableItem, options?: { muted?: boolean; openPlayer?: boolean }) => {
     setDetailPanel(null);
-    setMobileSheetOpen(true);
+    mutedAutoplayRef.current = options?.muted === true;
+    setMediaMuted(options?.muted === true);
+    if (options?.openPlayer !== false) setMobileSheetOpen(true);
     setRecentItems((current) => {
       const next = [nextItem, ...current.filter((row) => row.contentId !== nextItem.contentId || row.publicOrigin !== nextItem.publicOrigin)].slice(0, MAX_RECENT_ITEMS);
       writeRecentItemsToStorage(next);
@@ -460,12 +498,27 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     activeMediaRef.current = media;
     media.src = item.playback.streamUrl;
     media.preload = 'metadata';
+    media.muted = mutedAutoplayRef.current;
+    setMediaMuted(media.muted);
     try { media.load(); } catch { /* ignore */ }
     const promise = media.play();
     if (promise && typeof promise.catch === 'function') {
       promise.catch(() => {
+        if (item.mediaKind === 'video' && !media.muted) {
+          media.muted = true;
+          setMediaMuted(true);
+          const mutedPromise = media.play();
+          if (mutedPromise && typeof mutedPromise.catch === 'function') {
+            mutedPromise.catch(() => {
+              setState('paused');
+              setMessage('Tap play to start. Your browser blocked automatic playback.');
+            });
+          }
+          setMessage('Playing muted. Tap unmute for sound.');
+          return;
+        }
         setState('paused');
-        setMessage('Tap play to start. Your browser blocked automatic audio.');
+        setMessage('Tap play to start. Your browser blocked automatic playback.');
       });
     }
   }, [item, state]);
@@ -493,6 +546,28 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       media.pause();
     }
   }, [item]);
+
+  const toggleMute = useCallback(() => {
+    const media = activeMediaRef.current;
+    if (!media) return;
+    const nextMuted = !media.muted;
+    media.muted = nextMuted;
+    setMediaMuted(nextMuted);
+    if (!nextMuted && media.paused && item?.playback.streamUrl) {
+      const promise = media.play();
+      if (promise && typeof promise.catch === 'function') promise.catch(() => setState('paused'));
+    }
+  }, [item]);
+
+  const toggleFullscreen = useCallback(() => {
+    const target = visualRef.current;
+    if (!target) return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.();
+      return;
+    }
+    void target.requestFullscreen?.();
+  }, []);
 
   const seek = useCallback((value: number) => {
     const media = activeMediaRef.current;
@@ -544,6 +619,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
   const contextValue = useMemo(() => ({
     playItem,
+    setMobilePlayerOpen: setMobileSheetOpen,
     setFreeDropQueue,
     togglePlay,
     playNextFreeDrop,
@@ -599,11 +675,13 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           <div className="stage1a-rich-kicker">Now Playing</div>
           <button type="button" className="stage1a-rich-collapse" onClick={() => setMobileSheetOpen(false)} aria-label="Collapse player">↓</button>
         </div>
-        <div className={`stage1a-rich-visual ${item?.mediaKind === 'video' ? 'stage1a-rich-visual-video' : 'stage1a-rich-visual-artwork'} ${visualAspectClass}`}>
+        <div ref={visualRef} className={`stage1a-rich-visual ${item?.mediaKind === 'video' ? 'stage1a-rich-visual-video' : 'stage1a-rich-visual-artwork'} ${visualAspectClass}`}>
           {item?.mediaKind === 'video' ? (
             <video
               ref={videoRef}
               className="stage1a-player-video"
+              muted={mediaMuted}
+              poster={item.artwork || undefined}
               playsInline
               onPlay={() => { endingRef.current = false; setState('playing'); setMessage('Playing'); }}
               onPause={() => { if (!endingRef.current && state !== 'ended' && activeMediaRef.current?.currentTime) { setState('paused'); setMessage('Paused'); } }}
@@ -655,6 +733,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                 <PlayIcon playing={isPlaying} />
               </button>
               <button type="button" className="stage1a-rich-nav" onClick={playNextFreeDrop} disabled={!canPlayNextFreeDrop} aria-label="Next Free Drop">›</button>
+              <button type="button" className="stage1a-rich-nav stage1a-rich-fullscreen" onClick={toggleFullscreen} disabled={!canControl} aria-label="Fullscreen">⛶</button>
+              {item?.mediaKind === 'video' ? (
+                <button type="button" className="stage1a-rich-nav stage1a-rich-mute" onClick={toggleMute} disabled={!canControl} aria-label={mediaMuted ? 'Unmute' : 'Mute'}>
+                  {mediaMuted ? '🔇' : '🔊'}
+                </button>
+              ) : null}
             </div>
             <button type="button" className={`stage1a-rich-autoplay ${autoplayNext ? 'stage1a-rich-autoplay-on' : ''}`} onClick={toggleAutoplayNext}>
               Autoplay next {autoplayNext ? 'On' : 'Off'}

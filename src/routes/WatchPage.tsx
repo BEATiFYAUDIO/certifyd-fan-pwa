@@ -11,6 +11,19 @@ import { buildWatchDiscoveryRails, dedupeDiscoveryItems, sortNewestFirst, type D
 import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
 import { getCardThemeVars } from '../lib/profileTheme';
 
+function useMobileReelsMode() {
+  const [isMobile, setIsMobile] = useState(() => (typeof window === 'undefined' ? false : window.innerWidth < 900));
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const query = window.matchMedia('(max-width: 899px)');
+    const update = () => setIsMobile(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  return isMobile;
+}
+
 function ctaLabel(item: DiscoverableItem) {
   return displayStateFromItem(item).ctaLabel;
 }
@@ -880,7 +893,7 @@ function FreebiesWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
-  const { playItem } = useStage1APlayer();
+  const { item: playerItem, playItem, setFreeDropQueue, setMobilePlayerOpen } = useStage1APlayer();
   const [items, setItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -968,8 +981,18 @@ function FreebiesWatch({
     };
   }, [activeItem, activeItemKey]);
 
-  const activeRelationshipContext =
-    activeItemKey && relationshipContextState?.key === activeItemKey ? relationshipContextState.context : null;
+	  const activeRelationshipContext =
+	    activeItemKey && relationshipContextState?.key === activeItemKey ? relationshipContextState.context : null;
+
+  useEffect(() => {
+    setFreeDropQueue(items);
+  }, [items, setFreeDropQueue]);
+
+  useEffect(() => {
+    if (!activeItem || !activeItemKey) return;
+    if (playerItem?.contentId === activeItem.contentId && playerItem.publicOrigin === activeItem.publicOrigin) return;
+    void playItem(activeItem, { muted: true });
+  }, [activeItem, activeItemKey, playItem, playerItem]);
 
   useEffect(() => {
     let active = true;
@@ -1014,10 +1037,13 @@ function FreebiesWatch({
                   sectionRefs.current[index] = el;
                 }}
               >
-                <button
-                  type="button"
-                  className="block h-full w-full bg-black text-left"
-                  onClick={() => void playItem(it)}
+	                <button
+	                  type="button"
+	                  className="block h-full w-full bg-black text-left"
+		                  onClick={() => {
+                        setMobilePlayerOpen(true);
+                        void playItem(it);
+                      }}
                   aria-label={`Play ${it.title || 'Free Drop'}`}
                 >
                   {visualSrc ? (
@@ -1372,8 +1398,9 @@ export function WatchPage() {
   const originHint = search.get('origin');
   const mode = String(search.get('mode') || '').toLowerCase();
   const topic = normalizeTopic(search.get('topic') || 'all');
+  const useMobileReels = useMobileReelsMode();
 
-  if (mode === 'freebies') {
+  if (mode === 'freebies' && useMobileReels) {
     return <FreebiesWatch contentId={contentId} originHint={originHint} topic={topic} stateItem={stateItem} />;
   }
 
