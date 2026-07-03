@@ -16,6 +16,11 @@ export type Stage1APlayerItem = {
   supportLabel: string;
   commerceState: PlayerCommerceState;
   playbackLabel: string;
+  connectedLabels: string[];
+  detailLabels: string[];
+  creditLabels: string[];
+  proofLabels: string[];
+  description: string;
   mediaKind: 'audio' | 'video';
   playback: {
     mode: Stage1APlaybackMode;
@@ -34,6 +39,7 @@ export type Stage1APlayerContextValue = {
   playPreviousFreeDrop: () => void;
   seek: (value: number) => void;
   resetIdle: () => void;
+  recentItems: DiscoverableItem[];
   state: Stage1APlayerState;
   item: Stage1APlayerItem | null;
   message: string;
@@ -55,6 +61,7 @@ export function useStage1APlayer() {
     playPreviousFreeDrop: () => undefined,
     seek: () => undefined,
     resetIdle: () => undefined,
+    recentItems: [],
     state: 'idle' as const,
     item: null,
     message: 'Tap Play to start listening',

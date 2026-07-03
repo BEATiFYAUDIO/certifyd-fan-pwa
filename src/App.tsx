@@ -53,11 +53,12 @@ function PlayerSidebar() {
   return (
     <aside className="certifyd-player-left-panel" aria-label="Discovery signal boards">
       <Link to="/" className="certifyd-player-brand" aria-label="Certifyd Player home">
-        <span className="certifyd-player-brand-main">CERTIFYD</span>
-        <span className="certifyd-player-brand-pill">Player</span>
-      </Link>
-      <Link to={`/${location.search}#certifyd-player-search`} className="certifyd-player-search-link">
-        Search
+        <span className="certifyd-player-brand-logo">
+          <img src={`${import.meta.env.BASE_URL}header-logo.svg`} alt="Certifyd" loading="eager" decoding="async" />
+        </span>
+        <span className="certifyd-player-brand-copy">
+          <span className="certifyd-player-brand-pill">Fan</span>
+        </span>
       </Link>
       <nav className="certifyd-player-nav" aria-label="Certifyd Player navigation">
         {groups.map((group) => (

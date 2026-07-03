@@ -8,6 +8,7 @@ import type { ContentContextCreator, ContentContextPerson, ContentContextWork, C
 import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
 import { buildWatchDiscoveryRails, dedupeDiscoveryItems, sortNewestFirst, type DiscoveryRail } from '../lib/discoveryViewModel';
+import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
 import { getCardThemeVars } from '../lib/profileTheme';
 
 function ctaLabel(item: DiscoverableItem) {
@@ -46,19 +47,6 @@ function canonicalPlayback(offer: CanonicalOffer): { mode: 'full' | 'preview' | 
     previewLimitSeconds: Number.isFinite(previewLimitSeconds) && previewLimitSeconds > 0 ? previewLimitSeconds : null,
     canPlayFull: source.canPlayFull === true,
   };
-}
-
-function WatchPlayButton({ item, className = '', children = 'Play Now' }: { item: DiscoverableItem; className?: string; children?: ReactNode }) {
-  const { playItem } = useStage1APlayer();
-  return (
-    <button
-      type="button"
-      onClick={() => void playItem(item)}
-      className={`watch-action-primary shrink-0 rounded-xl px-4 py-2 text-sm font-bold ${className}`}
-    >
-      {children}
-    </button>
-  );
 }
 
 function priceLabel(item: DiscoverableItem): string {
@@ -1058,7 +1046,6 @@ function FreebiesWatch({
                       {ctaLabel(it)}
                     </a>
                   ) : null}
-                  <WatchPlayButton item={it} />
                 </div>
 
                 {index === activeIndex ? (
@@ -1089,6 +1076,14 @@ function StandardWatch({
   stateItem: DiscoverableItem | null;
 }) {
   const { playItem } = useStage1APlayer();
+  const {
+    followedCreatorKeys,
+    savedCreatorKeys,
+    savedWorkKeys,
+    toggleFollowedCreator,
+    toggleSavedCreator,
+    toggleSavedWork,
+  } = useLocalLibrary();
   const [item, setItem] = useState<DiscoverableItem | null>(stateItem && isRenderableDiscoveryItem(stateItem) ? stateItem : null);
   const [loading, setLoading] = useState(!(stateItem && isRenderableDiscoveryItem(stateItem)));
   const [error, setError] = useState<string | null>(null);
@@ -1214,6 +1209,12 @@ function StandardWatch({
     : null;
   const themeVars = useMemo(() => getCardThemeVars(item?.profileTheme), [item?.profileTheme]);
   const creatorLabel = item?.creatorHandle ? item.creatorHandle.replace(/^@+/, '') : 'creator';
+  const localCreator = useMemo(() => (item ? creatorFromItem(item) : null), [item]);
+  const localCreatorKey = localCreator?.key || '';
+  const localWorkKey = item ? `${item.publicOrigin}::${item.contentId}` : '';
+  const isSavedWork = Boolean(localWorkKey && savedWorkKeys.has(localWorkKey));
+  const isSavedCreator = Boolean(localCreatorKey && savedCreatorKeys.has(localCreatorKey));
+  const isFollowingCreator = Boolean(localCreatorKey && followedCreatorKeys.has(localCreatorKey));
   const heroStyle = item?.coverUrl
     ? {
       ...themeVars,
@@ -1276,11 +1277,6 @@ function StandardWatch({
                     {item.description ? (
                       <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-zinc-100 sm:text-base">{item.description}</p>
                     ) : null}
-                    <div className="mt-5 flex flex-wrap gap-2 text-sm text-zinc-300">
-                      {[item.primaryTopic, item.contentType, priceLabel(item)].filter(Boolean).map((part) => (
-                        <span key={String(part)} className="watch-meta-chip">{part}</span>
-                      ))}
-                    </div>
                     <div className="mt-6 flex flex-wrap items-center gap-3">
                       <a
                         href={canOpenCreator(item) ? item.buyUrl : undefined}
@@ -1293,12 +1289,18 @@ function StandardWatch({
                       >
                         Support Creator
                       </a>
-                      {canOpenCreator(item) ? (
-                        <a href={item.buyUrl} target="_blank" rel="noreferrer" className="watch-secondary-button inline-flex items-center">
-                          Visit Creator
-                        </a>
+                      <button type="button" onClick={() => toggleSavedWork(item)} className="watch-secondary-button">
+                        {isSavedWork ? 'Saved' : 'Save Work'}
+                      </button>
+                      <button type="button" onClick={() => toggleFollowedCreator(localCreator)} className="watch-secondary-button">
+                        {isFollowingCreator ? 'Following' : 'Follow'}
+                      </button>
+                      {localCreator ? (
+                        <button type="button" onClick={() => toggleSavedCreator(localCreator)} className="watch-secondary-button">
+                          {isSavedCreator ? 'Creator Saved' : 'Save Creator'}
+                        </button>
                       ) : null}
-                      <button type="button" onClick={onShare} className="watch-secondary-button">•••</button>
+                      <button type="button" onClick={onShare} className="watch-secondary-button">Share</button>
                     </div>
                   </div>
                 </div>
@@ -1317,13 +1319,7 @@ function StandardWatch({
                         {item.contentType || 'Work'}
                       </div>
                     )}
-                    <div className="watch-preview-play" aria-hidden="true">▶</div>
                   </button>
-                  {canOpenCreator(item) ? (
-                    <a href={item.buyUrl} target="_blank" rel="noreferrer" className="watch-visit-button">
-                      Visit Creator ↗
-                    </a>
-                  ) : null}
                 </div>
               </div>
 

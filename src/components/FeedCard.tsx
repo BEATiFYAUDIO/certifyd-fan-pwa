@@ -1,28 +1,9 @@
 import { Link } from 'react-router-dom';
 import { memo, useMemo, useState } from 'react';
 import type { DiscoverableItem } from '../lib/types';
-import { canOpenCreator } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
 import { getCardThemeVars } from '../lib/profileTheme';
 import { useStage1APlayer } from './stage1APlayerContext';
-
-function modeMetaText(mode: DiscoverableItem['accessMode'], priceSats: number) {
-  if (mode === 'locked' || Number(priceSats || 0) > 0) return `${priceSats} sats`;
-  if (mode === 'owned') return 'Owned';
-  return 'Free';
-}
-
-function ctaLabel(item: DiscoverableItem) {
-  return displayStateFromItem(item).ctaLabel;
-}
-
-function sourceLabel(origin: string): string {
-  try {
-    return new URL(origin).hostname.replace(/^www\./, '');
-  } catch {
-    return '';
-  }
-}
 
 function avatarInitials(handle: string | null): string {
   const raw = String(handle || '').replace(/^@+/, '').trim();
@@ -43,9 +24,7 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
     creatorHandleClean && item.publicOrigin
       ? `${String(item.publicOrigin).replace(/\/+$/, '')}/u/${encodeURIComponent(creatorHandleClean)}`
       : null;
-  const source = sourceLabel(item.publicOrigin);
   const playbackDisplay = displayStateFromItem(item);
-  const metadata = `${item.primaryTopic || 'topic'} · ${item.contentType} · ${modeMetaText(item.accessMode, item.priceSats)}`;
   const canShowImage = Boolean(item.coverUrl) && !imageFailed;
   const hasMedia = canShowImage;
   const avatarUrl =
@@ -85,9 +64,6 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
               }`}>
                 {playbackDisplay.label}
               </span>
-              <span className="creator-themed-badge rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                Lightning
-              </span>
             </div>
             {hasMedia ? (
               <img
@@ -120,9 +96,6 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
                 : 'creator-themed-badge-muted border'
             }`}>
               {playbackDisplay.label}
-            </span>
-            <span className="creator-themed-badge rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-              Lightning
             </span>
           </div>
           {hasMedia ? (
@@ -198,22 +171,6 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
             {item.title || 'Untitled'}
           </Link>
           <p className="mt-0.5 text-xs text-zinc-400">@{creator}</p>
-          <p className="mt-0.5 text-xs text-zinc-500">{metadata}</p>
-          {source ? <p className="mt-0.5 truncate text-[11px] text-zinc-600">from {source}</p> : null}
-          <a
-            href={canOpenCreator(item) ? item.buyUrl : undefined}
-            target={canOpenCreator(item) ? "_blank" : undefined}
-            rel={canOpenCreator(item) ? "noreferrer" : undefined}
-            className={`mt-1.5 inline-block text-xs font-medium ${
-              canOpenCreator(item) ? "creator-themed-link hover:underline" : "text-zinc-500 cursor-not-allowed"
-            }`}
-            aria-disabled={!canOpenCreator(item)}
-            onClick={(e) => {
-              if (!canOpenCreator(item)) e.preventDefault();
-            }}
-          >
-            {ctaLabel(item)}
-          </a>
         </div>
       </div>
     </article>

@@ -5,6 +5,7 @@ import { Stage1APlayerContext, type Stage1APlayerItem, type Stage1APlayerState, 
 
 type MediaKind = 'audio' | 'video';
 type MediaAspect = 'landscape' | 'portrait' | 'square' | 'unknown';
+type DetailPanel = 'credits' | 'proofs' | 'about' | 'connected' | null;
 
 type CanonicalPlayback = {
   mode: Stage1APlaybackMode;
@@ -17,6 +18,9 @@ type CanonicalPlayback = {
 type CanonicalOffer = Record<string, unknown> & {
   playback?: Partial<CanonicalPlayback> | null;
 };
+
+const RECENT_ITEMS_STORAGE_KEY = 'certifyd-player:recent-items:v1';
+const MAX_RECENT_ITEMS = 24;
 
 function normalizeOffer(payload: unknown): CanonicalOffer | null {
   if (!payload || typeof payload !== 'object') return null;
@@ -168,6 +172,119 @@ function offerText(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
+function connectedLabelsFromItem(item: DiscoverableItem): string[] {
+  const labels = new Set<string>();
+  for (const badge of item.relationshipBadges || []) {
+    const value = String(badge || '').trim();
+    if (value) labels.add(value);
+  }
+  if (item.relationshipReason) labels.add(item.relationshipReason);
+  const summary = item.relationshipSummary || {};
+  if (summary.relatedWorkCount) labels.add(`${summary.relatedWorkCount} related works`);
+  if (summary.connectedCreatorCount) labels.add(`${summary.connectedCreatorCount} connected creators`);
+  if (summary.splitParticipantCount) labels.add(`${summary.splitParticipantCount} collaborators`);
+  if (summary.derivedFromCount) labels.add(`${summary.derivedFromCount} source works`);
+  if (summary.attributionLabel && summary.attributionLabel !== 'unknown') labels.add(String(summary.attributionLabel));
+  if (summary.lineageLabel && summary.lineageLabel !== 'unknown') labels.add(String(summary.lineageLabel).replace(/_/g, ' '));
+  return [...labels].slice(0, 4);
+}
+
+function detailLabelsFromItem(item: DiscoverableItem, offer: CanonicalOffer | null, playback: CanonicalPlayback | null): string[] {
+  const labels = new Set<string>();
+  const contentType = offerText(offer?.contentType || offer?.type, item.contentType || '').replace(/_/g, ' ');
+  const topic = offerText(offer?.primaryTopic, item.primaryTopic || '').replace(/_/g, ' ');
+  const priceSats = Number(offer?.priceSats || offer?.price_sat || offer?.amountSats || item.priceSats || 0);
+  const accessMode = offerText(offer?.accessMode, item.accessMode || '').replace(/_/g, ' ');
+  const proof = item.paymentAccessProof;
+
+  if (contentType) labels.add(contentType);
+  if (topic) labels.add(topic);
+  if (Number.isFinite(priceSats) && priceSats > 0) labels.add(`${Math.round(priceSats).toLocaleString()} sats`);
+  if (accessMode && accessMode !== 'unlocked') labels.add(accessMode);
+  if (playback?.mode === 'preview' && playback.previewLimitSeconds) labels.add(`${playback.previewLimitSeconds} sec preview`);
+  if (proof?.paymentState) labels.add(`payment ${proof.paymentState}`);
+  if (proof?.entitlementState) labels.add(`entitlement ${proof.entitlementState}`);
+  if (item.hasLockedSplitSnapshot) labels.add('receipt protected');
+  if (item.attributionLabel && item.attributionLabel !== 'unknown') labels.add(String(item.attributionLabel).replace(/_/g, ' '));
+  if (item.lineageLabel && item.lineageLabel !== 'unknown') labels.add(String(item.lineageLabel).replace(/_/g, ' '));
+  return [...labels].slice(0, 6);
+}
+
+function creditLabelsFromItem(item: DiscoverableItem): string[] {
+  const labels = new Set<string>();
+  const creator = String(item.creatorHandle || '').trim().replace(/^@+/, '');
+  if (creator) labels.add(`Creator: @${creator}`);
+  for (const contributor of item.contributors || []) {
+    const name = contributor.displayName || contributor.handle || 'Contributor';
+    const handle = contributor.handle ? `@${String(contributor.handle).replace(/^@+/, '')}` : '';
+    const role = contributor.role || 'contributor';
+    const sharePercent = (contributor as Record<string, unknown>).sharePercent;
+    const share = sharePercent != null ? ` · ${sharePercent}%` : '';
+    labels.add(`${name}${handle ? ` ${handle}` : ''} · ${role}${share}`);
+  }
+  if (item.attributionLabel && item.attributionLabel !== 'unknown') labels.add(`Attribution: ${String(item.attributionLabel).replace(/_/g, ' ')}`);
+  if (item.lineageLabel && item.lineageLabel !== 'unknown') labels.add(`Lineage: ${String(item.lineageLabel).replace(/_/g, ' ')}`);
+  return [...labels].slice(0, 8);
+}
+
+function proofLabelsFromItem(item: DiscoverableItem, offer: CanonicalOffer | null): string[] {
+  const labels = new Set<string>();
+  labels.add(`Content ID: ${item.contentId}`);
+  if (item.publicOrigin) labels.add(`Origin: ${item.publicOrigin}`);
+  if (item.offerUrl) labels.add(`Offer: ${item.offerUrl}`);
+  if (item.buyUrl) labels.add(`Buy page: ${item.buyUrl}`);
+  if (item.paymentAccessProof?.paymentState) labels.add(`Payment: ${item.paymentAccessProof.paymentState}`);
+  if (item.paymentAccessProof?.entitlementState) labels.add(`Entitlement: ${item.paymentAccessProof.entitlementState}`);
+  if (item.paymentAccessProof?.paymentReceiptId) labels.add(`Receipt: ${item.paymentAccessProof.paymentReceiptId}`);
+  const offerRecord = offer || {};
+  for (const key of [
+    'accessMode',
+    'entitlementState',
+    'paymentState',
+    'receiptId',
+    'paymentReceiptId',
+    'receiptCode',
+    'creatorNodeId',
+    'creatorNode',
+    'manifestHash',
+    'manifest_hash',
+    'proofVersion',
+    'proof_version',
+    'provenanceHash',
+    'provenance_hash',
+    'publishedAt',
+    'published_at',
+    'invoiceProviderNodeId',
+    'invoice_provider_node_id',
+  ]) {
+    const value = offerRecord[key];
+    if ((typeof value === 'string' || typeof value === 'number') && String(value).trim()) {
+      labels.add(`${key.replace(/_/g, ' ')}: ${String(value).trim()}`);
+    }
+  }
+  return [...labels].slice(0, 10);
+}
+
+function safeRecentItemsFromStorage(): DiscoverableItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(RECENT_ITEMS_STORAGE_KEY) || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((row): row is DiscoverableItem => Boolean(row?.contentId && row?.publicOrigin)).slice(0, MAX_RECENT_ITEMS);
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentItemsToStorage(items: DiscoverableItem[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(RECENT_ITEMS_STORAGE_KEY, JSON.stringify(items.slice(0, MAX_RECENT_ITEMS)));
+  } catch {
+    /* ignore storage failures */
+  }
+}
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return '0:00';
   const whole = Math.floor(seconds);
@@ -192,6 +309,8 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const [duration, setDuration] = useState(0);
   const [mediaAspect, setMediaAspect] = useState<MediaAspect>('square');
   const [freeDropQueue, setFreeDropQueueState] = useState<DiscoverableItem[]>([]);
+  const [recentItems, setRecentItems] = useState<DiscoverableItem[]>(() => safeRecentItemsFromStorage());
+  const [detailPanel, setDetailPanel] = useState<DetailPanel>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const activeMediaRef = useRef<HTMLMediaElement | null>(null);
@@ -217,6 +336,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const playItem = useCallback(async (nextItem: DiscoverableItem) => {
+    setDetailPanel(null);
+    setRecentItems((current) => {
+      const next = [nextItem, ...current.filter((row) => row.contentId !== nextItem.contentId || row.publicOrigin !== nextItem.publicOrigin)].slice(0, MAX_RECENT_ITEMS);
+      writeRecentItemsToStorage(next);
+      return next;
+    });
     clearActiveMedia();
     setState('loading');
     setMessage('Loading');
@@ -232,6 +357,11 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       supportLabel: initialDisplayState.ctaLabel,
       commerceState: initialDisplayState.state,
       playbackLabel: initialDisplayState.label,
+      connectedLabels: connectedLabelsFromItem(nextItem),
+      detailLabels: detailLabelsFromItem(nextItem, null, null),
+      creditLabels: creditLabelsFromItem(nextItem),
+      proofLabels: proofLabelsFromItem(nextItem, null),
+      description: nextItem.description || '',
       mediaKind: 'audio',
       playback: { mode: 'none', streamUrl: null, previewLimitSeconds: null, canPlayFull: false },
     });
@@ -263,6 +393,11 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           supportLabel: displayState.ctaLabel,
           commerceState: displayState.state,
           playbackLabel: displayState.label,
+          connectedLabels: connectedLabelsFromItem(nextItem),
+          detailLabels: detailLabelsFromItem(nextItem, offer, playback),
+          creditLabels: creditLabelsFromItem(nextItem),
+          proofLabels: proofLabelsFromItem(nextItem, offer),
+          description: offerText(offer?.description, nextItem.description || ''),
           mediaKind: 'audio',
           playback: playback || { mode: 'none', streamUrl: null, previewLimitSeconds: null, canPlayFull: false },
         });
@@ -284,6 +419,11 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
         supportLabel: displayState.ctaLabel,
         commerceState: displayState.state,
         playbackLabel: displayState.label,
+        connectedLabels: connectedLabelsFromItem(nextItem),
+        detailLabels: detailLabelsFromItem(nextItem, offer, playback),
+        creditLabels: creditLabelsFromItem(nextItem),
+        proofLabels: proofLabelsFromItem(nextItem, offer),
+        description: offerText(offer?.description, nextItem.description || ''),
         mediaKind: nextMediaKind,
         playback: { ...playback, streamUrl },
       });
@@ -355,6 +495,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
   const resetIdle = useCallback(() => {
     clearActiveMedia();
+    setDetailPanel(null);
     setItem(null);
     setState('idle');
     setMessage('Tap Play to start listening');
@@ -386,6 +527,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     playPreviousFreeDrop,
     seek,
     resetIdle,
+    recentItems,
     state,
     item,
     message,
@@ -393,7 +535,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     duration,
     canPlayNextFreeDrop,
     canPlayPreviousFreeDrop,
-  }), [canPlayNextFreeDrop, canPlayPreviousFreeDrop, duration, item, message, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, resetIdle, seek, setFreeDropQueue, state, togglePlay]);
+  }), [canPlayNextFreeDrop, canPlayPreviousFreeDrop, duration, item, message, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, seek, setFreeDropQueue, state, togglePlay]);
   const isIdle = state === 'idle';
   const isPlaying = state === 'playing';
   const canControl = Boolean(item?.playback.streamUrl);
@@ -402,6 +544,28 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const progressMax = Math.max(duration || 0, progress || 0, 1);
   const progressValue = Math.min(progress, Math.max(duration || progress || 1, 1));
   const visualAspectClass = `stage1a-rich-visual-${mediaAspect}`;
+  const detailPanelTitle =
+    detailPanel === 'credits' ? 'Credits & Contributors'
+      : detailPanel === 'proofs' ? 'Proofs & Receipts'
+        : detailPanel === 'about' ? 'About This Work'
+          : detailPanel === 'connected' ? 'Connected To'
+            : '';
+  const detailPanelRows = detailPanel === 'credits'
+    ? item?.creditLabels || []
+    : detailPanel === 'proofs'
+      ? item?.proofLabels || []
+      : detailPanel === 'about'
+        ? [
+          item?.title ? `Title: ${item.title}` : '',
+          item?.creator ? `Creator: @${item.creator}` : '',
+          item?.mediaKind ? `Media: ${item.mediaKind}` : '',
+          item?.playbackLabel ? `State: ${item.playbackLabel}` : '',
+          ...(item?.detailLabels || []),
+          item?.description || '',
+        ].filter(Boolean)
+        : detailPanel === 'connected'
+          ? item?.connectedLabels || []
+          : [];
 
   return (
     <Stage1APlayerContext.Provider value={contextValue}>
@@ -481,6 +645,14 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               <span>{formatTime(duration)}</span>
             </div>
             {message ? <p className="stage1a-rich-message">{message}</p> : null}
+            {item?.description ? <p className="stage1a-rich-description">{item.description}</p> : null}
+            {item?.detailLabels.length ? (
+              <div className="stage1a-rich-detail-grid" aria-label="Playback details">
+                {item.detailLabels.map((label) => (
+                  <span key={label}>{label}</span>
+                ))}
+              </div>
+            ) : null}
             <div className="stage1a-rich-actions">
               <a className="stage1a-rich-support" href={item?.buyUrl || '#'} target="_blank" rel="noreferrer">
                 {item?.supportLabel || 'Support Creator'}
@@ -492,10 +664,37 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               ) : null}
             </div>
             <div className="stage1a-rich-links" aria-label="Work details">
-              <a href={item?.buyUrl || '#'} target="_blank" rel="noreferrer">Credits & Contributors</a>
-              <a href={item?.buyUrl || '#'} target="_blank" rel="noreferrer">Proofs & Receipts</a>
-              <a href={item?.buyUrl || '#'} target="_blank" rel="noreferrer">About This Work</a>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'credits' ? null : 'credits'))}>Credits & Contributors</button>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'proofs' ? null : 'proofs'))}>Proofs & Receipts</button>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'about' ? null : 'about'))}>About This Work</button>
             </div>
+            {item?.connectedLabels.length ? (
+              <div className="stage1a-rich-connected">
+                <div className="stage1a-rich-connected-title">Connected to</div>
+                <div className="stage1a-rich-connected-list">
+                  {item.connectedLabels.map((label) => (
+                    <button type="button" key={label} onClick={() => setDetailPanel('connected')}>{label}</button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {detailPanel ? (
+              <div className="stage1a-rich-detail-panel" role="region" aria-label={detailPanelTitle}>
+                <div className="stage1a-rich-detail-panel-head">
+                  <div>{detailPanelTitle}</div>
+                  <button type="button" onClick={() => setDetailPanel(null)} aria-label="Close details">×</button>
+                </div>
+                {detailPanelRows.length > 0 ? (
+                  <ul>
+                    {detailPanelRows.map((row) => (
+                      <li key={row}>{row}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No public data available yet.</p>
+                )}
+              </div>
+            ) : null}
           </>
         ) : null}
       </aside>
@@ -524,11 +723,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                 disabled={!canControl || duration <= 0}
                 aria-label="Playback progress"
               />
-              <span className="stage1a-player-status">{statusLabel(state)}</span>
-              <span className="stage1a-player-time">{formatTime(progress)} / {formatTime(duration)}</span>
-              <a className="stage1a-player-support" href={item?.buyUrl || '#'} target="_blank" rel="noreferrer">
-                {item?.supportLabel || 'Support'}
-              </a>
+              <span className="stage1a-player-time">{formatTime(progress)}</span>
             </div>
           ) : null}
         </div>

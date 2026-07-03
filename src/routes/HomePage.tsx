@@ -15,6 +15,7 @@ import {
   sortNewestFirst,
   type CreatorSpotlight,
 } from '../lib/discoveryViewModel';
+import { useLocalLibrary, type LocalCreator } from '../lib/localLibrary';
 import { getCardThemeVars } from '../lib/profileTheme';
 
 const INITIAL_PAGE_LIMIT = 8;
@@ -801,6 +802,83 @@ function EmptyDiscoveryContext({ id, title }: { id: DiscoveryContext; title: str
   );
 }
 
+function LocalCreatorCard({ creator }: { creator: LocalCreator }) {
+  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
+  const displayHost = (() => {
+    try {
+      return new URL(creator.publicOrigin).host;
+    } catch {
+      return creator.publicOrigin;
+    }
+  })();
+  return (
+    <a
+      href={creator.profileUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="creator-themed-card group flex min-w-0 items-center gap-3 rounded-2xl border border-zinc-800/90 bg-zinc-950/75 p-3 transition hover:border-fuchsia-300/35"
+    >
+      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-900">
+        {creator.avatarUrl ? (
+          <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+        ) : (
+          <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-2 opacity-75" loading="lazy" decoding="async" />
+        )}
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-sm font-semibold text-zinc-100 group-hover:text-white">{creator.displayName || creator.handle}</div>
+        <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator.handle}</div>
+        <div className="mt-1 truncate text-[11px] text-zinc-600">{displayHost}</div>
+      </div>
+    </a>
+  );
+}
+
+function LocalCreatorSection({ id, title, subtitle, creators }: { id: DiscoveryContext; title: string; subtitle: string; creators: LocalCreator[] }) {
+  return (
+    <section id={id} className="min-w-0 scroll-mt-40 overflow-hidden rounded-3xl border border-zinc-800/90 bg-zinc-950/75 p-3 shadow-2xl shadow-black/30 sm:p-5">
+      <div className="flex min-w-0 items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-200/80">Your World</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">{title}</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">{subtitle}</p>
+        </div>
+        <span className="mt-2 h-3 w-3 shrink-0 rounded-full bg-fuchsia-300/80 shadow-lg shadow-fuchsia-300/20" aria-hidden="true" />
+      </div>
+      {creators.length > 0 ? (
+        <div className="mt-5 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2">
+          {creators.map((creator) => (
+            <LocalCreatorCard key={creator.key} creator={creator} />
+          ))}
+        </div>
+      ) : (
+        <p className="mt-5 rounded-2xl border border-zinc-800/80 bg-black/25 p-4 text-sm text-zinc-400">No public data available yet.</p>
+      )}
+    </section>
+  );
+}
+
+function SavedLibrarySection({ works, creators }: { works: DiscoverableItem[]; creators: LocalCreator[] }) {
+  return (
+    <section id="saved" className="min-w-0 scroll-mt-40 space-y-4">
+      {works.length > 0 ? (
+        <ExpandedRankedSurface
+          id="saved"
+          surface={{
+            key: 'saved',
+            title: 'Saved Works',
+            subtitle: 'Works saved locally on this device',
+            items: works,
+          }}
+        />
+      ) : (
+        <EmptyDiscoveryContext id="saved" title="Saved Works" />
+      )}
+      <LocalCreatorSection id="saved" title="Saved Creators" subtitle="Creators saved locally on this device" creators={creators} />
+    </section>
+  );
+}
+
 function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank: number }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -984,10 +1062,10 @@ function readScope(searchValue?: string): { topic: Topic; extraScope: ExtraScope
 }
 
 export function HomePage() {
-  const { setFreeDropQueue } = useStage1APlayer();
+  const { recentItems, setFreeDropQueue } = useStage1APlayer();
+  const { savedWorks, savedCreators, followedCreators } = useLocalLibrary();
   const location = useLocation();
   const navigate = useNavigate();
-  const logoSrc = `${import.meta.env.BASE_URL}header-logo.svg`;
   const [origins, setOrigins] = useState<string[]>([]);
   const [originsLoaded, setOriginsLoaded] = useState(false);
   const { topic, extraScope } = useMemo(() => readScope(location.search), [location.search]);
@@ -1433,53 +1511,53 @@ export function HomePage() {
     subtitle: 'Premium works to explore here and unlock on creator pages',
     items: boardUnlockableItems,
   }), [boardUnlockableItems]);
+  const recentlyPlayedSurface = useMemo<RankedSurface>(() => ({
+    key: 'recently-played',
+    title: 'Recently Played',
+    subtitle: 'Works started in the Certifyd Player on this device',
+    items: recentItems,
+  }), [recentItems]);
   const surfaceByContext = useMemo(() => {
     const byContext = new Map<DiscoveryContext, RankedSurface>();
     byContext.set('recently-published', recentlyPublishedSurface);
     byContext.set('premium-works', premiumWorksSurface);
+    byContext.set('recently-played', recentlyPlayedSurface);
     for (const surface of topSurfaces) {
       if (surface.key === 'top-selling' || surface.key === 'top-connected' || surface.key === 'fastest-moving') {
         byContext.set(surface.key, surface);
       }
     }
     return byContext;
-  }, [premiumWorksSurface, recentlyPublishedSurface, topSurfaces]);
+  }, [premiumWorksSurface, recentlyPlayedSurface, recentlyPublishedSurface, topSurfaces]);
   const selectedSurface = surfaceByContext.get(discoveryContext);
   const showOverview = discoveryContext === 'creator-economy-board';
+  const showSaved = discoveryContext === 'saved';
+  const showFollowing = discoveryContext === 'following';
   const selectedContextLabel = selectedSurface?.title || (discoveryContext === 'active-creator-ecosystems' ? 'Active Creator Ecosystems' : discoveryContext.split('-').map((word) => word[0].toUpperCase() + word.slice(1)).join(' '));
 
   return (
     <main className="app-shell min-h-screen text-zinc-100">
-      <header className="sticky top-0 z-30 border-b border-zinc-800/70 bg-zinc-950/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-2">
-          <div className="relative shrink-0">
-            <picture>
-              <source media="(max-width: 640px)" srcSet={`${import.meta.env.BASE_URL}header-logo-mobile.svg`} />
-              <img
-                src={logoSrc}
-                alt="Certifyd Player"
-                className="h-14 w-auto object-contain sm:h-16"
-                style={{ filter: "brightness(1.14) saturate(1.16) sepia(0.14)" }}
-                loading="eager"
-                decoding="async"
-                fetchPriority="high"
+      <header className="certifyd-fan-toolbar sticky top-0 z-30 border-b border-zinc-800/70 bg-zinc-950/90 backdrop-blur-xl">
+        <div className="mx-auto grid max-w-7xl gap-1.5 px-4 py-2">
+          <div className="certifyd-fan-toolbar-inner flex items-center gap-2">
+            <button type="button" className="network-selector" aria-label="Current network" disabled>
+              Public Certifyd <span aria-hidden="true">⌄</span>
+            </button>
+            <div className="certifyd-fan-toolbar-search">
+              <input
+                id="certifyd-player-search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search creators, works, drops, videos..."
+                className="search-input w-full rounded-full border border-zinc-700/80 bg-zinc-900/80 px-4 py-2 text-sm outline-none placeholder:text-zinc-500 focus:border-amber-300/70"
               />
-            </picture>
+            </div>
           </div>
-          <div className="ml-auto w-full max-w-xl">
-            <input
-              id="certifyd-player-search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search creators, works, drops, videos..."
-              className="search-input w-full rounded-full border border-zinc-700/80 bg-zinc-900/80 px-5 py-2.5 text-sm outline-none placeholder:text-zinc-500 focus:border-amber-300/70"
-            />
-          </div>
+          <TopicRail active={topic} activeExtra={extraScope} onChange={onTopicChange} onExtraChange={onExtraScopeChange} />
         </div>
-        <TopicRail active={topic} activeExtra={extraScope} onChange={onTopicChange} onExtraChange={onExtraScopeChange} />
       </header>
 
-      <section className="mx-auto max-w-7xl space-y-3 px-4 py-4">
+      <section className="mx-auto max-w-7xl space-y-3 px-4 py-3">
         {originsLoaded && origins.length === 0 ? (
           <div className="rounded-xl border border-amber-700 bg-amber-950/30 p-4 text-sm text-amber-200">
             No valid origins found. Add <code>public/origins.json</code> and/or <code>VITE_CERTIFYD_ORIGINS</code>.
@@ -1515,11 +1593,23 @@ export function HomePage() {
           <EmptyDiscoveryContext id="active-creator-ecosystems" title="Active Creator Ecosystems" />
         ) : null}
 
-        {!showOverview && selectedSurface ? (
+        {!showOverview && showFollowing ? (
+          <LocalCreatorSection id="following" title="Following" subtitle="Creators followed locally on this device" creators={followedCreators} />
+        ) : null}
+
+        {!showOverview && showSaved ? (
+          <SavedLibrarySection works={savedWorks} creators={savedCreators} />
+        ) : null}
+
+        {!showOverview && !showSaved && !showFollowing && selectedSurface ? (
           <ExpandedRankedSurface surface={selectedSurface} id={discoveryContext} />
         ) : null}
 
-        {!showOverview && discoveryContext !== 'free-drops' && discoveryContext !== 'creator-ecosystems' && discoveryContext !== 'active-creator-ecosystems' && !selectedSurface ? (
+        {!showOverview && !showSaved && !showFollowing && selectedSurface && selectedSurface.items.length === 0 ? (
+          <EmptyDiscoveryContext id={discoveryContext} title={selectedContextLabel} />
+        ) : null}
+
+        {!showOverview && !showSaved && !showFollowing && discoveryContext !== 'free-drops' && discoveryContext !== 'creator-ecosystems' && discoveryContext !== 'active-creator-ecosystems' && !selectedSurface ? (
           <EmptyDiscoveryContext id={discoveryContext} title={selectedContextLabel} />
         ) : null}
 

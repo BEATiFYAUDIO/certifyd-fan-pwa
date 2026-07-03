@@ -35,7 +35,6 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
     item.avatarUrl ||
     '';
   const canShowAvatar = Boolean(avatarUrl) && !avatarFailed;
-  const meta = [item.primaryTopic, item.contentType].filter(Boolean).join(' · ');
   const playbackDisplay = displayStateFromItem(item);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
 
@@ -61,9 +60,6 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
         <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
           <span className="creator-themed-badge-muted rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
             {playbackDisplay.label}
-          </span>
-          <span className="creator-themed-badge rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-            Lightning
           </span>
         </div>
         {canShowImage ? (
@@ -127,7 +123,6 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
               {item.title || 'Untitled'}
             </Link>
             <p className="mt-1 text-sm text-zinc-200">@{creator}</p>
-            {meta ? <p className="mt-0.5 text-xs text-zinc-400">{meta}</p> : null}
           </div>
         </div>
       </div>
