@@ -1,23 +1,7 @@
 import type { Topic } from '../lib/types';
+import { EXTRA_SCOPE_OPTIONS, TOPIC_SCOPE_OPTIONS } from '../lib/scopeOptions';
 
 export type ExtraScope = 'trending' | 'new' | 'live' | 'following';
-
-const topics: Array<{ key: Topic; label: string }> = [
-  { key: 'all', label: 'All' },
-  { key: 'entertainment', label: 'Entertainment' },
-  { key: 'music', label: 'Music' },
-  { key: 'news', label: 'News' },
-  { key: 'gaming', label: 'Gaming' },
-  { key: 'sports', label: 'Sports' },
-  { key: 'technology', label: 'Technology' },
-];
-
-const extraPills: Array<{ key: ExtraScope; label: string }> = [
-  { key: 'trending', label: 'Trending' },
-  { key: 'new', label: 'New' },
-  { key: 'live', label: 'Live' },
-  { key: 'following', label: 'Following' },
-];
 
 export function TopicRail(props: {
   active: Topic;
@@ -27,7 +11,7 @@ export function TopicRail(props: {
 }) {
   return (
     <div className="rail-scroll topic-rail-toolbar flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
-      {topics.map((t) => {
+      {TOPIC_SCOPE_OPTIONS.map((t) => {
         const active = t.key === props.active;
         return (
           <button
@@ -43,7 +27,7 @@ export function TopicRail(props: {
           </button>
         );
       })}
-      {extraPills.map((scope) => {
+      {EXTRA_SCOPE_OPTIONS.map((scope) => {
         const active = props.activeExtra === scope.key;
         return (
           <button

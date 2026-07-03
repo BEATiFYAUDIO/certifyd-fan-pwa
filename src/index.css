@@ -149,6 +149,10 @@ body::after {
   gap: 14px;
 }
 
+.certifyd-player-primary-nav {
+  display: none;
+}
+
 .certifyd-player-nav-group {
   display: flex;
   flex-wrap: wrap;
@@ -213,6 +217,11 @@ body::after {
 
 .topic-rail-toolbar {
   padding: 0 0 1px;
+}
+
+.mobile-filter-toggle,
+.mobile-filter-sheet {
+  display: none;
 }
 
 @media (min-width: 1280px) {
@@ -412,25 +421,57 @@ body::after {
     position: sticky;
     top: 0;
     z-index: 45;
-    gap: 10px;
+    gap: 8px;
     border-bottom-color: rgba(128, 55, 128, 0.32);
-    padding: 10px 12px 8px;
+    padding: 8px 12px 7px;
   }
 
   .certifyd-player-brand-logo {
-    width: 124px;
-    height: 36px;
+    width: 116px;
+    height: 32px;
   }
 
   .certifyd-player-brand-pill {
     font-size: 8px;
   }
 
+  .certifyd-player-primary-nav {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .certifyd-player-primary-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .certifyd-player-primary-nav-item {
+    display: inline-flex;
+    min-height: 31px;
+    flex: 0 0 auto;
+    align-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.045);
+    padding: 0 12px;
+    color: rgba(246, 240, 247, 0.82);
+    font-size: 12px;
+    font-weight: 850;
+    text-decoration: none;
+  }
+
+  .certifyd-player-primary-nav-item-active {
+    border-color: rgba(255, 212, 89, 0.52);
+    background: rgba(255, 212, 89, 0.13);
+    color: #fff0b8;
+  }
+
   .certifyd-player-nav {
     display: flex;
-    gap: 8px;
+    gap: 0;
     overflow-x: auto;
-    padding-bottom: 2px;
+    padding-bottom: 1px;
     scrollbar-width: none;
   }
 
@@ -439,22 +480,23 @@ body::after {
   }
 
   .certifyd-player-nav-group {
-    display: flex;
+    display: none;
     min-width: max-content;
     flex-wrap: nowrap;
     align-items: center;
     gap: 6px;
   }
 
+  .certifyd-player-nav-group-active {
+    display: flex;
+  }
+
   .certifyd-player-nav-group .certifyd-player-section-label {
-    width: auto;
-    padding-right: 2px;
-    font-size: 9px;
-    letter-spacing: 0.18em;
+    display: none;
   }
 
   .certifyd-player-nav-item {
-    min-height: 32px;
+    min-height: 30px;
     padding-inline: 10px;
     font-size: 12px;
     white-space: nowrap;
@@ -466,32 +508,111 @@ body::after {
 
   .certifyd-fan-toolbar > div {
     padding-inline: 12px;
+    padding-block: 7px;
   }
 
   .certifyd-fan-toolbar-inner {
     gap: 8px;
+    flex-wrap: nowrap;
   }
 
   .network-selector {
-    min-height: 32px;
-    padding-inline: 10px;
+    display: none;
   }
 
   .certifyd-fan-toolbar-search {
-    min-width: 100%;
-    flex-basis: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
   }
 
   .topic-rail-toolbar {
-    width: 100%;
-    flex-basis: 100%;
-    gap: 6px;
-    padding-bottom: 2px;
+    display: none;
   }
 
   .topic-pill {
     padding: 0.42rem 0.72rem;
     font-size: 12px;
+  }
+
+  .mobile-filter-toggle {
+    display: inline-flex;
+    min-height: 32px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.055);
+    padding: 0 10px;
+    color: rgba(246, 240, 247, 0.88);
+    font-size: 12px;
+    font-weight: 850;
+    white-space: nowrap;
+  }
+
+  .mobile-filter-sheet {
+    display: grid;
+    gap: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 18px;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(220, 57, 184, 0.18), transparent 42%),
+      rgba(8, 8, 14, 0.96);
+    padding: 10px;
+    box-shadow: 0 20px 44px rgba(0, 0, 0, 0.45);
+  }
+
+  .mobile-filter-sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: rgba(246, 240, 247, 0.88);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .mobile-filter-sheet-head button {
+    display: grid;
+    height: 28px;
+    width: 28px;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .mobile-filter-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .mobile-filter-option {
+    min-height: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.055);
+    padding: 0 11px;
+    color: rgba(246, 240, 247, 0.82);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .mobile-filter-option-active {
+    border-color: rgba(255, 212, 89, 0.62);
+    background: rgba(255, 212, 89, 0.14);
+    color: #fff0b8;
+  }
+
+  .mobile-filter-option-extra {
+    border-color: rgba(232, 146, 255, 0.6);
+    background: rgba(220, 57, 184, 0.16);
+    color: #ffd9fb;
   }
 
   .app-shell > section,

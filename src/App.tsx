@@ -24,7 +24,9 @@ function PlayerSidebar() {
   const contextHref = (hash: string) => `/${location.search}${hash}`;
   const groups = [
     {
+      key: 'charts',
       label: 'Charts',
+      defaultHref: contextHref('#creator-economy-board'),
       items: [
         { label: 'Network Pulse', href: contextHref('#creator-economy-board'), active: location.hash === '' || location.hash === '#creator-economy-board' },
         { label: 'Active Creator Ecosystems', href: contextHref('#active-creator-ecosystems'), active: location.hash === '#active-creator-ecosystems' },
@@ -35,14 +37,18 @@ function PlayerSidebar() {
       ],
     },
     {
+      key: 'explore',
       label: 'Explore',
+      defaultHref: contextHref('#free-drops'),
       items: [
         { label: 'Free Drops', href: contextHref('#free-drops'), active: location.hash === '#free-drops' },
         { label: 'Premium Works', href: contextHref('#premium-works'), active: location.hash === '#premium-works' },
       ],
     },
     {
+      key: 'your-world',
       label: 'Your World',
+      defaultHref: contextHref('#following'),
       items: [
         { label: 'Following', href: contextHref('#following'), active: location.hash === '#following' },
         { label: 'Recently Played', href: contextHref('#recently-played'), active: location.hash === '#recently-played' },
@@ -50,6 +56,7 @@ function PlayerSidebar() {
       ],
     },
   ];
+  const activeGroup = groups.find((group) => group.items.some((item) => item.active)) || groups[0];
   return (
     <aside className="certifyd-player-left-panel" aria-label="Discovery signal boards">
       <Link to="/" className="certifyd-player-brand" aria-label="Certifyd Player home">
@@ -60,9 +67,20 @@ function PlayerSidebar() {
           <span className="certifyd-player-brand-pill">Fan</span>
         </span>
       </Link>
+      <nav className="certifyd-player-primary-nav" aria-label="Certifyd Fan sections">
+        {groups.map((group) => (
+          <Link
+            key={`primary:${group.key}`}
+            to={group.defaultHref}
+            className={`certifyd-player-primary-nav-item ${activeGroup.key === group.key ? 'certifyd-player-primary-nav-item-active' : ''}`}
+          >
+            {group.label}
+          </Link>
+        ))}
+      </nav>
       <nav className="certifyd-player-nav" aria-label="Certifyd Player navigation">
         {groups.map((group) => (
-          <div key={group.label} className="certifyd-player-nav-group">
+          <div key={group.label} className={`certifyd-player-nav-group ${activeGroup.key === group.key ? 'certifyd-player-nav-group-active' : ''}`}>
             <div className="certifyd-player-section-label">{group.label}</div>
             {group.items.map((item) => (
               <Link

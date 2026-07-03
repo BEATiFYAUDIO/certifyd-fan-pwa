@@ -5,6 +5,7 @@ import { TopicRail, type ExtraScope } from '../components/TopicRail';
 import { useStage1APlayer } from '../components/stage1APlayerContext';
 import { fetchDiscoverablePage, fetchDiscoverySignals } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
+import { EXTRA_SCOPE_OPTIONS, TOPIC_SCOPE_OPTIONS } from '../lib/scopeOptions';
 import type { DiscoverableItem, DiscoverySignalCreator, DiscoverySignalsResponse, DiscoverySignalWork, OriginFeedState, Topic } from '../lib/types';
 import { isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
@@ -15,7 +16,7 @@ import {
   sortNewestFirst,
   type CreatorSpotlight,
 } from '../lib/discoveryViewModel';
-import { useLocalLibrary, type LocalCreator } from '../lib/localLibrary';
+import { creatorKey, useLocalLibrary, type LocalCreator } from '../lib/localLibrary';
 import { getCardThemeVars } from '../lib/profileTheme';
 
 const INITIAL_PAGE_LIMIT = 8;
@@ -802,8 +803,97 @@ function EmptyDiscoveryContext({ id, title }: { id: DiscoveryContext; title: str
   );
 }
 
+function displayCreatorName(handle: string): string {
+  return handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function creatorSpotlightToLocalCreator(creator: CreatorSpotlight): LocalCreator {
+  const handle = String(creator.handle || '').replace(/^@+/, '').trim();
+  const publicOrigin = String(creator.publicOrigin || '').replace(/\/+$/, '');
+  return {
+    key: creatorKey(handle, publicOrigin),
+    handle,
+    displayName: displayCreatorName(handle),
+    avatarUrl: creator.avatarUrl || '',
+    profileUrl: creator.profileUrl || `${publicOrigin}/u/${encodeURIComponent(handle)}`,
+    publicOrigin,
+    profileTheme: creator.profileTheme || null,
+    itemCount: creator.itemCount,
+    freeCount: creator.freeCount,
+    premiumCount: creator.premiumCount,
+    topics: creator.topics,
+    types: creator.types,
+    latestTitle: creator.latestTitle,
+  };
+}
+
+function itemCreatorToLocalCreator(item: DiscoverableItem): LocalCreator | null {
+  const handle = String(item.creatorHandle || '').replace(/^@+/, '').trim();
+  const publicOrigin = String(item.publicOrigin || '').replace(/\/+$/, '');
+  if (!handle || !publicOrigin) return null;
+  return {
+    key: creatorKey(handle, publicOrigin),
+    handle,
+    displayName: displayCreatorName(handle),
+    avatarUrl: item.creatorAvatarUrl || item.creatorProfileImageUrl || item.profileImageUrl || item.avatarUrl || '',
+    profileUrl: `${publicOrigin}/u/${encodeURIComponent(handle)}`,
+    publicOrigin,
+    profileTheme: item.profileTheme || null,
+    itemCount: 1,
+    freeCount: item.accessMode === 'locked' || item.isLocked ? 0 : 1,
+    premiumCount: item.accessMode === 'locked' || item.isLocked || Number(item.priceSats || 0) > 0 ? 1 : 0,
+    topics: item.primaryTopic ? [item.primaryTopic] : [],
+    types: item.contentType ? [item.contentType] : [],
+    latestTitle: item.title || '',
+  };
+}
+
+function mergeLocalCreator(base: LocalCreator, hydrated: LocalCreator): LocalCreator {
+  return {
+    ...base,
+    ...hydrated,
+    displayName: hydrated.displayName || base.displayName,
+    avatarUrl: hydrated.avatarUrl || base.avatarUrl,
+    profileUrl: hydrated.profileUrl || base.profileUrl,
+    profileTheme: hydrated.profileTheme || base.profileTheme || null,
+    itemCount: hydrated.itemCount || base.itemCount,
+    freeCount: hydrated.freeCount ?? base.freeCount,
+    premiumCount: hydrated.premiumCount ?? base.premiumCount,
+    topics: hydrated.topics?.length ? hydrated.topics : base.topics,
+    types: hydrated.types?.length ? hydrated.types : base.types,
+    latestTitle: hydrated.latestTitle || base.latestTitle,
+  };
+}
+
+function hydrateLocalCreators(creators: LocalCreator[], creatorSources: CreatorSpotlight[], itemSources: DiscoverableItem[]): LocalCreator[] {
+  const byKey = new Map<string, LocalCreator>();
+  for (const creator of creatorSources) {
+    const localCreator = creatorSpotlightToLocalCreator(creator);
+    if (localCreator.key) byKey.set(localCreator.key, localCreator);
+  }
+  for (const item of itemSources) {
+    const localCreator = itemCreatorToLocalCreator(item);
+    if (!localCreator?.key) continue;
+    const current = byKey.get(localCreator.key);
+    byKey.set(localCreator.key, current ? mergeLocalCreator(current, localCreator) : localCreator);
+  }
+  return creators.map((creator) => {
+    const key = creatorKey(creator.handle, creator.publicOrigin);
+    const hydrated = byKey.get(key);
+    return hydrated ? mergeLocalCreator(creator, hydrated) : creator;
+  });
+}
+
 function LocalCreatorCard({ creator }: { creator: LocalCreator }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
+  const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
+  const chips = [
+    creator.itemCount ? `${creator.itemCount} ${creator.itemCount === 1 ? 'work' : 'works'}` : '',
+    creator.premiumCount ? `${creator.premiumCount} premium` : '',
+    creator.freeCount ? `${creator.freeCount} free` : '',
+    ...(creator.topics || []),
+    ...(creator.types || []),
+  ].filter(Boolean).slice(0, 3);
   const displayHost = (() => {
     try {
       return new URL(creator.publicOrigin).host;
@@ -816,7 +906,8 @@ function LocalCreatorCard({ creator }: { creator: LocalCreator }) {
       href={creator.profileUrl}
       target="_blank"
       rel="noreferrer"
-      className="creator-themed-card group flex min-w-0 items-center gap-3 rounded-2xl border border-zinc-800/90 bg-zinc-950/75 p-3 transition hover:border-fuchsia-300/35"
+      className="creator-themed-card group flex min-w-0 items-center gap-3 rounded-2xl border p-3 transition"
+      style={themeVars}
     >
       <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-900">
         {creator.avatarUrl ? (
@@ -828,7 +919,16 @@ function LocalCreatorCard({ creator }: { creator: LocalCreator }) {
       <div className="min-w-0">
         <div className="truncate text-sm font-semibold text-zinc-100 group-hover:text-white">{creator.displayName || creator.handle}</div>
         <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator.handle}</div>
-        <div className="mt-1 truncate text-[11px] text-zinc-600">{displayHost}</div>
+        <div className="mt-1 truncate text-[11px] text-zinc-300/80">{creator.latestTitle || displayHost}</div>
+        {chips.length > 0 ? (
+          <div className="mt-1.5 flex min-w-0 gap-1 overflow-hidden">
+            {chips.map((chip) => (
+              <span key={chip} className="creator-themed-badge-muted truncate rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+                {chip}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
     </a>
   );
@@ -1071,6 +1171,7 @@ export function HomePage() {
   const { topic, extraScope } = useMemo(() => readScope(location.search), [location.search]);
   const discoveryContext = useMemo(() => readDiscoveryContext(location.hash), [location.hash]);
   const [query, setQuery] = useState('');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [items, setItems] = useState<DiscoverableItem[]>([]);
   const [signals, setSignals] = useState<DiscoverySignalsResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1110,10 +1211,12 @@ export function HomePage() {
 
   function onTopicChange(next: Topic) {
     navigate({ pathname: '/', search: `?scope=${next}`, hash: location.hash || '#creator-economy-board' });
+    setMobileFiltersOpen(false);
   }
 
   function onExtraScopeChange(next: ExtraScope) {
     navigate({ pathname: '/', search: `?scope=${next}`, hash: location.hash || '#creator-economy-board' });
+    setMobileFiltersOpen(false);
   }
 
   useEffect(() => {
@@ -1427,6 +1530,39 @@ export function HomePage() {
     () => mergeCreatorSpotlights(signalCreatorSpotlights, networkCreators),
     [signalCreatorSpotlights, networkCreators]
   );
+  const localCreatorHydrationItems = useMemo(() => dedupeDiscoveryItems([
+    ...items,
+    ...filtered,
+    ...savedWorks,
+    ...recentItems,
+    ...signalWorks.topSellingItems,
+    ...signalWorks.mostSupportedItems,
+    ...signalWorks.fastestMovingItems,
+    ...signalWorks.recentlyAddedItems,
+    ...signalWorks.recentlySupportedItems,
+    ...signalWorks.collaborativeItems,
+    ...signalWorks.connectedItems,
+  ]), [
+    filtered,
+    items,
+    recentItems,
+    savedWorks,
+    signalWorks.collaborativeItems,
+    signalWorks.connectedItems,
+    signalWorks.fastestMovingItems,
+    signalWorks.mostSupportedItems,
+    signalWorks.recentlyAddedItems,
+    signalWorks.recentlySupportedItems,
+    signalWorks.topSellingItems,
+  ]);
+  const hydratedSavedCreators = useMemo(
+    () => hydrateLocalCreators(savedCreators, homepageCreators, localCreatorHydrationItems),
+    [homepageCreators, localCreatorHydrationItems, savedCreators]
+  );
+  const hydratedFollowedCreators = useMemo(
+    () => hydrateLocalCreators(followedCreators, homepageCreators, localCreatorHydrationItems),
+    [followedCreators, homepageCreators, localCreatorHydrationItems]
+  );
   const freeItems = useMemo(
     () => (topic === 'all' ? sortStableRandom(discoveryView.freeItems, `${randomSeed}:free:view`) : discoveryView.freeItems),
     [discoveryView.freeItems, topic, randomSeed]
@@ -1534,6 +1670,10 @@ export function HomePage() {
   const showSaved = discoveryContext === 'saved';
   const showFollowing = discoveryContext === 'following';
   const selectedContextLabel = selectedSurface?.title || (discoveryContext === 'active-creator-ecosystems' ? 'Active Creator Ecosystems' : discoveryContext.split('-').map((word) => word[0].toUpperCase() + word.slice(1)).join(' '));
+  const activeScopeLabel =
+    extraScope
+      ? EXTRA_SCOPE_OPTIONS.find((scope) => scope.key === extraScope)?.label || 'Filter'
+      : TOPIC_SCOPE_OPTIONS.find((scope) => scope.key === topic)?.label || 'All';
 
   return (
     <main className="app-shell min-h-screen text-zinc-100">
@@ -1552,8 +1692,53 @@ export function HomePage() {
                 className="search-input w-full rounded-full border border-zinc-700/80 bg-zinc-900/80 px-4 py-2 text-sm outline-none placeholder:text-zinc-500 focus:border-amber-300/70"
               />
             </div>
+            <button
+              type="button"
+              className="mobile-filter-toggle"
+              onClick={() => setMobileFiltersOpen((current) => !current)}
+              aria-expanded={mobileFiltersOpen}
+              aria-controls="certifyd-mobile-filter"
+            >
+              Filter · {activeScopeLabel}
+            </button>
           </div>
           <TopicRail active={topic} activeExtra={extraScope} onChange={onTopicChange} onExtraChange={onExtraScopeChange} />
+          {mobileFiltersOpen ? (
+            <div id="certifyd-mobile-filter" className="mobile-filter-sheet" role="dialog" aria-label="Filter content">
+              <div className="mobile-filter-sheet-head">
+                <span>Filter</span>
+                <button type="button" onClick={() => setMobileFiltersOpen(false)} aria-label="Close filters">×</button>
+              </div>
+              <div className="mobile-filter-options">
+                {TOPIC_SCOPE_OPTIONS.map((scope) => {
+                  const active = !extraScope && topic === scope.key;
+                  return (
+                    <button
+                      key={`mobile-topic:${scope.key}`}
+                      type="button"
+                      onClick={() => onTopicChange(scope.key)}
+                      className={`mobile-filter-option ${active ? 'mobile-filter-option-active' : ''}`}
+                    >
+                      {scope.label}
+                    </button>
+                  );
+                })}
+                {EXTRA_SCOPE_OPTIONS.map((scope) => {
+                  const active = extraScope === scope.key;
+                  return (
+                    <button
+                      key={`mobile-extra:${scope.key}`}
+                      type="button"
+                      onClick={() => onExtraScopeChange(scope.key)}
+                      className={`mobile-filter-option ${active ? 'mobile-filter-option-active mobile-filter-option-extra' : ''}`}
+                    >
+                      {scope.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       </header>
 
@@ -1594,11 +1779,11 @@ export function HomePage() {
         ) : null}
 
         {!showOverview && showFollowing ? (
-          <LocalCreatorSection id="following" title="Following" subtitle="Creators followed locally on this device" creators={followedCreators} />
+          <LocalCreatorSection id="following" title="Following" subtitle="Creators followed locally on this device" creators={hydratedFollowedCreators} />
         ) : null}
 
         {!showOverview && showSaved ? (
-          <SavedLibrarySection works={savedWorks} creators={savedCreators} />
+          <SavedLibrarySection works={savedWorks} creators={hydratedSavedCreators} />
         ) : null}
 
         {!showOverview && !showSaved && !showFollowing && selectedSurface ? (

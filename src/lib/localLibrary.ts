@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { DiscoverableItem } from './types';
+import type { DiscoverableItem, ProfileTheme } from './types';
 
 export const SAVED_WORKS_STORAGE_KEY = 'certifyd-player:saved-works:v1';
 export const SAVED_CREATORS_STORAGE_KEY = 'certifyd-player:saved-creators:v1';
@@ -16,6 +16,13 @@ export type LocalCreator = {
   avatarUrl: string;
   profileUrl: string;
   publicOrigin: string;
+  profileTheme?: ProfileTheme | null;
+  itemCount?: number;
+  freeCount?: number;
+  premiumCount?: number;
+  topics?: string[];
+  types?: string[];
+  latestTitle?: string;
 };
 
 function workKey(item: Pick<DiscoverableItem, 'contentId' | 'publicOrigin'>): string {
@@ -39,6 +46,13 @@ export function creatorFromItem(item: DiscoverableItem): LocalCreator | null {
     avatarUrl: item.creatorAvatarUrl || item.creatorProfileImageUrl || item.profileImageUrl || item.avatarUrl || '',
     profileUrl: `${publicOrigin}/u/${encodeURIComponent(handle)}`,
     publicOrigin,
+    profileTheme: item.profileTheme || null,
+    itemCount: 1,
+    freeCount: item.accessMode === 'locked' || item.isLocked ? 0 : 1,
+    premiumCount: item.accessMode === 'locked' || item.isLocked || Number(item.priceSats || 0) > 0 ? 1 : 0,
+    topics: item.primaryTopic ? [item.primaryTopic] : [],
+    types: item.contentType ? [item.contentType] : [],
+    latestTitle: item.title || '',
   };
 }
 
