@@ -1184,8 +1184,9 @@ body.has-stage1a-player {
 .stage1a-rich-visual {
   display: grid;
   width: 100%;
+  height: min(58dvh, 620px);
   min-height: min(58dvh, 460px);
-  max-height: 58dvh;
+  max-height: min(58dvh, 620px);
   place-items: center;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.09);
@@ -1194,33 +1195,28 @@ body.has-stage1a-player {
 }
 
 .stage1a-rich-visual-landscape {
-  aspect-ratio: 16 / 9;
+  aspect-ratio: auto;
 }
 
 .stage1a-rich-visual-portrait {
   aspect-ratio: auto;
-  height: min(58dvh, 620px);
-  min-height: min(58dvh, 460px);
   width: 100%;
   align-self: center;
 }
 
 .stage1a-rich-visual-square {
-  aspect-ratio: 1 / 1;
+  aspect-ratio: auto;
 }
 
 .stage1a-rich-visual-unknown {
   aspect-ratio: auto;
-  height: min(58dvh, 560px);
   width: 100%;
 }
 
 .stage1a-rich-player .stage1a-player-video {
   display: block;
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
   background: #000;
   object-fit: contain;
 }
@@ -1242,10 +1238,8 @@ body.has-stage1a-player {
 }
 
 .stage1a-rich-artwork {
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
 
@@ -1731,9 +1725,9 @@ body.has-stage1a-player {
     position: relative;
     display: grid;
     width: 100%;
-    height: clamp(340px, 42vh, 620px);
-    min-height: 340px;
-    max-height: min(68vh, 760px);
+    height: clamp(520px, 68vh, 820px);
+    min-height: 520px;
+    max-height: min(76vh, 860px);
     place-items: center;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.09);
@@ -1743,54 +1737,38 @@ body.has-stage1a-player {
   }
 
   .stage1a-rich-visual-landscape {
-    aspect-ratio: 16 / 9;
-    height: auto;
-    min-height: 0;
-    max-height: none;
+    aspect-ratio: auto;
   }
 
   .stage1a-rich-visual-portrait {
     aspect-ratio: auto;
-    height: clamp(520px, 72vh, 820px);
-    min-height: 520px;
-    max-height: min(76vh, 860px);
     justify-self: center;
     width: 100%;
   }
 
   .stage1a-rich-visual-square {
-    aspect-ratio: 1 / 1;
-    height: auto;
-    min-height: 0;
-    max-height: none;
+    aspect-ratio: auto;
     justify-self: center;
-    width: min(100%, 520px);
+    width: 100%;
   }
 
   .stage1a-rich-visual-unknown {
     aspect-ratio: auto;
-    height: clamp(420px, 56vh, 680px);
-    min-height: 420px;
-    max-height: min(68vh, 760px);
     justify-self: center;
     width: 100%;
   }
 
   .stage1a-rich-player .stage1a-player-video {
     display: block;
-    width: auto;
-    height: auto;
-    max-width: 100%;
-    max-height: 100%;
+    width: 100%;
+    height: 100%;
     background: #000;
     object-fit: contain;
   }
 
   .stage1a-rich-artwork {
-    width: auto;
-    height: auto;
-    max-width: 100%;
-    max-height: 100%;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
   }
 

@@ -5,6 +5,7 @@ import { useStage1APlayer } from '../components/stage1APlayerContext';
 import { fetchContentContext, fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
 import { fetchCanonicalOfferPayload, normalizeCanonicalOffer } from '../lib/offerFetch';
+import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
 import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem, Topic } from '../lib/types';
 import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
@@ -69,8 +70,16 @@ function priceLabel(item: DiscoverableItem): string {
 
 async function fetchCanonicalOffer(item: DiscoverableItem): Promise<CanonicalOffer | null> {
   const canonicalOfferUrl = resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, item.publicOrigin);
-  const offerUrls = [...new Set([String(item.offerUrl || '').trim(), canonicalOfferUrl].filter(Boolean))];
-  return normalizeCanonicalOffer(await fetchCanonicalOfferPayload(offerUrls)) as CanonicalOffer | null;
+  const baseOfferUrls = [...new Set([String(item.offerUrl || '').trim(), canonicalOfferUrl].filter(Boolean))];
+  const offerUrls = baseOfferUrls.flatMap((offerUrl) => withReceiptProofs(offerUrl, item));
+  const offer = normalizeCanonicalOffer(await fetchCanonicalOfferPayload(offerUrls)) as CanonicalOffer | null;
+  const paymentAccessProof = offer?.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
+    ? offer.paymentAccessProof as Record<string, unknown>
+    : null;
+  rememberReceiptProofForItem(item, {
+    receiptId: typeof paymentAccessProof?.paymentReceiptId === 'string' ? paymentAccessProof.paymentReceiptId : undefined,
+  });
+  return offer;
 }
 
 function offerPriceSats(offer: CanonicalOffer): number | null {

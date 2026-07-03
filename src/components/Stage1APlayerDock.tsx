@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import type { DiscoverableItem } from '../lib/types';
 import { fetchCanonicalOfferPayload } from '../lib/offerFetch';
 import { displayStateFromItem, displayStateFromPlayback } from '../lib/playbackDisplay';
+import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
 import { Stage1APlayerContext, type Stage1APlayerItem, type Stage1APlayerState, type Stage1APlaybackMode } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
@@ -57,7 +58,8 @@ function creatorProfileUrl(item: DiscoverableItem, offer: CanonicalOffer | null)
 
 async function fetchCanonicalOffer(item: DiscoverableItem): Promise<CanonicalOffer | null> {
   const fallback = resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, item.publicOrigin);
-  const offerUrls = [...new Set([String(item.offerUrl || '').trim(), canonicalOfferUrl(item), fallback].filter(Boolean))];
+  const baseOfferUrls = [...new Set([String(item.offerUrl || '').trim(), canonicalOfferUrl(item), fallback].filter(Boolean))];
+  const offerUrls = baseOfferUrls.flatMap((offerUrl) => withReceiptProofs(offerUrl, item));
   return normalizeOffer(await fetchCanonicalOfferPayload(offerUrls));
 }
 
@@ -401,6 +403,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
     try {
       const offer = await fetchCanonicalOffer(nextItem);
+      const paymentAccessProof = offer?.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
+        ? offer.paymentAccessProof as Record<string, unknown>
+        : null;
+      rememberReceiptProofForItem(nextItem, {
+        receiptId: typeof paymentAccessProof?.paymentReceiptId === 'string' ? paymentAccessProof.paymentReceiptId : undefined,
+      });
       const playback = normalizePlayback(offer);
       const origin = nextItem.publicOrigin;
       const streamUrl = resolveAbsoluteUrl(playback?.streamUrl, origin);
