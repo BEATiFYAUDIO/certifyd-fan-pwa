@@ -20,6 +20,7 @@ type CanonicalOffer = Record<string, unknown> & {
 };
 
 const RECENT_ITEMS_STORAGE_KEY = 'certifyd-player:recent-items:v1';
+const AUTOPLAY_STORAGE_KEY = 'certifyd-player:autoplay-next:v1';
 const MAX_RECENT_ITEMS = 24;
 
 function normalizeOffer(payload: unknown): CanonicalOffer | null {
@@ -311,6 +312,11 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const [freeDropQueue, setFreeDropQueueState] = useState<DiscoverableItem[]>([]);
   const [recentItems, setRecentItems] = useState<DiscoverableItem[]>(() => safeRecentItemsFromStorage());
   const [detailPanel, setDetailPanel] = useState<DetailPanel>(null);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [autoplayNext, setAutoplayNext] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(AUTOPLAY_STORAGE_KEY) === 'true';
+  });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const activeMediaRef = useRef<HTMLMediaElement | null>(null);
@@ -337,6 +343,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
   const playItem = useCallback(async (nextItem: DiscoverableItem) => {
     setDetailPanel(null);
+    setMobileSheetOpen(true);
     setRecentItems((current) => {
       const next = [nextItem, ...current.filter((row) => row.contentId !== nextItem.contentId || row.publicOrigin !== nextItem.publicOrigin)].slice(0, MAX_RECENT_ITEMS);
       writeRecentItemsToStorage(next);
@@ -496,6 +503,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const resetIdle = useCallback(() => {
     clearActiveMedia();
     setDetailPanel(null);
+    setMobileSheetOpen(false);
     setItem(null);
     setState('idle');
     setMessage('Tap Play to start listening');
@@ -518,6 +526,21 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
   const canPlayNextFreeDrop = currentFreeDropIndex >= 0 && currentFreeDropIndex < freeDropQueue.length - 1;
   const canPlayPreviousFreeDrop = currentFreeDropIndex > 0;
+  const handleEnded = useCallback(() => {
+    endingRef.current = true;
+    setState('ended');
+    setMessage('Ended');
+    if (!autoplayNext || item?.playback.mode !== 'full') return;
+    if (currentFreeDropIndex < 0 || currentFreeDropIndex >= freeDropQueue.length - 1) return;
+    void playItem(freeDropQueue[currentFreeDropIndex + 1]);
+  }, [autoplayNext, currentFreeDropIndex, freeDropQueue, item, playItem]);
+  const toggleAutoplayNext = useCallback(() => {
+    setAutoplayNext((current) => {
+      const next = !current;
+      if (typeof window !== 'undefined') window.localStorage.setItem(AUTOPLAY_STORAGE_KEY, String(next));
+      return next;
+    });
+  }, []);
 
   const contextValue = useMemo(() => ({
     playItem,
@@ -570,8 +593,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   return (
     <Stage1APlayerContext.Provider value={contextValue}>
       {children}
-      <aside className={`stage1a-rich-player ${isIdle ? 'stage1a-rich-player-idle' : ''}`} data-state={state} aria-label="Now Playing">
-        <div className="stage1a-rich-kicker">Now Playing</div>
+      <aside className={`stage1a-rich-player ${isIdle ? 'stage1a-rich-player-idle' : ''} ${mobileSheetOpen ? 'stage1a-rich-player-mobile-open' : ''}`} data-state={state} aria-label="Now Playing">
+        <div className="stage1a-rich-mobile-handle" aria-hidden="true" />
+        <div className="stage1a-rich-topline">
+          <div className="stage1a-rich-kicker">Now Playing</div>
+          <button type="button" className="stage1a-rich-collapse" onClick={() => setMobileSheetOpen(false)} aria-label="Collapse player">↓</button>
+        </div>
         <div className={`stage1a-rich-visual ${item?.mediaKind === 'video' ? 'stage1a-rich-visual-video' : 'stage1a-rich-visual-artwork'} ${visualAspectClass}`}>
           {item?.mediaKind === 'video' ? (
             <video
@@ -585,7 +612,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                 setMediaAspect(classifyAspect(event.currentTarget.videoWidth, event.currentTarget.videoHeight));
               }}
               onTimeUpdate={onTimeUpdate}
-              onEnded={() => { endingRef.current = true; setState('ended'); setMessage('Ended'); }}
+              onEnded={handleEnded}
               onError={() => { setState('error'); setMessage('Playback error.'); }}
             />
           ) : item?.artwork ? (
@@ -607,7 +634,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               onPause={() => { if (!endingRef.current && state !== 'ended' && activeMediaRef.current?.currentTime) { setState('paused'); setMessage('Paused'); } }}
               onLoadedMetadata={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
               onTimeUpdate={onTimeUpdate}
-              onEnded={() => { endingRef.current = true; setState('ended'); setMessage('Ended'); }}
+              onEnded={handleEnded}
               onError={() => { setState('error'); setMessage('Playback error.'); }}
             />
           ) : null}
@@ -629,6 +656,9 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               </button>
               <button type="button" className="stage1a-rich-nav" onClick={playNextFreeDrop} disabled={!canPlayNextFreeDrop} aria-label="Next Free Drop">›</button>
             </div>
+            <button type="button" className={`stage1a-rich-autoplay ${autoplayNext ? 'stage1a-rich-autoplay-on' : ''}`} onClick={toggleAutoplayNext}>
+              Autoplay next {autoplayNext ? 'On' : 'Off'}
+            </button>
             <div className="stage1a-rich-progress-row">
               <span>{formatTime(progress)}</span>
               <input
@@ -698,7 +728,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           </>
         ) : null}
       </aside>
-      <div className={`stage1a-player-dock ${isIdle ? 'stage1a-player-dock-idle' : ''}`} data-state={state} role="region" aria-label="Certifyd transport">
+      <div className={`stage1a-player-dock ${isIdle ? 'stage1a-player-dock-idle' : ''}`} data-state={state} role="region" aria-label="Certifyd transport" onClick={() => { if (!isIdle) setMobileSheetOpen(true); }}>
         {item?.artwork ? (
           <img src={item.artwork} alt="" className="stage1a-player-art" referrerPolicy="no-referrer" />
         ) : !isIdle ? (
@@ -709,7 +739,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           <div className="stage1a-player-meta">{displayedMeta}</div>
           {!isIdle ? (
             <div className="stage1a-player-controls">
-              <button type="button" className="stage1a-player-button" onClick={togglePlay} disabled={!canControl} aria-label="Play or pause">
+              <button type="button" className="stage1a-player-button" onClick={(event) => { event.stopPropagation(); togglePlay(); }} disabled={!canControl} aria-label="Play or pause">
                 <PlayIcon playing={isPlaying} />
               </button>
               <input
@@ -719,6 +749,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                 max={progressMax}
                 step="0.1"
                 value={progressValue}
+                onClick={(event) => event.stopPropagation()}
                 onChange={(event) => seek(Number(event.currentTarget.value))}
                 disabled={!canControl || duration <= 0}
                 aria-label="Playback progress"
@@ -728,7 +759,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           ) : null}
         </div>
         {!isIdle ? (
-          <button type="button" className="stage1a-player-clear" onClick={resetIdle} aria-label="Clear player">×</button>
+          <button type="button" className="stage1a-player-clear" onClick={(event) => { event.stopPropagation(); resetIdle(); }} aria-label="Clear player">×</button>
         ) : null}
       </div>
     </Stage1APlayerContext.Provider>
