@@ -1184,14 +1184,13 @@ body.has-stage1a-player {
 .stage1a-rich-visual {
   display: grid;
   width: 100%;
+  min-height: min(58dvh, 460px);
   max-height: 58dvh;
   place-items: center;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 20px;
-  background:
-    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.06), transparent 34%),
-    #02040a;
+  background: #000;
 }
 
 .stage1a-rich-visual-landscape {
@@ -1199,8 +1198,10 @@ body.has-stage1a-player {
 }
 
 .stage1a-rich-visual-portrait {
-  aspect-ratio: 9 / 16;
-  width: min(100%, calc(58dvh * 9 / 16), 430px);
+  aspect-ratio: auto;
+  height: min(58dvh, 620px);
+  min-height: min(58dvh, 460px);
+  width: 100%;
   align-self: center;
 }
 
@@ -1209,13 +1210,17 @@ body.has-stage1a-player {
 }
 
 .stage1a-rich-visual-unknown {
-  aspect-ratio: 4 / 5;
+  aspect-ratio: auto;
+  height: min(58dvh, 560px);
+  width: 100%;
 }
 
 .stage1a-rich-player .stage1a-player-video {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
   background: #000;
   object-fit: contain;
 }
@@ -1237,8 +1242,10 @@ body.has-stage1a-player {
 }
 
 .stage1a-rich-artwork {
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
 }
 
@@ -1731,7 +1738,7 @@ body.has-stage1a-player {
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: 18px;
-    background: #05070b;
+    background: #000;
     box-shadow: 0 14px 36px rgba(0, 0, 0, 0.36);
   }
 
@@ -1743,12 +1750,12 @@ body.has-stage1a-player {
   }
 
   .stage1a-rich-visual-portrait {
-    aspect-ratio: 9 / 16;
-    height: auto;
-    min-height: 0;
-    max-height: none;
+    aspect-ratio: auto;
+    height: clamp(520px, 72vh, 820px);
+    min-height: 520px;
+    max-height: min(76vh, 860px);
     justify-self: center;
-    width: min(100%, calc(68vh * 9 / 16), 430px);
+    width: 100%;
   }
 
   .stage1a-rich-visual-square {
@@ -1761,25 +1768,29 @@ body.has-stage1a-player {
   }
 
   .stage1a-rich-visual-unknown {
-    aspect-ratio: 4 / 5;
-    height: auto;
-    min-height: 0;
-    max-height: none;
+    aspect-ratio: auto;
+    height: clamp(420px, 56vh, 680px);
+    min-height: 420px;
+    max-height: min(68vh, 760px);
     justify-self: center;
-    width: min(100%, calc(68vh * 4 / 5), 520px);
+    width: 100%;
   }
 
   .stage1a-rich-player .stage1a-player-video {
     display: block;
-    width: 100%;
-    height: 100%;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
     background: #000;
     object-fit: contain;
   }
 
   .stage1a-rich-artwork {
-    width: 100%;
-    height: 100%;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
   }
 

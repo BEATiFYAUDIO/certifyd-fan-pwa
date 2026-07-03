@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from 'react';
 import type { DiscoverableItem } from '../lib/types';
+import { fetchCanonicalOfferPayload } from '../lib/offerFetch';
 import { displayStateFromItem, displayStateFromPlayback } from '../lib/playbackDisplay';
 import { Stage1APlayerContext, type Stage1APlayerItem, type Stage1APlayerState, type Stage1APlaybackMode } from './stage1APlayerContext';
 
@@ -57,21 +58,7 @@ function creatorProfileUrl(item: DiscoverableItem, offer: CanonicalOffer | null)
 async function fetchCanonicalOffer(item: DiscoverableItem): Promise<CanonicalOffer | null> {
   const fallback = resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, item.publicOrigin);
   const offerUrls = [...new Set([String(item.offerUrl || '').trim(), canonicalOfferUrl(item), fallback].filter(Boolean))];
-  let lastError: unknown = null;
-  for (const offerUrl of offerUrls) {
-    try {
-      const response = await fetch(offerUrl);
-      if (!response.ok) {
-        lastError = new Error(`Offer unavailable: ${response.status}`);
-        continue;
-      }
-      const offer = normalizeOffer(await response.json());
-      if (offer) return offer;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error('Offer unavailable');
+  return normalizeOffer(await fetchCanonicalOfferPayload(offerUrls));
 }
 
 function normalizePlayback(offer: CanonicalOffer | null): CanonicalPlayback | null {

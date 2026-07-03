@@ -4,6 +4,7 @@ import { FeedCard } from '../components/FeedCard';
 import { useStage1APlayer } from '../components/stage1APlayerContext';
 import { fetchContentContext, fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
+import { fetchCanonicalOfferPayload, normalizeCanonicalOffer } from '../lib/offerFetch';
 import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem, Topic } from '../lib/types';
 import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
@@ -66,29 +67,10 @@ function priceLabel(item: DiscoverableItem): string {
   return displayStateFromItem(item).label;
 }
 
-function normalizeCanonicalOffer(payload: unknown): CanonicalOffer | null {
-  if (!payload || typeof payload !== 'object') return null;
-  const maybeOffer = (payload as { offer?: unknown }).offer;
-  if (maybeOffer && typeof maybeOffer === 'object') return maybeOffer as CanonicalOffer;
-  return payload as CanonicalOffer;
-}
-
 async function fetchCanonicalOffer(item: DiscoverableItem): Promise<CanonicalOffer | null> {
   const canonicalOfferUrl = resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, item.publicOrigin);
   const offerUrls = [...new Set([String(item.offerUrl || '').trim(), canonicalOfferUrl].filter(Boolean))];
-
-  for (const offerUrl of offerUrls) {
-    try {
-      const response = await fetch(offerUrl);
-      if (!response.ok) continue;
-      const payload = await response.json();
-      const offer = normalizeCanonicalOffer(payload);
-      if (offer) return offer;
-    } catch {
-      continue;
-    }
-  }
-  return null;
+  return normalizeCanonicalOffer(await fetchCanonicalOfferPayload(offerUrls)) as CanonicalOffer | null;
 }
 
 function offerPriceSats(offer: CanonicalOffer): number | null {
