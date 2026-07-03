@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { DiscoverableItem } from '../lib/types';
-import { isLockedOrPremium } from '../lib/discoveryGuard';
+import { displayStateFromItem } from '../lib/playbackDisplay';
 import { getCardThemeVars } from '../lib/profileTheme';
 import { useStage1APlayer } from './stage1APlayerContext';
 
@@ -13,41 +13,11 @@ function avatarInitials(handle: string | null): string {
   return raw.slice(0, 2).toUpperCase();
 }
 
-function useNearViewport() {
-  const ref = useRef<HTMLElement | null>(null);
-  const [nearViewport, setNearViewport] = useState(false);
-
-  useEffect(() => {
-    if (nearViewport) return;
-    const node = ref.current;
-    if (!node) return;
-    if (typeof IntersectionObserver === 'undefined') {
-      queueMicrotask(() => setNearViewport(true));
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0]?.isIntersecting) return;
-        setNearViewport(true);
-        observer.disconnect();
-      },
-      { root: null, rootMargin: '600px 0px', threshold: 0.01 },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [nearViewport]);
-
-  return { ref, nearViewport };
-}
-
 export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watchParams?: string }) {
   const { playItem } = useStage1APlayer();
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
-  const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
-  const { ref: cardRef, nearViewport } = useNearViewport();
 
   const query = watchParams || `origin=${encodeURIComponent(item.publicOrigin)}&mode=freebies&topic=all`;
   const watchHref = `/watch/${encodeURIComponent(item.contentId)}?${query}`;
@@ -65,15 +35,14 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
     item.avatarUrl ||
     '';
   const canShowAvatar = Boolean(avatarUrl) && !avatarFailed;
-  const normalizedType = String(item.contentType || '').toLowerCase();
-  const lockedForFan = isLockedOrPremium(item);
-  const isVideo = normalizedType === 'video';
   const meta = [item.primaryTopic, item.contentType].filter(Boolean).join(' · ');
+  const playbackDisplay = displayStateFromItem(item);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
 
-  const canShowVideo = !lockedForFan && isVideo && Boolean(item.previewUrl) && !videoFailed;
-  const videoSrc = canShowVideo && nearViewport ? item.previewUrl : undefined;
   const canShowImage = Boolean(item.coverUrl) && !imageFailed;
+  const playFreeDrop = () => {
+    void playItem(item);
+  };
 
   const avatarGradient = useMemo(() => {
     const seed = creator.toLowerCase().charCodeAt(0) || 0;
@@ -87,28 +56,17 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
   }, [creator]);
 
   return (
-    <article ref={cardRef} className="creator-themed-card group relative aspect-[9/16] w-[78vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 hover:-translate-y-0.5 md:w-[280px] md:max-w-[280px] lg:w-[300px] lg:max-w-[300px]" style={themeVars}>
-      <Link to={watchHref} state={{ item }} className="absolute inset-0 block">
+    <article className="creator-themed-card group relative aspect-[9/16] w-[78vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 hover:-translate-y-0.5 md:w-[280px] md:max-w-[280px] lg:w-[300px] lg:max-w-[300px]" style={themeVars}>
+      <Link to={watchHref} state={{ item }} className="absolute inset-0 block" onClick={playFreeDrop}>
         <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
           <span className="creator-themed-badge-muted rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-            Free
+            {playbackDisplay.label}
           </span>
           <span className="creator-themed-badge rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
             Lightning
           </span>
         </div>
-        {videoSrc ? (
-          <video
-            src={videoSrc}
-            className="h-full w-full object-cover"
-            muted
-            autoPlay
-            loop
-            playsInline
-            preload="metadata"
-            onError={() => setVideoFailed(true)}
-          />
-        ) : canShowImage ? (
+        {canShowImage ? (
           <img
             src={item.coverUrl}
             alt={item.title || 'Content cover'}
@@ -165,12 +123,12 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
             </div>
           )}
           <div className="min-w-0">
-            <Link to={watchHref} state={{ item }} className="line-clamp-2 text-base font-semibold leading-5 text-white hover:underline">
+            <Link to={watchHref} state={{ item }} className="line-clamp-2 text-base font-semibold leading-5 text-white hover:underline" onClick={playFreeDrop}>
               {item.title || 'Untitled'}
             </Link>
             <p className="mt-1 text-sm text-zinc-200">@{creator}</p>
             {meta ? <p className="mt-0.5 text-xs text-zinc-400">{meta}</p> : null}
-            <button type="button" className="stage1a-play-button pointer-events-auto mt-2" onClick={() => void playItem(item)}>
+            <button type="button" className="stage1a-play-button pointer-events-auto mt-2" onClick={playFreeDrop}>
               ▶ Play in Certifyd
             </button>
           </div>

@@ -1,20 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { FeedCard } from '../components/FeedCard';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ShortsCard } from '../components/ShortsCard';
-import { TopicRail } from '../components/TopicRail';
+import { TopicRail, type ExtraScope } from '../components/TopicRail';
 import { useStage1APlayer } from '../components/stage1APlayerContext';
 import { fetchDiscoverablePage, fetchDiscoverySignals } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
 import type { DiscoverableItem, DiscoverySignalCreator, DiscoverySignalsResponse, DiscoverySignalWork, OriginFeedState, Topic } from '../lib/types';
 import { isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
+import { displayStateFromItem } from '../lib/playbackDisplay';
 import {
   buildHomeDiscoveryViewModel,
   dedupeDiscoveryItems,
   searchableText,
   sortNewestFirst,
   type CreatorSpotlight,
-  type DiscoveryRail,
 } from '../lib/discoveryViewModel';
 import { getCardThemeVars } from '../lib/profileTheme';
 
@@ -103,20 +102,6 @@ function formatCount(value: number): string {
   if (value >= 1000000) return `${(value / 1000000).toFixed(value >= 10000000 ? 0 : 1)}M`;
   if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}K`;
   return String(value);
-}
-
-function ContentRail({ rail }: { rail: DiscoveryRail }) {
-  if (rail.items.length === 0) return null;
-  return (
-    <section className="space-y-3">
-      <RailHeader title={rail.title} subtitle={rail.subtitle} />
-      <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {rail.items.map((item) => (
-          <FeedCard key={`${rail.key}:${item.publicOrigin}:${item.contentId}`} item={item} />
-        ))}
-      </div>
-    </section>
-  );
 }
 
 function creatorBadges(creator: CreatorSpotlight): string[] {
@@ -672,25 +657,24 @@ function RankingRow({
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
   const contributors = visibleOtherContributors(item);
   const relationshipBadges = Array.isArray(item.relationshipBadges) ? item.relationshipBadges.slice(0, contributors.length ? 2 : 3) : [];
-  const relationshipReason = String(item.relationshipReason || '').trim();
-  const showReason = Boolean(relationshipReason && (contributors.length === 0 || relationshipBadges.length < 2));
   const priceLine = showPrice ? formatSatsPrice(item.priceSats) : null;
+  const playbackDisplay = displayStateFromItem(item);
   const [imageFailed, setImageFailed] = useState(false);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
   return (
     <article
-      className="creator-themed-card signal-row group flex min-w-0 items-center gap-2 rounded-xl border p-2 transition sm:gap-3"
+      className="creator-themed-card signal-row group flex h-[84px] min-w-0 items-center gap-2 overflow-hidden rounded-xl border p-2 transition sm:gap-3"
       style={themeVars}
     >
       <Link
         to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
         state={{ item }}
-        className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3"
+        className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden sm:gap-3"
       >
-        <div className="creator-themed-rank flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold">
+        <div className="creator-themed-rank flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold">
           {rank}
         </div>
-        <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
+        <div className="relative h-12 w-[72px] shrink-0 overflow-hidden rounded-lg bg-zinc-950">
           {item.coverUrl && !imageFailed ? (
             <img
               src={item.coverUrl}
@@ -707,67 +691,52 @@ function RankingRow({
               {item.contentType || 'Work'}
             </div>
           )}
+          <button
+            type="button"
+            className="absolute inset-0 grid place-items-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100 focus:bg-black/45 focus:opacity-100"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void playItem(item);
+            }}
+            aria-label={`Play ${item.title || 'work'} in Certifyd`}
+          >
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-white/90 pl-0.5 text-[10px] text-black shadow-lg">▶</span>
+          </button>
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="line-clamp-1 text-sm font-semibold text-zinc-100 group-hover:text-white">{item.title || 'Untitled'}</div>
-          <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator} · {item.primaryTopic || item.contentType || 'work'}</div>
-          {priceLine ? <div className="creator-themed-link mt-0.5 truncate text-[11px] font-medium">{priceLine}</div> : null}
-          {contributors.length > 0 ? (
-            <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">With</span>
-              {contributors.slice(0, 3).map((contributor) => {
-                const label = contributor.displayName || contributor.handle || 'Contributor';
-                const handle = contributor.handle ? contributor.handle.replace(/^@+/, '') : '';
-                return (
-                  <span
-                    key={`${itemKey(item)}:${label}:${contributor.role || ''}`}
-                    className="creator-themed-contributor-pill inline-flex max-w-[9rem] items-center gap-1 rounded-full border py-0.5 pl-1 pr-2 text-[10px]"
-                    title={[label, contributor.role].filter(Boolean).join(' · ')}
-                  >
-                    {contributor.avatarUrl ? (
-                      <span className="h-4 w-4 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-800">
-                        <img src={contributor.avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
-                      </span>
-                    ) : null}
-                    <span className="truncate">{handle || label}</span>
-                    {contributor.role ? <span className="hidden text-zinc-500 min-[440px]:inline">· {contributor.role}</span> : null}
-                  </span>
-                );
-              })}
-            </div>
-          ) : null}
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="line-clamp-1 text-[13px] font-semibold leading-4 text-zinc-100 group-hover:text-white">{item.title || 'Untitled'}</div>
+          <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator}</div>
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden">
+            <span className="creator-themed-link shrink-0 truncate text-[11px] font-bold uppercase tracking-wide">{playbackDisplay.label}</span>
+            {priceLine ? <span className="truncate text-[11px] font-medium text-zinc-500">{priceLine}</span> : null}
+          </div>
           {relationshipBadges.length > 0 ? (
-            <div className="mt-1.5 flex min-w-0 flex-wrap gap-1">
-              {relationshipBadges.map((badge) => (
-                <span key={`${itemKey(item)}:${badge}`} className="creator-themed-badge rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+            <div className="mt-0.5 flex max-h-5 min-w-0 flex-nowrap gap-1 overflow-hidden">
+              {relationshipBadges.slice(0, 2).map((badge) => (
+                <span key={`${itemKey(item)}:${badge}`} className="creator-themed-badge max-w-[9rem] truncate rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
                   {badge}
                 </span>
               ))}
             </div>
           ) : null}
-          {showReason ? (
-            <div className="mt-1 truncate text-[10px] font-medium text-zinc-400">{relationshipReason}</div>
-          ) : null}
         </div>
         {score && score > 0 ? (
-          <div className="hidden shrink-0 text-right min-[380px]:block">
+          <div className="hidden w-16 shrink-0 text-right min-[380px]:block">
             <div className="creator-themed-link text-sm font-bold">{formatCount(score)}</div>
             <div className="text-[9px] uppercase tracking-wide text-zinc-500">{scoreLabel || 'signals'}</div>
           </div>
         ) : null}
       </Link>
-      <button type="button" className="stage1a-play-button shrink-0" onClick={() => void playItem(item)}>
-        ▶ <span className="hidden sm:inline">Play</span>
-      </button>
     </article>
   );
 }
 
-function RankedSurfaceCard({ surface }: { surface: RankedSurface }) {
+function RankedSurfaceCard({ surface, id }: { surface: RankedSurface; id?: string }) {
   if (surface.items.length === 0) return null;
   const showPrice = surface.key === 'unlockable-works';
   return (
-    <section className="signal-surface-card min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
+    <section id={id || surface.key} className="signal-surface-card min-w-0 scroll-mt-40 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">
         <div className="min-w-0">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">{surface.title}</h2>
@@ -788,6 +757,46 @@ function RankedSurfaceCard({ surface }: { surface: RankedSurface }) {
           />
         ))}
       </div>
+    </section>
+  );
+}
+
+function ExpandedRankedSurface({ surface, id }: { surface: RankedSurface; id: string }) {
+  if (surface.items.length === 0) return null;
+  const showPrice = surface.key === 'unlockable-works';
+  return (
+    <section id={id} className="signal-surface-card min-w-0 scroll-mt-40 overflow-hidden rounded-3xl border border-zinc-800/90 bg-zinc-950/75 p-3 shadow-2xl shadow-black/30 sm:p-5">
+      <div className="flex min-w-0 items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-200/80">Discovery signal</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">{surface.title}</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">{surface.subtitle}</p>
+        </div>
+        <span className="mt-2 h-3 w-3 shrink-0 rounded-full bg-amber-300/80 shadow-lg shadow-amber-300/20" aria-hidden="true" />
+      </div>
+
+      <div className="mt-5 grid min-w-0 grid-cols-1 gap-2.5 lg:grid-cols-2">
+        {surface.items.slice(0, 12).map((item, index) => (
+          <RankingRow
+            key={`${surface.key}:expanded:${itemKey(item)}`}
+            item={item}
+            rank={index + 1}
+            score={surface.scoreFor?.(item)}
+            scoreLabel={surface.scoreLabel}
+            showPrice={showPrice}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function EmptyDiscoveryContext({ id, title }: { id: DiscoveryContext; title: string }) {
+  return (
+    <section id={id} className="min-w-0 scroll-mt-40 rounded-3xl border border-zinc-800/90 bg-zinc-950/70 p-5 shadow-2xl shadow-black/30">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-200/80">Discovery signal</p>
+      <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">{title}</h1>
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">No public signal data is available for this context yet.</p>
     </section>
   );
 }
@@ -837,7 +846,7 @@ function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank:
 function CreatorNetworkCard({ creators }: { creators: CreatorSpotlight[] }) {
   if (creators.length === 0) return null;
   return (
-    <section className="creator-network-card min-w-0 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
+    <section className="creator-network-card min-w-0 scroll-mt-40 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">
         <div className="min-w-0">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-100">Active Creator Ecosystems</h2>
@@ -850,6 +859,23 @@ function CreatorNetworkCard({ creators }: { creators: CreatorSpotlight[] }) {
           <CompactCreatorRow key={`active-creator:${creator.key}`} creator={creator} rank={index + 1} />
         ))}
       </div>
+    </section>
+  );
+}
+
+function ExpandedCreatorNetwork({ creators }: { creators: CreatorSpotlight[] }) {
+  if (creators.length === 0) return null;
+  return (
+    <section id="active-creator-ecosystems" className="min-w-0 scroll-mt-40 space-y-4 overflow-hidden rounded-3xl border border-zinc-800/90 bg-zinc-950/75 p-3 shadow-2xl shadow-black/30 sm:p-5">
+      <div className="flex min-w-0 items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-200/80">Discovery signal</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">Active Creator Ecosystems</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">Creators with public works, catalog activity, connected releases, and visible ecosystem momentum.</p>
+        </div>
+        <span className="mt-2 h-3 w-3 shrink-0 rounded-full bg-amber-300/80 shadow-lg shadow-amber-300/20" aria-hidden="true" />
+      </div>
+      <CreatorEcosystemGrid creators={creators} />
     </section>
   );
 }
@@ -867,11 +893,11 @@ function TopActivityBoard({
 }) {
   if (surfaces.length === 0 && activeCreators.length === 0 && recentItems.length === 0 && unlockableItems.length === 0) return null;
   return (
-    <section className="creator-economy-board w-full min-w-0 overflow-hidden rounded-3xl border border-zinc-800/90 p-2.5 shadow-2xl shadow-black/40 sm:p-4">
+    <section id="creator-economy-board" className="creator-economy-board w-full min-w-0 scroll-mt-40 overflow-hidden rounded-3xl border border-zinc-800/90 p-2.5 shadow-2xl shadow-black/40 sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-3 px-1">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-200/80">Creator economy board</p>
-          <h1 className="mt-1 text-lg font-semibold tracking-tight text-zinc-50 sm:text-xl">Ranked creators, works, and momentum</h1>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-200/80">Network Pulse</p>
+          <h1 className="mt-1 text-lg font-semibold tracking-tight text-zinc-50 sm:text-xl">Creator Economy Board</h1>
         </div>
         <a
           href="#creator-ecosystems"
@@ -886,20 +912,22 @@ function TopActivityBoard({
           <RankedSurfaceCard
             surface={{
               key: 'recently-added',
-              title: 'Recently Added',
+              title: 'Recently Published',
               subtitle: 'Fresh public works from active creators',
               items: recentItems,
             }}
+            id="recently-published"
           />
         ) : null}
         {unlockableItems.length > 0 ? (
           <RankedSurfaceCard
             surface={{
               key: 'unlockable-works',
-              title: 'Unlockable Works',
+              title: 'Premium Works',
               subtitle: 'Premium works to explore here and unlock on creator pages',
               items: unlockableItems,
             }}
+            id="premium-works-board"
           />
         ) : null}
         {surfaces.slice(0, 4).map((surface) => (
@@ -910,11 +938,60 @@ function TopActivityBoard({
   );
 }
 
+type DiscoveryContext =
+  | 'creator-economy-board'
+  | 'active-creator-ecosystems'
+  | 'recently-published'
+  | 'premium-works'
+  | 'top-selling'
+  | 'top-connected'
+  | 'fastest-moving'
+  | 'free-drops'
+  | 'creator-ecosystems'
+  | 'following'
+  | 'recently-played'
+  | 'saved';
+
+const discoveryContexts = new Set<DiscoveryContext>([
+  'creator-economy-board',
+  'active-creator-ecosystems',
+  'recently-published',
+  'premium-works',
+  'top-selling',
+  'top-connected',
+  'fastest-moving',
+  'free-drops',
+  'creator-ecosystems',
+  'following',
+  'recently-played',
+  'saved',
+]);
+
+const topicScopes = new Set<Topic>(['all', 'entertainment', 'music', 'news', 'gaming', 'sports', 'technology']);
+const extraScopes = new Set<ExtraScope>(['trending', 'new', 'live', 'following']);
+
+function readDiscoveryContext(hashValue?: string): DiscoveryContext {
+  const hash = (hashValue ?? (typeof window === 'undefined' ? '' : window.location.hash)).replace(/^#/, '');
+  return discoveryContexts.has(hash as DiscoveryContext) ? (hash as DiscoveryContext) : 'creator-economy-board';
+}
+
+function readScope(searchValue?: string): { topic: Topic; extraScope: ExtraScope | null } {
+  const params = new URLSearchParams(searchValue ?? (typeof window === 'undefined' ? '' : window.location.search));
+  const scope = (params.get('scope') || 'all').toLowerCase();
+  if (topicScopes.has(scope as Topic)) return { topic: scope as Topic, extraScope: null };
+  if (extraScopes.has(scope as ExtraScope)) return { topic: 'all', extraScope: scope as ExtraScope };
+  return { topic: 'all', extraScope: null };
+}
+
 export function HomePage() {
+  const { setFreeDropQueue } = useStage1APlayer();
+  const location = useLocation();
+  const navigate = useNavigate();
   const logoSrc = `${import.meta.env.BASE_URL}header-logo.svg`;
   const [origins, setOrigins] = useState<string[]>([]);
   const [originsLoaded, setOriginsLoaded] = useState(false);
-  const [topic, setTopic] = useState<Topic>('all');
+  const { topic, extraScope } = useMemo(() => readScope(location.search), [location.search]);
+  const discoveryContext = useMemo(() => readDiscoveryContext(location.hash), [location.hash]);
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<DiscoverableItem[]>([]);
   const [signals, setSignals] = useState<DiscoverySignalsResponse[]>([]);
@@ -954,8 +1031,25 @@ export function HomePage() {
   }, []);
 
   function onTopicChange(next: Topic) {
-    setTopic(next);
+    navigate({ pathname: '/', search: `?scope=${next}`, hash: location.hash || '#creator-economy-board' });
   }
+
+  function onExtraScopeChange(next: ExtraScope) {
+    navigate({ pathname: '/', search: `?scope=${next}`, hash: location.hash || '#creator-economy-board' });
+  }
+
+  useEffect(() => {
+    window.requestAnimationFrame(() => {
+      if (location.hash === '#certifyd-player-search') {
+        document.getElementById('certifyd-player-search')?.focus();
+        return;
+      }
+      const target = document.getElementById(discoveryContext);
+      if (target) {
+        target.scrollIntoView({ block: 'start' });
+      }
+    });
+  }, [discoveryContext, location.hash]);
 
   const inActiveScope = useCallback((item: DiscoverableItem) => {
     if (topic !== 'all') {
@@ -1186,12 +1280,18 @@ export function HomePage() {
       if (!isRenderableDiscoveryItem(it)) return false;
       return searchableText(it).includes(q);
     });
-    const freeLaneBase = searched.filter((it) => !isLockedOrPremium(it) && (it.accessMode === 'unlocked' || it.accessMode === 'owned'));
-    const lockedLaneBase = searched.filter((it) => isLockedOrPremium(it));
+    const liveItems = searched.filter((it) => it.discoveryStatus === 'live' || it.originHealth === 'healthy');
+    const scoped = extraScope === 'new'
+      ? sortNewestFirst(searched)
+      : extraScope === 'live' && liveItems.length > 0
+        ? liveItems
+        : searched;
+    const freeLaneBase = scoped.filter((it) => !isLockedOrPremium(it) && (it.accessMode === 'unlocked' || it.accessMode === 'owned'));
+    const lockedLaneBase = scoped.filter((it) => isLockedOrPremium(it));
     const freeLane = topic === 'all' ? sortStableRandom(freeLaneBase, `${randomSeed}:free`) : freeLaneBase;
     const lockedLane = topic === 'all' ? sortStableRandom(lockedLaneBase, `${randomSeed}:locked`) : lockedLaneBase;
     return [...freeLane, ...lockedLane];
-  }, [items, query, topic, randomSeed]);
+  }, [extraScope, items, query, topic, randomSeed]);
   const discoveryView = useMemo(() => buildHomeDiscoveryViewModel(filtered), [filtered]);
   const signalWorks = useMemo(() => {
     const topSelling = dedupeSignalWorks(signals.flatMap((signal) => signal.works?.topSelling || []));
@@ -1253,34 +1353,14 @@ export function HomePage() {
     () => (topic === 'all' ? sortStableRandom(discoveryView.freeItems, `${randomSeed}:free:view`) : discoveryView.freeItems),
     [discoveryView.freeItems, topic, randomSeed]
   );
+
+  useEffect(() => {
+    setFreeDropQueue(freeItems.slice(0, 24));
+  }, [freeItems, setFreeDropQueue]);
   const lockedItems = useMemo(
     () => (topic === 'all' ? sortStableRandom(discoveryView.lockedItems, `${randomSeed}:locked:view`) : discoveryView.lockedItems),
     [discoveryView.lockedItems, topic, randomSeed]
   );
-  const secondaryRails = useMemo(() => {
-    const primaryKeys = new Set<string>();
-    [
-      ...freeItems.slice(0, 8),
-      ...lockedItems.slice(0, 8),
-      ...(discoveryView.supportedRail?.items || []),
-      ...(discoveryView.recentRail?.items || []),
-    ]
-      .forEach((item) => primaryKeys.add(itemKey(item)));
-
-    const rails: DiscoveryRail[] = [];
-    rails.push(...discoveryView.dynamicRails);
-    const seen = new Set<string>();
-    return rails.map((rail) => ({
-      ...rail,
-      items: rail.items.filter((item) => !primaryKeys.has(itemKey(item))),
-    })).filter((rail) => {
-      if (rail.items.length < 3) return false;
-      const signature = rail.items.map((item) => `${item.publicOrigin}:${item.contentId}`).join('|');
-      if (!signature || seen.has(signature)) return false;
-      seen.add(signature);
-      return true;
-    }).slice(0, 3);
-  }, [discoveryView, freeItems, lockedItems]);
   const topSurfaces = useMemo(() => {
     const scoreFromSignal = (kind: 'support' | 'unlock' | 'moving' | 'connected') => (item: DiscoverableItem) =>
       signalScoreByWork.get(itemKey(item))?.[kind] || 0;
@@ -1289,11 +1369,11 @@ export function HomePage() {
     const topSellingScoped = signalWorks.topSellingItems.filter(inActiveScope);
     const movingScoped = signalWorks.fastestMovingItems.filter(inActiveScope);
 
-    const connected = connectedScoped.length > 0 ? connectedScoped.slice(0, 6) : [];
-    const topSelling = topSellingScoped.slice(0, 6);
+    const connected = connectedScoped.length > 0 ? connectedScoped.slice(0, 12) : [];
+    const topSelling = topSellingScoped.slice(0, 12);
     const usedSignalKeys = new Set([...connected, ...topSelling].map(itemKey));
     const moving = movingScoped.length > 0
-      ? movingScoped.filter((item) => !usedSignalKeys.has(itemKey(item))).slice(0, 6)
+      ? movingScoped.filter((item) => !usedSignalKeys.has(itemKey(item))).slice(0, 12)
       : [];
 
     const surfaces: RankedSurface[] = [];
@@ -1337,10 +1417,36 @@ export function HomePage() {
       ...signalWorks.fastestMovingItems,
     ].filter(inActiveScope);
     const discoverableRecent = discoveryView.recentRail?.items || [];
-    return sortNewestFirst(dedupeDiscoveryItems([...signalRecent, ...discoverableRecent])).slice(0, 5);
+    return sortNewestFirst(dedupeDiscoveryItems([...signalRecent, ...discoverableRecent]));
   }, [discoveryView.recentRail, inActiveScope, signalWorks.collaborativeItems, signalWorks.fastestMovingItems, signalWorks.recentlyAddedItems, signalWorks.recentlySupportedItems]);
-  const boardUnlockableItems = useMemo(() => lockedItems.slice(0, 5), [lockedItems]);
+  const boardUnlockableItems = useMemo(() => lockedItems, [lockedItems]);
   const hasHomepageContent = filtered.length > 0 || homepageCreators.length > 0 || topSurfaces.some((surface) => surface.items.length > 0);
+  const recentlyPublishedSurface = useMemo<RankedSurface>(() => ({
+    key: 'recently-added',
+    title: 'Recently Published',
+    subtitle: 'Fresh public works from active creators',
+    items: boardRecentItems,
+  }), [boardRecentItems]);
+  const premiumWorksSurface = useMemo<RankedSurface>(() => ({
+    key: 'unlockable-works',
+    title: 'Premium Works',
+    subtitle: 'Premium works to explore here and unlock on creator pages',
+    items: boardUnlockableItems,
+  }), [boardUnlockableItems]);
+  const surfaceByContext = useMemo(() => {
+    const byContext = new Map<DiscoveryContext, RankedSurface>();
+    byContext.set('recently-published', recentlyPublishedSurface);
+    byContext.set('premium-works', premiumWorksSurface);
+    for (const surface of topSurfaces) {
+      if (surface.key === 'top-selling' || surface.key === 'top-connected' || surface.key === 'fastest-moving') {
+        byContext.set(surface.key, surface);
+      }
+    }
+    return byContext;
+  }, [premiumWorksSurface, recentlyPublishedSurface, topSurfaces]);
+  const selectedSurface = surfaceByContext.get(discoveryContext);
+  const showOverview = discoveryContext === 'creator-economy-board';
+  const selectedContextLabel = selectedSurface?.title || (discoveryContext === 'active-creator-ecosystems' ? 'Active Creator Ecosystems' : discoveryContext.split('-').map((word) => word[0].toUpperCase() + word.slice(1)).join(' '));
 
   return (
     <main className="app-shell min-h-screen text-zinc-100">
@@ -1351,7 +1457,7 @@ export function HomePage() {
               <source media="(max-width: 640px)" srcSet={`${import.meta.env.BASE_URL}header-logo-mobile.svg`} />
               <img
                 src={logoSrc}
-                alt="Certifyd Discovery"
+                alt="Certifyd Player"
                 className="h-14 w-auto object-contain sm:h-16"
                 style={{ filter: "brightness(1.14) saturate(1.16) sepia(0.14)" }}
                 loading="eager"
@@ -1362,14 +1468,15 @@ export function HomePage() {
           </div>
           <div className="ml-auto w-full max-w-xl">
             <input
+              id="certifyd-player-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search creators, drops, music, stories..."
+              placeholder="Search creators, works, drops, videos..."
               className="search-input w-full rounded-full border border-zinc-700/80 bg-zinc-900/80 px-5 py-2.5 text-sm outline-none placeholder:text-zinc-500 focus:border-amber-300/70"
             />
           </div>
         </div>
-        <TopicRail active={topic} onChange={onTopicChange} />
+        <TopicRail active={topic} activeExtra={extraScope} onChange={onTopicChange} onExtraChange={onExtraScopeChange} />
       </header>
 
       <section className="mx-auto max-w-7xl space-y-3 px-4 py-4">
@@ -1391,7 +1498,7 @@ export function HomePage() {
           </div>
         ) : null}
 
-        {hasHomepageContent ? (
+        {hasHomepageContent && showOverview ? (
           <TopActivityBoard
             surfaces={topSurfaces}
             activeCreators={homepageCreators}
@@ -1400,9 +1507,25 @@ export function HomePage() {
           />
         ) : null}
 
+        {!showOverview && discoveryContext === 'active-creator-ecosystems' ? (
+          <ExpandedCreatorNetwork creators={homepageCreators} />
+        ) : null}
+
+        {!showOverview && discoveryContext === 'active-creator-ecosystems' && homepageCreators.length === 0 ? (
+          <EmptyDiscoveryContext id="active-creator-ecosystems" title="Active Creator Ecosystems" />
+        ) : null}
+
+        {!showOverview && selectedSurface ? (
+          <ExpandedRankedSurface surface={selectedSurface} id={discoveryContext} />
+        ) : null}
+
+        {!showOverview && discoveryContext !== 'free-drops' && discoveryContext !== 'creator-ecosystems' && discoveryContext !== 'active-creator-ecosystems' && !selectedSurface ? (
+          <EmptyDiscoveryContext id={discoveryContext} title={selectedContextLabel} />
+        ) : null}
+
         <div className="space-y-6">
-          {freeItems.length > 0 ? (
-            <section className="space-y-3">
+          {discoveryContext === 'free-drops' && freeItems.length > 0 ? (
+            <section id="free-drops" className="space-y-3 scroll-mt-40">
               <RailHeader title="Free Drops" subtitle="Open works fans can play while exploring creators" badge="Open" />
               <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
                 {freeItems.slice(0, 12).map((item) => {
@@ -1419,31 +1542,20 @@ export function HomePage() {
             </section>
           ) : null}
 
-          {homepageCreators.length > 0 ? (
+          {discoveryContext === 'free-drops' && freeItems.length === 0 ? (
+            <EmptyDiscoveryContext id="free-drops" title="Free Drops" />
+          ) : null}
+
+          {discoveryContext === 'creator-ecosystems' && homepageCreators.length > 0 ? (
             <section id="creator-ecosystems" className="space-y-3 scroll-mt-40">
               <RailHeader title="Creator Ecosystems" subtitle="Hub creators, connected works, and active public catalogs" />
               <CreatorEcosystemGrid creators={homepageCreators} />
             </section>
           ) : null}
 
-          {lockedItems.length > 0 ? (
-            <section className="space-y-3">
-              <RailHeader title="Premium Works" subtitle="Explore context here, unlock on the official creator page" badge="Lightning" />
-              <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {lockedItems.slice(0, 8).map((item) => (
-                  <FeedCard key={`${item.publicOrigin}:${item.contentId}`} item={item} />
-                ))}
-              </div>
-            </section>
+          {discoveryContext === 'creator-ecosystems' && homepageCreators.length === 0 ? (
+            <EmptyDiscoveryContext id="creator-ecosystems" title="Creator Ecosystems" />
           ) : null}
-
-          {discoveryView.supportedRail ? <ContentRail rail={discoveryView.supportedRail} /> : null}
-
-          {discoveryView.recentRail ? <ContentRail rail={discoveryView.recentRail} /> : null}
-
-          {secondaryRails.map((rail) => (
-            <ContentRail key={rail.key} rail={rail} />
-          ))}
         </div>
 
         {origins.length > 0 && !allDone ? <div ref={sentinelRef} className="h-8 w-full" aria-hidden="true" /> : null}

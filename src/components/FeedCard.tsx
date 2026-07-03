@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { DiscoverableItem } from '../lib/types';
-import { canOpenCreator, isLockedOrPremium } from '../lib/discoveryGuard';
+import { canOpenCreator } from '../lib/discoveryGuard';
+import { displayStateFromItem } from '../lib/playbackDisplay';
 import { getCardThemeVars } from '../lib/profileTheme';
 import { useStage1APlayer } from './stage1APlayerContext';
 
@@ -12,14 +13,7 @@ function modeMetaText(mode: DiscoverableItem['accessMode'], priceSats: number) {
 }
 
 function ctaLabel(item: DiscoverableItem) {
-  if (isLockedOrPremium(item)) return 'Unlock on Creator';
-  return 'Open on Creator';
-}
-
-function primaryLabel(item: DiscoverableItem): string {
-  if (isLockedOrPremium(item)) return 'Premium';
-  if (item.accessMode === 'owned') return 'Owned';
-  return 'Free';
+  return displayStateFromItem(item).ctaLabel;
 }
 
 function sourceLabel(origin: string): string {
@@ -38,41 +32,10 @@ function avatarInitials(handle: string | null): string {
   return raw.slice(0, 2).toUpperCase();
 }
 
-function useNearViewport() {
-  const ref = useRef<HTMLElement | null>(null);
-  const [nearViewport, setNearViewport] = useState(false);
-
-  useEffect(() => {
-    if (nearViewport) return;
-    const node = ref.current;
-    if (!node) return;
-    if (typeof IntersectionObserver === 'undefined') {
-      queueMicrotask(() => setNearViewport(true));
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0]?.isIntersecting) return;
-        setNearViewport(true);
-        observer.disconnect();
-      },
-      { root: null, rootMargin: '600px 0px', threshold: 0.01 },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [nearViewport]);
-
-  return { ref, nearViewport };
-}
-
 export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableItem }) {
   const { playItem } = useStage1APlayer();
-  const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
-  const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
-  const { ref: cardRef, nearViewport } = useNearViewport();
   const watchHref = `/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`;
   const creator = item.creatorHandle || 'creator';
   const creatorHandleClean = String(item.creatorHandle || '').trim().replace(/^@+/, '');
@@ -81,14 +44,10 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
       ? `${String(item.publicOrigin).replace(/\/+$/, '')}/u/${encodeURIComponent(creatorHandleClean)}`
       : null;
   const source = sourceLabel(item.publicOrigin);
+  const playbackDisplay = displayStateFromItem(item);
   const metadata = `${item.primaryTopic || 'topic'} · ${item.contentType} · ${modeMetaText(item.accessMode, item.priceSats)}`;
-  const normalizedType = String(item.contentType || '').toLowerCase();
-  const lockedForFan = isLockedOrPremium(item);
-  const prefersPreviewFirst = normalizedType === 'video';
-  const canShowVideo = !lockedForFan && prefersPreviewFirst && Boolean(item.previewUrl) && !videoFailed;
-  const videoSrc = canShowVideo && nearViewport ? item.previewUrl : undefined;
   const canShowImage = Boolean(item.coverUrl) && !imageFailed;
-  const hasMedia = canShowVideo || canShowImage;
+  const hasMedia = canShowImage;
   const avatarUrl =
     item.creatorAvatarUrl ||
     item.creatorProfileImageUrl ||
@@ -99,6 +58,9 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
   const mediaHref = watchHref;
   const mediaIsExternal = mediaHref === item.buyUrl;
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
+  const playFromCardOpen = () => {
+    void playItem(item);
+  };
   const avatarGradient = useMemo(() => {
     const seed = creator.toLowerCase().charCodeAt(0) || 0;
     const gradients = [
@@ -111,53 +73,32 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
   }, [creator]);
 
   return (
-    <article ref={cardRef} className="creator-themed-card group overflow-hidden rounded-2xl border p-2" style={themeVars}>
+    <article className="creator-themed-card group overflow-hidden rounded-2xl border p-2" style={themeVars}>
       {mediaIsExternal ? (
         <a href={mediaHref} target="_blank" rel="noreferrer" className="block">
           <div className="creator-themed-media relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5">
             <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                lockedForFan
+                playbackDisplay.state === 'preview'
                   ? 'creator-themed-badge border'
                   : 'creator-themed-badge-muted border'
               }`}>
-                {primaryLabel(item)}
+                {playbackDisplay.label}
               </span>
               <span className="creator-themed-badge rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                 Lightning
               </span>
             </div>
             {hasMedia ? (
-              canShowVideo ? (
-                <video
-                  src={videoSrc}
-                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                  muted
-                  autoPlay
-                  loop
-                  playsInline
-                  preload="metadata"
-                  onError={() => setVideoFailed(true)}
-                />
-              ) : canShowImage ? (
-                <img
-                  src={item.coverUrl}
-                  alt={item.title || 'Content cover'}
-                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                  loading="lazy"
-                  decoding="async"
-                  referrerPolicy="no-referrer"
-                  onError={() => setImageFailed(true)}
-                />
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
-                  <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" loading="lazy" decoding="async" />
-                  <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
-                  <p className="mt-1 text-xs text-zinc-400">
-                    {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
-                  </p>
-                </div>
-              )
+              <img
+                src={item.coverUrl}
+                alt={item.title || 'Content cover'}
+                className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                loading="lazy"
+                decoding="async"
+                referrerPolicy="no-referrer"
+                onError={() => setImageFailed(true)}
+              />
             ) : (
               <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
                 <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
@@ -170,51 +111,30 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
           </div>
         </a>
       ) : (
-      <Link to={watchHref} state={{ item }} className="block">
+      <Link to={watchHref} state={{ item }} className="block" onClick={playFromCardOpen}>
         <div className="creator-themed-media relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5">
           <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-              lockedForFan
+              playbackDisplay.state === 'preview'
                 ? 'creator-themed-badge border'
                 : 'creator-themed-badge-muted border'
             }`}>
-              {primaryLabel(item)}
+              {playbackDisplay.label}
             </span>
             <span className="creator-themed-badge rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
               Lightning
             </span>
           </div>
           {hasMedia ? (
-            canShowVideo ? (
-              <video
-                src={videoSrc}
-                className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                muted
-                autoPlay
-                loop
-                playsInline
-                preload="metadata"
-                onError={() => setVideoFailed(true)}
-              />
-            ) : canShowImage ? (
-                <img
-                  src={item.coverUrl}
-                  alt={item.title || 'Content cover'}
-                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                  loading="lazy"
-                  decoding="async"
-                  referrerPolicy="no-referrer"
-                  onError={() => setImageFailed(true)}
-                />
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
-                <img src={fallbackLogo} alt="" className="mb-3 h-10 w-auto opacity-70" loading="lazy" decoding="async" />
-                <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
-                <p className="mt-1 text-xs text-zinc-400">
-                  {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
-                </p>
-              </div>
-            )
+            <img
+              src={item.coverUrl}
+              alt={item.title || 'Content cover'}
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+              onError={() => setImageFailed(true)}
+            />
           ) : (
             <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
               <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
@@ -274,7 +194,7 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
           </div>
         )}
         <div className="min-w-0">
-          <Link to={watchHref} state={{ item }} className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100 hover:underline">
+          <Link to={watchHref} state={{ item }} className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100 hover:underline" onClick={playFromCardOpen}>
             {item.title || 'Untitled'}
           </Link>
           <p className="mt-0.5 text-xs text-zinc-400">@{creator}</p>
@@ -294,7 +214,7 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
           >
             {ctaLabel(item)}
           </a>
-          <button type="button" className="stage1a-play-button mt-1.5" onClick={() => void playItem(item)}>
+          <button type="button" className="stage1a-play-button mt-1.5" onClick={playFromCardOpen}>
             ▶ Play in Certifyd
           </button>
         </div>

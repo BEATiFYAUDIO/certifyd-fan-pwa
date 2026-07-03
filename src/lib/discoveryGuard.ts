@@ -31,7 +31,3 @@ export function isLockedOrPremium(item: DiscoverableItem | null | undefined): bo
   if (!item) return false;
   return item.accessMode === 'locked' || Number(item.priceSats || 0) > 0;
 }
-
-export function canPlayInFan(item: DiscoverableItem | null | undefined): boolean {
-  return Boolean(item) && !isLockedOrPremium(item);
-}
