@@ -128,9 +128,6 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
             </Link>
             <p className="mt-1 text-sm text-zinc-200">@{creator}</p>
             {meta ? <p className="mt-0.5 text-xs text-zinc-400">{meta}</p> : null}
-            <button type="button" className="stage1a-play-button pointer-events-auto mt-2" onClick={playFreeDrop}>
-              ▶ Play in Certifyd
-            </button>
           </div>
         </div>
       </div>

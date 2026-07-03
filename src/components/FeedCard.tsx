@@ -214,9 +214,6 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
           >
             {ctaLabel(item)}
           </a>
-          <button type="button" className="stage1a-play-button mt-1.5" onClick={playFromCardOpen}>
-            ▶ Play in Certifyd
-          </button>
         </div>
       </div>
     </article>
