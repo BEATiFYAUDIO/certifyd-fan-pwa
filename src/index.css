@@ -1196,19 +1196,30 @@ body.has-stage1a-player {
 }
 
 .stage1a-rich-visual-landscape {
-  aspect-ratio: auto;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  min-height: 0;
 }
 
 .stage1a-rich-visual-portrait {
-  aspect-ratio: auto;
+  aspect-ratio: 9 / 16;
+  height: min(68dvh, 720px);
+  max-width: min(100%, 420px);
+  justify-self: center;
 }
 
 .stage1a-rich-visual-square {
-  aspect-ratio: auto;
+  aspect-ratio: 1;
+  height: auto;
+  min-height: 0;
+  max-width: min(100%, 520px);
+  justify-self: center;
 }
 
 .stage1a-rich-visual-unknown {
-  aspect-ratio: auto;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  min-height: 0;
 }
 
 .stage1a-rich-player .stage1a-player-video {
@@ -1223,7 +1234,7 @@ body.has-stage1a-player {
 
 .stage1a-rich-visual-portrait .stage1a-player-video,
 .stage1a-rich-visual-portrait .stage1a-rich-artwork {
-  width: auto;
+  width: 100%;
   height: 100%;
   aspect-ratio: 9 / 16;
   max-width: 100%;
@@ -2149,19 +2160,30 @@ body.has-stage1a-player {
   }
 
   .stage1a-rich-visual-landscape {
-    aspect-ratio: auto;
+    aspect-ratio: 16 / 9;
+    height: auto;
+    min-height: 0;
   }
 
   .stage1a-rich-visual-portrait {
-    aspect-ratio: auto;
+    aspect-ratio: 9 / 16;
+    height: min(72vh, 760px);
+    max-width: min(100%, 430px);
+    justify-self: center;
   }
 
   .stage1a-rich-visual-square {
-    aspect-ratio: auto;
+    aspect-ratio: 1;
+    height: auto;
+    min-height: 0;
+    max-width: min(100%, 520px);
+    justify-self: center;
   }
 
   .stage1a-rich-visual-unknown {
-    aspect-ratio: auto;
+    aspect-ratio: 16 / 9;
+    height: auto;
+    min-height: 0;
   }
 
   .stage1a-rich-player .stage1a-player-video {
@@ -2176,7 +2198,7 @@ body.has-stage1a-player {
 
   .stage1a-rich-visual-portrait .stage1a-player-video,
   .stage1a-rich-visual-portrait .stage1a-rich-artwork {
-    width: auto;
+    width: 100%;
     height: 100%;
     aspect-ratio: 9 / 16;
     max-width: 100%;

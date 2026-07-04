@@ -1577,10 +1577,6 @@ export function HomePage() {
     () => (topic === 'all' ? sortStableRandom(discoveryView.freeItems, `${randomSeed}:free:view`) : discoveryView.freeItems),
     [discoveryView.freeItems, topic, randomSeed]
   );
-
-  useEffect(() => {
-    setFreeDropQueue(freeItems.slice(0, 24));
-  }, [freeItems, setFreeDropQueue]);
   const lockedItems = useMemo(
     () => (topic === 'all' ? sortStableRandom(discoveryView.lockedItems, `${randomSeed}:locked:view`) : discoveryView.lockedItems),
     [discoveryView.lockedItems, topic, randomSeed]
@@ -1679,6 +1675,21 @@ export function HomePage() {
   const showOverview = discoveryContext === 'creator-economy-board';
   const showSaved = discoveryContext === 'saved';
   const showFollowing = discoveryContext === 'following';
+  const activeAutoplayQueue = useMemo(() => {
+    if (selectedSurface?.items.length) return selectedSurface.items;
+    if (discoveryContext === 'free-drops') return freeItems;
+    if (showOverview) {
+      return dedupeDiscoveryItems([
+        ...topSurfaces.flatMap((surface) => surface.items),
+        ...boardRecentItems,
+        ...boardUnlockableItems,
+      ]);
+    }
+    return freeItems;
+  }, [boardRecentItems, boardUnlockableItems, discoveryContext, freeItems, selectedSurface, showOverview, topSurfaces]);
+  useEffect(() => {
+    setFreeDropQueue(activeAutoplayQueue.slice(0, 48));
+  }, [activeAutoplayQueue, setFreeDropQueue]);
   const selectedContextLabel = selectedSurface?.title || (discoveryContext === 'active-creator-ecosystems' ? 'Active Creator Ecosystems' : discoveryContext.split('-').map((word) => word[0].toUpperCase() + word.slice(1)).join(' '));
   const activeScopeLabel =
     extraScope

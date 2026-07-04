@@ -597,18 +597,41 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [item, state]);
 
+  const playNextQueuedItem = useCallback((fromItem: Stage1APlayerItem | null = item) => {
+    if (!fromItem) return false;
+    const currentIndex = freeDropQueue.findIndex((queueItem) =>
+      queueItem.contentId === fromItem.contentId && queueItem.publicOrigin === fromItem.publicOrigin
+    );
+    if (currentIndex < 0 || currentIndex >= freeDropQueue.length - 1) return false;
+    void playItem(freeDropQueue[currentIndex + 1]);
+    return true;
+  }, [freeDropQueue, item, playItem]);
+
+  const playPreviousQueuedItem = useCallback((fromItem: Stage1APlayerItem | null = item) => {
+    if (!fromItem) return false;
+    const currentIndex = freeDropQueue.findIndex((queueItem) =>
+      queueItem.contentId === fromItem.contentId && queueItem.publicOrigin === fromItem.publicOrigin
+    );
+    if (currentIndex <= 0) return false;
+    void playItem(freeDropQueue[currentIndex - 1]);
+    return true;
+  }, [freeDropQueue, item, playItem]);
+
   const onTimeUpdate = useCallback((event: SyntheticEvent<HTMLMediaElement>) => {
     const media = event.currentTarget;
     setProgress(media.currentTime || 0);
     setDuration(Number.isFinite(media.duration) ? media.duration : 0);
     const limit = item?.playback.mode === 'preview' ? item.playback.previewLimitSeconds : null;
-    if (!limit || media.currentTime < limit) return;
+    if (!limit || media.currentTime < limit || endingRef.current) return;
     endingRef.current = true;
     try { media.pause(); } catch { /* ignore */ }
     try { media.currentTime = Math.max(0, limit); } catch { /* ignore */ }
     setState('ended');
     setMessage('Preview ended. Support the creator for full access.');
-  }, [item]);
+    if (autoplayNext && playNextQueuedItem(item)) {
+      setMessage('Preview ended. Playing next.');
+    }
+  }, [autoplayNext, item, playNextQueuedItem]);
 
   const togglePlay = useCallback(() => {
     const media = activeMediaRef.current;
@@ -664,14 +687,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   }, [freeDropQueue, item]);
 
   const playNextFreeDrop = useCallback(() => {
-    if (currentFreeDropIndex < 0 || currentFreeDropIndex >= freeDropQueue.length - 1) return;
-    void playItem(freeDropQueue[currentFreeDropIndex + 1], { mediaAspect: 'portrait' });
-  }, [currentFreeDropIndex, freeDropQueue, playItem]);
+    playNextQueuedItem();
+  }, [playNextQueuedItem]);
 
   const playPreviousFreeDrop = useCallback(() => {
-    if (currentFreeDropIndex <= 0) return;
-    void playItem(freeDropQueue[currentFreeDropIndex - 1], { mediaAspect: 'portrait' });
-  }, [currentFreeDropIndex, freeDropQueue, playItem]);
+    playPreviousQueuedItem();
+  }, [playPreviousQueuedItem]);
 
   const canPlayNextFreeDrop = currentFreeDropIndex >= 0 && currentFreeDropIndex < freeDropQueue.length - 1;
   const canPlayPreviousFreeDrop = currentFreeDropIndex > 0;
@@ -803,10 +824,9 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     endingRef.current = true;
     setState('ended');
     setMessage('Ended');
-    if (!autoplayNext || item?.playback.mode !== 'full') return;
-    if (currentFreeDropIndex < 0 || currentFreeDropIndex >= freeDropQueue.length - 1) return;
-    void playItem(freeDropQueue[currentFreeDropIndex + 1], { mediaAspect: 'portrait' });
-  }, [autoplayNext, currentFreeDropIndex, freeDropQueue, item, playItem]);
+    if (!autoplayNext) return;
+    if (playNextQueuedItem(item)) setMessage('Ended. Playing next.');
+  }, [autoplayNext, item, playNextQueuedItem]);
   const toggleAutoplayNext = useCallback(() => {
     setAutoplayNext((current) => {
       const next = !current;
@@ -909,9 +929,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               onPause={() => { if (!endingRef.current && state !== 'ended' && activeMediaRef.current?.currentTime) { setState('paused'); setMessage('Paused'); } }}
               onLoadedMetadata={(event) => {
                 setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0);
-                if (!mediaAspectHintRef.current) {
-                  setMediaAspect(classifyAspect(event.currentTarget.videoWidth, event.currentTarget.videoHeight));
-                }
+                setMediaAspect(classifyAspect(event.currentTarget.videoWidth, event.currentTarget.videoHeight));
               }}
               onTimeUpdate={onTimeUpdate}
               onEnded={handleEnded}
