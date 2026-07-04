@@ -890,6 +890,11 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           item?.mediaKind ? `Media: ${item.mediaKind}` : '',
           item?.playbackLabel ? `State: ${item.playbackLabel}` : '',
           ...(item?.detailLabels || []),
+          ...(item?.connectedLabels.length ? ['Connections', ...item.connectedLabels] : []),
+          ...(drawerContent?.lineage?.length ? ['Attribution & lineage', ...drawerContent.lineage] : []),
+          ...(item?.proofLabels.length || item?.creditLabels.length || drawerContent?.credits?.length
+            ? ['Proofs & credits', ...(item?.creditLabels || []), ...(item?.proofLabels || []), ...(drawerContent?.credits || [])]
+            : []),
           item?.description || '',
         ].filter(Boolean)
         : detailPanel === 'connections'
@@ -1015,56 +1020,27 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                 ))}
               </div>
             ) : null}
-            <div className="stage1a-rich-overlay-actions" aria-label="Work actions">
+            <div className="stage1a-rich-actions">
+              <a className="stage1a-rich-support" href={item?.buyUrl || '#'} target="_blank" rel="noreferrer">
+                {item?.supportLabel || 'Support Creator'}
+              </a>
+            </div>
+            <div className="stage1a-rich-overlay-actions" aria-label="Secondary work actions">
               <button type="button" onClick={toggleCurrentSaved} disabled={!currentSourceItem}>
                 {isCurrentSaved ? 'Saved' : 'Save Work'}
               </button>
               <button type="button" onClick={shareCurrent}>
                 Share
               </button>
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>
-                More / Details
-              </button>
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'worked' ? null : 'worked'))}>
-                Worked On
-              </button>
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'lineage' ? null : 'lineage'))}>
-                Lineage
-              </button>
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'proofs' ? null : 'proofs'))}>
-                Proofs
-              </button>
-              {item?.creatorUrl ? (
-                <a className="stage1a-rich-overlay-link" href={item.creatorUrl} target="_blank" rel="noreferrer">
-                  Creator
-                </a>
-              ) : (
-                <button type="button" onClick={() => setDetailPanel((current) => (current === 'creator' ? null : 'creator'))}>
-                  Creator
-                </button>
-              )}
               <button type="button" onClick={toggleCurrentFollowed} disabled={!currentCreator}>
                 {isCurrentFollowed ? 'Following' : 'Follow'}
               </button>
-            </div>
-            <div className="stage1a-rich-actions">
-              <a className="stage1a-rich-support" href={item?.buyUrl || '#'} target="_blank" rel="noreferrer">
-                {item?.supportLabel || 'Support Creator'}
-              </a>
-            </div>
-            <div className="stage1a-rich-links" aria-label="Work details">
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>Details</button>
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'creator' ? null : 'creator'))}>Creator</button>
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'more' ? null : 'more'))}>More from Creator</button>
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'worked' ? null : 'worked'))}>More They Worked On</button>
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'lineage' ? null : 'lineage'))}>Attribution / Lineage</button>
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'connections' ? null : 'connections'))}>Connections</button>
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'proofs' ? null : 'proofs'))}>Proofs / Credits</button>
               {item?.creatorUrl ? (
-                <a className="stage1a-rich-inline-link" href={item.creatorUrl} target="_blank" rel="noreferrer">
+                <a className="stage1a-rich-overlay-link" href={item.creatorUrl} target="_blank" rel="noreferrer">
                   Visit Creator
                 </a>
               ) : null}
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>Details</button>
             </div>
             {item?.connectedLabels.length ? (
               <div className="stage1a-rich-connected">
@@ -1089,6 +1065,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                     <strong>{item?.title || 'Certifyd Player'}</strong>
                     <small>{isIdle ? 'Choose a work to start playback.' : `@${item?.creator || 'creator'}`}</small>
                   </div>
+                </div>
+                <div className="stage1a-rich-drawer-tabs" aria-label="Details sections">
+                  <button type="button" onClick={() => setDetailPanel('details')}>Details</button>
+                  <button type="button" onClick={() => setDetailPanel('more')}>More</button>
+                  <button type="button" onClick={() => setDetailPanel('connections')}>Connections</button>
+                  <button type="button" onClick={() => setDetailPanel('proofs')}>Proofs</button>
                 </div>
                 {detailPanelItems.length > 0 ? (
                   <div className="stage1a-rich-drawer-cards">

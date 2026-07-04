@@ -11,8 +11,8 @@
   box-sizing: border-box !important;
   display: flex !important;
   width: 100% !important;
-  aspect-ratio: 16 / 9 !important;
-  min-height: 180px !important;
+  aspect-ratio: 4 / 3 !important;
+  min-height: clamp(240px, 30vh, 380px) !important;
   max-height: 40vh !important;
   align-items: center !important;
   justify-content: center !important;
@@ -1245,8 +1245,8 @@ body.has-stage1a-player {
 .stage1a-rich-visual {
   display: grid;
   width: 100%;
-  aspect-ratio: 16 / 9;
-  min-height: 180px;
+  aspect-ratio: 4 / 3;
+  min-height: clamp(240px, 30vh, 380px);
   max-height: 38vh;
   place-items: center;
   overflow: hidden;
@@ -1259,22 +1259,22 @@ body.has-stage1a-player {
 .stage1a-rich-visual-artwork,
 .stage1a-rich-visual-landscape {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 4 / 3;
 }
 
 .stage1a-rich-visual-portrait {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 4 / 3;
 }
 
 .stage1a-rich-visual-square {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 4 / 3;
 }
 
 .stage1a-rich-visual-unknown {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 4 / 3;
 }
 
 .stage1a-rich-player .stage1a-player-video,
@@ -1668,6 +1668,23 @@ body.has-stage1a-player {
   font-size: 9px;
   font-weight: 900;
   letter-spacing: 0.18em;
+}
+
+.stage1a-rich-drawer-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+
+.stage1a-rich-drawer-tabs button {
+  min-height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(246, 240, 247, 0.86);
+  font-size: 10px;
+  font-weight: 850;
 }
 
 .stage1a-rich-drawer-hero span,
@@ -2194,9 +2211,9 @@ body.has-stage1a-player {
     position: relative;
     display: grid;
     width: 100%;
-    aspect-ratio: 16 / 9;
-    min-height: 180px;
-    max-height: 38vh;
+    aspect-ratio: 4 / 3;
+    min-height: clamp(260px, 30vh, 380px);
+    max-height: 44vh;
     place-items: center;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.09);
@@ -2206,30 +2223,31 @@ body.has-stage1a-player {
   }
 
   .stage1a-player-media-frame {
-    min-height: 260px !important;
-    max-height: 48vh !important;
+    aspect-ratio: 4 / 3 !important;
+    min-height: clamp(260px, 30vh, 380px) !important;
+    max-height: 44vh !important;
   }
 
   .stage1a-rich-visual-video,
   .stage1a-rich-visual-artwork,
   .stage1a-rich-visual-landscape {
     width: 100%;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 4 / 3;
   }
 
   .stage1a-rich-visual-portrait {
     width: 100%;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 4 / 3;
   }
 
   .stage1a-rich-visual-square {
     width: 100%;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 4 / 3;
   }
 
   .stage1a-rich-visual-unknown {
     width: 100%;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 4 / 3;
   }
 
   .stage1a-rich-player .stage1a-player-video,

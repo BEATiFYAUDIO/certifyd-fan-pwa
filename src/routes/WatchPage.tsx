@@ -1107,10 +1107,8 @@ function StandardWatch({
   const { playItem, setDrawerContent } = useStage1APlayer();
   const {
     followedCreatorKeys,
-    savedCreatorKeys,
     savedWorkKeys,
     toggleFollowedCreator,
-    toggleSavedCreator,
     toggleSavedWork,
   } = useLocalLibrary();
   const [item, setItem] = useState<DiscoverableItem | null>(stateItem && isRenderableDiscoveryItem(stateItem) ? stateItem : null);
@@ -1242,7 +1240,6 @@ function StandardWatch({
   const localCreatorKey = localCreator?.key || '';
   const localWorkKey = item ? `${item.publicOrigin}::${item.contentId}` : '';
   const isSavedWork = Boolean(localWorkKey && savedWorkKeys.has(localWorkKey));
-  const isSavedCreator = Boolean(localCreatorKey && savedCreatorKeys.has(localCreatorKey));
   const isFollowingCreator = Boolean(localCreatorKey && followedCreatorKeys.has(localCreatorKey));
   const heroStyle = item?.coverUrl
     ? {
@@ -1345,25 +1342,25 @@ function StandardWatch({
                         href={canOpenCreator(item) ? item.buyUrl : undefined}
                         target={canOpenCreator(item) ? '_blank' : undefined}
                         rel={canOpenCreator(item) ? 'noreferrer' : undefined}
-                        className={`watch-secondary-button inline-flex items-center ${canOpenCreator(item) ? '' : 'watch-support-button-disabled'}`}
+                        className={`watch-action-primary inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-black ${canOpenCreator(item) ? '' : 'watch-support-button-disabled'}`}
                         onClick={(e) => {
                           if (!canOpenCreator(item)) e.preventDefault();
                         }}
                       >
-                        Support Creator
+                        {ctaLabel(item)}
                       </a>
                       <button type="button" onClick={() => toggleSavedWork(item)} className="watch-secondary-button">
                         {isSavedWork ? 'Saved' : 'Save Work'}
                       </button>
+                      <button type="button" onClick={onShare} className="watch-secondary-button">Share</button>
                       <button type="button" onClick={() => toggleFollowedCreator(localCreator)} className="watch-secondary-button">
                         {isFollowingCreator ? 'Following' : 'Follow'}
                       </button>
-                      {localCreator ? (
-                        <button type="button" onClick={() => toggleSavedCreator(localCreator)} className="watch-secondary-button">
-                          {isSavedCreator ? 'Creator Saved' : 'Save Creator'}
-                        </button>
+                      {canOpenCreator(item) ? (
+                        <a href={item.buyUrl} target="_blank" rel="noreferrer" className="watch-secondary-button inline-flex items-center">
+                          Visit Creator
+                        </a>
                       ) : null}
-                      <button type="button" onClick={onShare} className="watch-secondary-button">Share</button>
                     </div>
                   </div>
                 </div>
