@@ -956,6 +956,80 @@ body::after {
   filter: drop-shadow(0 0 10px rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.42));
 }
 
+.watch-hero-lineage {
+  margin-top: 1.5rem;
+  max-width: 42rem;
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: 1rem;
+  background:
+    linear-gradient(90deg, rgba(3, 7, 12, 0.76), rgba(3, 7, 12, 0.46)),
+    radial-gradient(circle at 0% 0%, rgba(34, 197, 94, 0.12), transparent 44%);
+  padding: 0.9rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 12px 34px rgba(0, 0, 0, 0.22);
+}
+
+.watch-hero-lineage-heading {
+  color: rgba(134, 239, 172, 0.98);
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.watch-hero-lineage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.watch-hero-lineage-card {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 0.85rem;
+  background: rgba(2, 6, 12, 0.62);
+  padding: 0.7rem;
+}
+
+.watch-hero-lineage-card span,
+.watch-hero-lineage-card strong,
+.watch-hero-lineage-card small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watch-hero-lineage-card span {
+  color: rgba(161, 161, 170, 0.92);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.watch-hero-lineage-card strong {
+  margin-top: 0.28rem;
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.watch-hero-lineage-card small {
+  margin-top: 0.16rem;
+  color: rgba(212, 212, 216, 0.74);
+  font-size: 0.74rem;
+}
+
+.watch-hero-lineage-chips,
+.watch-hero-lineage-list {
+  display: grid;
+  gap: 0.22rem;
+  margin-top: 0.35rem;
+}
+
 .watch-play-now,
 .watch-secondary-button,
 .watch-support-button {
@@ -2208,7 +2282,9 @@ body.has-stage1a-player {
   }
 
   .stage1a-rich-visual {
-    position: relative;
+    position: sticky;
+    top: 36px;
+    z-index: 2;
     display: grid;
     width: 100%;
     aspect-ratio: 4 / 3;

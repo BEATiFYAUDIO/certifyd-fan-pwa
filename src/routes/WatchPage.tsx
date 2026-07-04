@@ -10,7 +10,6 @@ import type { ContentContextCreator, ContentContextPerson, ContentContextWork, C
 import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
 import { buildWatchDiscoveryRails, dedupeDiscoveryItems, sortNewestFirst, type DiscoveryRail } from '../lib/discoveryViewModel';
-import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
 import { getCardThemeVars } from '../lib/profileTheme';
 
 function useMobileReelsMode() {
@@ -674,6 +673,69 @@ function AttributionLineageSummary({
   );
 }
 
+function HeroAttributionLineage({
+  context,
+  credits,
+}: {
+  context: ContentRelationshipContext | null;
+  credits: CreditItem[];
+}) {
+  const creator = context?.creator || null;
+  const source = dedupeWorks([...(context?.derivedFrom || []), ...(context?.builtFrom || [])])[0] || null;
+  const people = filterDisplayPeople(
+    dedupePeople([...(context?.peopleBehindThis || []), ...(context?.createdWith || [])]),
+  ).slice(0, 4);
+  const creditRows = credits.slice(0, 3).map((credit) => {
+    const name = credit.displayName || credit.participantName || credit.handle || 'Contributor';
+    const handle = credit.handle ? `@${String(credit.handle).replace(/^@+/, '')}` : '';
+    const role = credit.role || 'credit';
+    const share = credit.sharePercent ?? credit.percent;
+    return `${name}${handle ? ` ${handle}` : ''} · ${role}${share != null ? ` · ${share}%` : ''}`;
+  });
+
+  if (!creator && !source && people.length === 0 && creditRows.length === 0) return null;
+
+  return (
+    <div className="watch-hero-lineage">
+      <div className="watch-hero-lineage-heading">Attribution & Lineage</div>
+      <div className="watch-hero-lineage-grid">
+        {creator ? (
+          <div className="watch-hero-lineage-card">
+            <span>Created by</span>
+            <strong>{compactPersonLabel(creator)}</strong>
+            {creator.handle ? <small>@{String(creator.handle).replace(/^@+/, '')}</small> : null}
+          </div>
+        ) : null}
+        {source ? (
+          <div className="watch-hero-lineage-card">
+            <span>{source.relationshipLabel || 'Built from'}</span>
+            <strong>{source.title || 'Untitled work'}</strong>
+            <small>{compactPersonLabel(source.creator)}</small>
+          </div>
+        ) : null}
+        {people.length ? (
+          <div className="watch-hero-lineage-card">
+            <span>People involved</span>
+            <div className="watch-hero-lineage-chips">
+              {people.map((person) => (
+                <small key={personKey(person)}>{compactPersonLabel(person)}</small>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {creditRows.length ? (
+          <div className="watch-hero-lineage-card">
+            <span>Credits</span>
+            <div className="watch-hero-lineage-list">
+              {creditRows.map((row) => <small key={row}>{row}</small>)}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function RelationshipContextSections({ context }: { context: ContentRelationshipContext | null }) {
   if (!context) return null;
 
@@ -1105,12 +1167,6 @@ function StandardWatch({
   stateItem: DiscoverableItem | null;
 }) {
   const { playItem, setDrawerContent } = useStage1APlayer();
-  const {
-    followedCreatorKeys,
-    savedWorkKeys,
-    toggleFollowedCreator,
-    toggleSavedWork,
-  } = useLocalLibrary();
   const [item, setItem] = useState<DiscoverableItem | null>(stateItem && isRenderableDiscoveryItem(stateItem) ? stateItem : null);
   const [loading, setLoading] = useState(!(stateItem && isRenderableDiscoveryItem(stateItem)));
   const [error, setError] = useState<string | null>(null);
@@ -1226,7 +1282,6 @@ function StandardWatch({
     };
   }, [item]);
 
-  const shareUrl = useMemo(() => item?.buyUrl || window.location.href, [item]);
   const explorationRails = useMemo(() => {
     if (!item) return [];
     return buildWatchDiscoveryRails(item, discoveryItems);
@@ -1236,11 +1291,6 @@ function StandardWatch({
     : null;
   const themeVars = useMemo(() => getCardThemeVars(item?.profileTheme), [item?.profileTheme]);
   const creatorLabel = item?.creatorHandle ? item.creatorHandle.replace(/^@+/, '') : 'creator';
-  const localCreator = useMemo(() => (item ? creatorFromItem(item) : null), [item]);
-  const localCreatorKey = localCreator?.key || '';
-  const localWorkKey = item ? `${item.publicOrigin}::${item.contentId}` : '';
-  const isSavedWork = Boolean(localWorkKey && savedWorkKeys.has(localWorkKey));
-  const isFollowingCreator = Boolean(localCreatorKey && followedCreatorKeys.has(localCreatorKey));
   const heroStyle = item?.coverUrl
     ? {
       ...themeVars,
@@ -1281,20 +1331,6 @@ function StandardWatch({
     });
     return () => setDrawerContent(null);
   }, [credits, explorationRails, item, relationshipContext, setDrawerContent]);
-
-  async function onShare() {
-    if (!item) return;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: item.title, url: shareUrl });
-        return;
-      }
-      await navigator.clipboard.writeText(shareUrl);
-      alert('Link copied');
-    } catch {
-      // no-op
-    }
-  }
 
   return (
     <main className="watch-shell min-h-screen text-zinc-100" style={themeVars}>
@@ -1337,31 +1373,7 @@ function StandardWatch({
                     {item.description ? (
                       <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-zinc-100 sm:text-base">{item.description}</p>
                     ) : null}
-                    <div className="mt-6 flex flex-wrap items-center gap-3">
-                      <a
-                        href={canOpenCreator(item) ? item.buyUrl : undefined}
-                        target={canOpenCreator(item) ? '_blank' : undefined}
-                        rel={canOpenCreator(item) ? 'noreferrer' : undefined}
-                        className={`watch-action-primary inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-black ${canOpenCreator(item) ? '' : 'watch-support-button-disabled'}`}
-                        onClick={(e) => {
-                          if (!canOpenCreator(item)) e.preventDefault();
-                        }}
-                      >
-                        {ctaLabel(item)}
-                      </a>
-                      <button type="button" onClick={() => toggleSavedWork(item)} className="watch-secondary-button">
-                        {isSavedWork ? 'Saved' : 'Save Work'}
-                      </button>
-                      <button type="button" onClick={onShare} className="watch-secondary-button">Share</button>
-                      <button type="button" onClick={() => toggleFollowedCreator(localCreator)} className="watch-secondary-button">
-                        {isFollowingCreator ? 'Following' : 'Follow'}
-                      </button>
-                      {canOpenCreator(item) ? (
-                        <a href={item.buyUrl} target="_blank" rel="noreferrer" className="watch-secondary-button inline-flex items-center">
-                          Visit Creator
-                        </a>
-                      ) : null}
-                    </div>
+                    <HeroAttributionLineage context={relationshipContext} credits={credits} />
                   </div>
                 </div>
 
