@@ -7,6 +7,66 @@
   --certifyd-blue: 111, 168, 255;
 }
 
+.stage1a-player-media-frame {
+  box-sizing: border-box !important;
+  display: flex !important;
+  width: 100% !important;
+  aspect-ratio: 16 / 9 !important;
+  min-height: 180px !important;
+  max-height: 40vh !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  border-radius: 18px !important;
+  background: #000 !important;
+  padding: 0 !important;
+}
+
+.stage1a-player-media-frame > .stage1a-player-video,
+.stage1a-player-media-frame > .stage1a-rich-artwork,
+.stage1a-player-media-frame > .stage1a-rich-empty {
+  box-sizing: border-box !important;
+  display: block !important;
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  background: #000 !important;
+  padding: 0 !important;
+}
+
+.stage1a-player-art {
+  object-fit: contain !important;
+  background: #000;
+}
+
+@media (max-width: 900px) {
+  .stage1a-rich-player-mobile-open .stage1a-player-media-frame {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: none !important;
+    aspect-ratio: auto !important;
+    border-radius: 0 !important;
+  }
+}
+
+.stage1a-player-media-frame:fullscreen,
+.stage1a-player-media-frame:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  max-height: none !important;
+  aspect-ratio: auto !important;
+  border-radius: 0 !important;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -1200,25 +1260,21 @@ body.has-stage1a-player {
 .stage1a-rich-visual-landscape {
   width: 100%;
   aspect-ratio: 16 / 9;
-  height: auto;
 }
 
 .stage1a-rich-visual-portrait {
   width: 100%;
   aspect-ratio: 16 / 9;
-  height: auto;
 }
 
 .stage1a-rich-visual-square {
   width: 100%;
   aspect-ratio: 16 / 9;
-  height: auto;
 }
 
 .stage1a-rich-visual-unknown {
   width: 100%;
   aspect-ratio: 16 / 9;
-  height: auto;
 }
 
 .stage1a-rich-player .stage1a-player-video,
@@ -1805,7 +1861,7 @@ body.has-stage1a-player {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .stage1a-player-art-empty {
@@ -2154,25 +2210,21 @@ body.has-stage1a-player {
   .stage1a-rich-visual-landscape {
     width: 100%;
     aspect-ratio: 16 / 9;
-    height: auto;
   }
 
   .stage1a-rich-visual-portrait {
     width: 100%;
     aspect-ratio: 16 / 9;
-    height: auto;
   }
 
   .stage1a-rich-visual-square {
     width: 100%;
     aspect-ratio: 16 / 9;
-    height: auto;
   }
 
   .stage1a-rich-visual-unknown {
     width: 100%;
     aspect-ratio: 16 / 9;
-    height: auto;
   }
 
   .stage1a-rich-player .stage1a-player-video,

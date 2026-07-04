@@ -914,7 +914,9 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
         </div>
         <div
           ref={visualRef}
-          className={`stage1a-rich-visual ${item?.mediaKind === 'video' ? 'stage1a-rich-visual-video' : 'stage1a-rich-visual-artwork'} ${visualAspectClass}`}
+          className={`stage1a-player-media-frame stage1a-rich-visual ${item?.mediaKind === 'video' ? 'stage1a-rich-visual-video' : 'stage1a-rich-visual-artwork'} ${visualAspectClass}`}
+          data-player-media-frame
+          data-player-media-kind={item?.mediaKind || 'empty'}
           onTouchStart={handleVisualTouchStart}
           onTouchEnd={handleVisualTouchEnd}
         >
