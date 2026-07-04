@@ -1836,13 +1836,15 @@ body.has-stage1a-player {
 }
 
 .stage1a-rich-drawer-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
   gap: 6px;
   margin: 10px 0 12px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .stage1a-rich-drawer-tabs button {
+  flex: 0 0 auto;
   min-height: 32px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
@@ -1850,6 +1852,7 @@ body.has-stage1a-player {
   color: rgba(246, 240, 247, 0.86);
   font-size: 10px;
   font-weight: 850;
+  padding: 0 10px;
 }
 
 .stage1a-rich-drawer-hero span,

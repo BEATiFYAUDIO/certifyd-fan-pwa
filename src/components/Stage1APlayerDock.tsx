@@ -1074,6 +1074,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                 <div className="stage1a-rich-drawer-tabs" aria-label="Details sections">
                   <button type="button" onClick={() => setDetailPanel('details')}>Details</button>
                   <button type="button" onClick={() => setDetailPanel('more')}>More</button>
+                  <button type="button" onClick={() => setDetailPanel('lineage')}>Lineage</button>
                   <button type="button" onClick={() => setDetailPanel('connections')}>Connections</button>
                   <button type="button" onClick={() => setDetailPanel('proofs')}>Proofs</button>
                 </div>

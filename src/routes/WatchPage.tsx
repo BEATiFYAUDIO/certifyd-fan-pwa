@@ -1352,12 +1352,28 @@ function StandardWatch({
         Array.isArray(relationshipContext.moreTheyWorkedOn) && relationshipContext.moreTheyWorkedOn.length ? `${relationshipContext.moreTheyWorkedOn.length} works they also worked on` : '',
       ].filter(Boolean)
       : [];
+    const sourceWorks = relationshipContext ? dedupeWorks([...(relationshipContext.derivedFrom || []), ...(relationshipContext.builtFrom || [])]).slice(0, 3) : [];
+    const peopleRows = relationshipContext
+      ? filterDisplayPeople(dedupePeople([...(relationshipContext.peopleBehindThis || []), ...(relationshipContext.createdWith || [])]))
+        .slice(0, 6)
+        .map((person) => {
+          const handle = person.handle ? ` @${String(person.handle).replace(/^@+/, '')}` : '';
+          const role = person.relationshipLabel ? ` · ${person.relationshipLabel}` : '';
+          return `Person: ${compactPersonLabel(person)}${handle}${role}`;
+        })
+      : [];
+    const lineageRows = [
+      relationshipContext?.creator ? `Created by: ${compactPersonLabel(relationshipContext.creator)}${relationshipContext.creator.handle ? ` @${String(relationshipContext.creator.handle).replace(/^@+/, '')}` : ''}` : '',
+      ...sourceWorks.map((work) => `${work.relationshipLabel || 'Built from'}: ${work.title || 'Untitled work'}${work.creator ? ` · ${compactPersonLabel(work.creator)}` : ''}`),
+      ...peopleRows,
+      ...(creditRows.length ? ['Credits', ...creditRows] : []),
+    ].filter(Boolean);
     setDrawerContent({
       moreFromCreator: creatorWorks.length ? creatorWorks : relatedWorks,
       moreTheyWorkedOn: relatedWorks,
       relatedWorks,
       connections: connectionRows,
-      lineage: connectionRows,
+      lineage: lineageRows.length ? lineageRows : connectionRows,
       credits: creditRows,
     });
     return () => setDrawerContent(null);
