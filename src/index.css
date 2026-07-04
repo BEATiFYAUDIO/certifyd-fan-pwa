@@ -1847,6 +1847,31 @@ body.has-stage1a-player {
     padding-bottom: 96px;
   }
 
+  .stage1a-rich-player {
+    inset: 0;
+    height: 100dvh;
+    max-height: none;
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 14px calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .stage1a-rich-player-mobile-open {
+    transform: translateY(0);
+  }
+
+  .stage1a-rich-player-mobile-open + .stage1a-player-dock {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(110%);
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-visual {
+    min-height: min(64dvh, 680px);
+    max-height: none;
+  }
+
   .stage1a-player-dock {
     left: 8px;
     right: 8px;
@@ -1867,9 +1892,9 @@ body.has-stage1a-player {
     position: fixed;
     left: 12px;
     right: 12px;
-    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
     z-index: 150;
-    max-height: min(62dvh, 520px);
+    max-height: min(70dvh, 620px);
     overflow: auto;
     border-radius: 22px 22px 18px 18px;
     background:
