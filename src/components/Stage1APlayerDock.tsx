@@ -1040,6 +1040,11 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                   Visit Creator
                 </a>
               ) : null}
+              {item?.buyUrl && item.buyUrl !== '#' ? (
+                <a className="stage1a-rich-overlay-link" href={item.buyUrl} target="_blank" rel="noreferrer">
+                  Visit Work
+                </a>
+              ) : null}
               <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>Details</button>
             </div>
             {item?.connectedLabels.length ? (
