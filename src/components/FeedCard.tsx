@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, type MouseEvent } from 'react';
 import type { DiscoverableItem } from '../lib/types';
 import { displayStateFromItem } from '../lib/playbackDisplay';
 import { getCardThemeVars } from '../lib/profileTheme';
@@ -13,8 +13,12 @@ function avatarInitials(handle: string | null): string {
   return raw.slice(0, 2).toUpperCase();
 }
 
+function shouldOpenMobilePlayerOnly(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches;
+}
+
 export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableItem }) {
-  const { playItem } = useStage1APlayer();
+  const { playItem, setMobilePlayerOpen } = useStage1APlayer();
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
   const watchHref = `/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`;
@@ -37,7 +41,11 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
   const mediaHref = watchHref;
   const mediaIsExternal = mediaHref === item.buyUrl;
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
-  const playFromCardOpen = () => {
+  const playFromCardOpen = (event?: MouseEvent<HTMLElement>) => {
+    if (shouldOpenMobilePlayerOnly()) {
+      event?.preventDefault();
+      setMobilePlayerOpen(true);
+    }
     void playItem(item);
   };
   const avatarGradient = useMemo(() => {

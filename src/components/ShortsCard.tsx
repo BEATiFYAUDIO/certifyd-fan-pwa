@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, type MouseEvent } from 'react';
 import type { DiscoverableItem } from '../lib/types';
 import { displayStateFromItem } from '../lib/playbackDisplay';
 import { getCardThemeVars } from '../lib/profileTheme';
@@ -13,9 +13,13 @@ function avatarInitials(handle: string | null): string {
   return raw.slice(0, 2).toUpperCase();
 }
 
+function shouldOpenMobilePlayerOnly(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches;
+}
+
 export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watchParams?: string }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
-  const { playItem } = useStage1APlayer();
+  const { playItem, setMobilePlayerOpen } = useStage1APlayer();
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
 
@@ -50,15 +54,21 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
     return gradients[seed % gradients.length];
   }, [creator]);
 
+  const playShort = (event?: MouseEvent<HTMLElement>) => {
+    if (shouldOpenMobilePlayerOnly()) {
+      event?.preventDefault();
+      setMobilePlayerOpen(true);
+    }
+    void playItem(item, { muted: true });
+  };
+
   return (
     <article className="creator-themed-card group relative aspect-[9/16] w-[78vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 hover:-translate-y-0.5 md:w-[280px] md:max-w-[280px] lg:w-[300px] lg:max-w-[300px]" style={themeVars}>
       <Link
         to={watchHref}
         state={{ item }}
         className="absolute inset-0 block"
-        onClick={() => {
-          void playItem(item, { muted: true });
-        }}
+        onClick={playShort}
       >
         <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
           <span className="creator-themed-badge-muted rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
@@ -126,9 +136,7 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
               to={watchHref}
               state={{ item }}
               className="line-clamp-2 text-base font-semibold leading-5 text-white hover:underline"
-              onClick={() => {
-                void playItem(item, { muted: true });
-              }}
+              onClick={playShort}
             >
               {item.title || 'Untitled'}
             </Link>

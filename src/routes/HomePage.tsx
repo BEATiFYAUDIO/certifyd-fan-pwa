@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ShortsCard } from '../components/ShortsCard';
 import { TopicRail, type ExtraScope } from '../components/TopicRail';
@@ -655,7 +655,7 @@ function RankingRow({
   scoreLabel?: string;
   showPrice?: boolean;
 }) {
-  const { playItem } = useStage1APlayer();
+  const { playItem, setMobilePlayerOpen } = useStage1APlayer();
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
   const contributors = visibleOtherContributors(item);
   const relationshipBadges = Array.isArray(item.relationshipBadges) ? item.relationshipBadges.slice(0, contributors.length ? 2 : 3) : [];
@@ -663,6 +663,13 @@ function RankingRow({
   const playbackDisplay = displayStateFromItem(item);
   const [imageFailed, setImageFailed] = useState(false);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
+  const playFromRow = (event?: MouseEvent<HTMLElement>) => {
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches) {
+      event?.preventDefault();
+      setMobilePlayerOpen(true);
+    }
+    void playItem(item);
+  };
   return (
     <article
       className="creator-themed-card signal-row group flex h-[84px] min-w-0 items-center gap-2 overflow-hidden rounded-xl border p-2 transition sm:gap-3"
@@ -672,9 +679,7 @@ function RankingRow({
         to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
         state={{ item }}
         className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden sm:gap-3"
-        onClick={() => {
-          void playItem(item);
-        }}
+        onClick={playFromRow}
       >
         <div className="creator-themed-rank flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold">
           {rank}
