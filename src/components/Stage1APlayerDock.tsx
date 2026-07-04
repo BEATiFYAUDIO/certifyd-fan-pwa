@@ -317,7 +317,7 @@ function formatTime(seconds: number): string {
 }
 
 function PlayIcon({ playing }: { playing: boolean }) {
-  return <span aria-hidden="true">{playing ? 'Ⅱ' : '▶'}</span>;
+  return <span className={`stage1a-play-icon ${playing ? 'stage1a-play-icon-pause' : 'stage1a-play-icon-play'}`} aria-hidden="true" />;
 }
 
 function statusLabel(state: Stage1APlayerState): string {

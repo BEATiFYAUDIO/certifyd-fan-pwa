@@ -1321,6 +1321,41 @@ body.has-stage1a-player {
   font-size: 20px;
 }
 
+.stage1a-play-icon {
+  display: block;
+  position: relative;
+  width: 18px;
+  height: 22px;
+}
+
+.stage1a-play-icon-play {
+  width: 0;
+  height: 0;
+  margin-left: 3px;
+  border-top: 11px solid transparent;
+  border-bottom: 11px solid transparent;
+  border-left: 17px solid currentColor;
+}
+
+.stage1a-play-icon-pause::before,
+.stage1a-play-icon-pause::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 5px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.stage1a-play-icon-pause::before {
+  left: 3px;
+}
+
+.stage1a-play-icon-pause::after {
+  right: 3px;
+}
+
 .stage1a-rich-nav {
   height: 42px;
   width: 42px;
@@ -1782,6 +1817,10 @@ body.has-stage1a-player {
   justify-content: center;
 }
 
+.stage1a-player-button .stage1a-play-icon {
+  transform: scale(0.58);
+}
+
 .stage1a-player-clear {
   width: 26px;
   height: 26px;
@@ -2024,6 +2063,10 @@ body.has-stage1a-player {
     color: #05050a;
     font-size: 22px;
     box-shadow: 0 16px 36px rgba(0, 0, 0, 0.38);
+  }
+
+  .stage1a-rich-play .stage1a-play-icon {
+    transform: scale(1.12);
   }
 
   .stage1a-rich-nav {
