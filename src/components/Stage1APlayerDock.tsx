@@ -929,9 +929,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               onPause={() => { if (!endingRef.current && state !== 'ended' && activeMediaRef.current?.currentTime) { setState('paused'); setMessage('Paused'); } }}
               onLoadedMetadata={(event) => {
                 setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0);
-                if (!mediaAspectHintRef.current) {
-                  setMediaAspect(classifyAspect(event.currentTarget.videoWidth, event.currentTarget.videoHeight));
-                }
+                setMediaAspect(classifyAspect(event.currentTarget.videoWidth, event.currentTarget.videoHeight));
               }}
               onTimeUpdate={onTimeUpdate}
               onEnded={handleEnded}
