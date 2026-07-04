@@ -14,7 +14,7 @@ function avatarInitials(handle: string | null): string {
 }
 
 function shouldOpenMobilePlayerOnly(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches;
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches;
 }
 
 export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableItem }) {

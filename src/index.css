@@ -413,7 +413,7 @@ body::after {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 900px) {
   .certifyd-player-shell {
     display: block;
   }
@@ -1892,7 +1892,7 @@ body.has-stage1a-player {
   white-space: nowrap;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 900px) {
   body.has-stage1a-player {
     padding-bottom: 96px;
   }

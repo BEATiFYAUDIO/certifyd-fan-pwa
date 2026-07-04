@@ -664,7 +664,7 @@ function RankingRow({
   const [imageFailed, setImageFailed] = useState(false);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
   const playFromRow = (event?: MouseEvent<HTMLElement>) => {
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches) {
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) {
       event?.preventDefault();
       setMobilePlayerOpen(true);
       void playItem(item);
