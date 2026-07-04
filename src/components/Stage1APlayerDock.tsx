@@ -416,8 +416,10 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     setDetailPanel(options?.drawer ?? null);
     setDrawerContent({
       moreFromCreator: [],
+      moreTheyWorkedOn: [],
       relatedWorks: [],
       connections: connectedLabelsFromItem(nextItem),
+      lineage: connectedLabelsFromItem(nextItem),
       credits: creditLabelsFromItem(nextItem),
     });
     mutedAutoplayRef.current = options?.muted === true;
@@ -708,8 +710,10 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     }
     const fallbackContent: Stage1APlayerDrawerContent = {
       moreFromCreator: [],
+      moreTheyWorkedOn: [],
       relatedWorks: [],
       connections: connectedLabelsFromItem(currentSourceItem),
+      lineage: connectedLabelsFromItem(currentSourceItem),
       credits: creditLabelsFromItem(currentSourceItem),
     };
     void fetchContentContext({ origin: currentSourceItem.publicOrigin, contentId: currentSourceItem.contentId })
@@ -722,6 +726,9 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           ...context.builtFrom,
           ...context.derivedFrom,
         ].map((work) => contextWorkToDiscoverable(work, currentSourceItem.publicOrigin)).filter((row): row is DiscoverableItem => Boolean(row)));
+        const workedOn = dedupeDrawerItems(context.moreTheyWorkedOn
+          .map((work) => contextWorkToDiscoverable(work, currentSourceItem.publicOrigin))
+          .filter((row): row is DiscoverableItem => Boolean(row)));
         const creatorWorks = contextWorks
           .filter((row) => row.creatorHandle === currentSourceItem.creatorHandle)
           .slice(0, 12);
@@ -739,12 +746,24 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           .filter(Boolean);
         setDrawerContent({
           moreFromCreator: creatorWorks.length ? creatorWorks : contextWorks.slice(0, 12),
+          moreTheyWorkedOn: workedOn.slice(0, 16),
           relatedWorks: contextWorks.slice(0, 16),
           connections: [
             context.creator ? `Creator: ${context.creator.displayName || context.creator.handle || 'Creator'}` : '',
             context.connectedCreators.length ? `${context.connectedCreators.length} connected creators` : '',
             context.moreTheyWorkedOn.length ? `${context.moreTheyWorkedOn.length} works they also worked on` : '',
             context.relatedWorks.length ? `${context.relatedWorks.length} related works` : '',
+            context.provenance?.hasManifest ? 'Manifest available' : '',
+            context.provenance?.hasLockedProof ? 'Locked proof available' : '',
+          ].filter(Boolean),
+          lineage: [
+            context.creator ? `Created by ${context.creator.displayName || context.creator.handle || 'Creator'}` : '',
+            context.peopleBehindThis.length ? `${context.peopleBehindThis.length} people behind this work` : '',
+            context.featuring.length ? `${context.featuring.length} featured creators` : '',
+            context.createdWith.length ? `${context.createdWith.length} collaborators` : '',
+            context.builtFrom.length ? `${context.builtFrom.length} built-from works` : '',
+            context.derivedFrom.length ? `${context.derivedFrom.length} source works` : '',
+            context.worksThatBuiltOnThis.length ? `${context.worksThatBuiltOnThis.length} downstream works` : '',
             context.provenance?.hasManifest ? 'Manifest available' : '',
             context.provenance?.hasLockedProof ? 'Locked proof available' : '',
           ].filter(Boolean),
@@ -805,12 +824,24 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const visualAspectClass = `stage1a-rich-visual-${mediaAspect}`;
   const detailPanelTitle =
     detailPanel === 'details' ? 'Details'
+      : detailPanel === 'creator' ? 'Creator'
       : detailPanel === 'more' ? 'More From Creator'
-        : detailPanel === 'connections' ? 'Connections'
-          : detailPanel === 'proofs' ? 'Proofs & Credits'
-            : '';
+        : detailPanel === 'worked' ? 'More They Worked On'
+          : detailPanel === 'lineage' ? 'Attribution & Lineage'
+            : detailPanel === 'connections' ? 'Connections'
+              : detailPanel === 'proofs' ? 'Proofs & Credits'
+                : '';
   const detailPanelRows = detailPanel === 'proofs'
     ? [...(item?.creditLabels || []), ...(item?.proofLabels || []), ...(drawerContent?.credits || [])]
+    : detailPanel === 'creator'
+      ? [
+        item?.creator ? `Creator: @${item.creator}` : '',
+        item?.creatorUrl ? `Profile: ${item.creatorUrl}` : '',
+        currentCreator?.displayName ? `Name: ${currentCreator.displayName}` : '',
+        currentCreator?.latestTitle ? `Latest: ${currentCreator.latestTitle}` : '',
+      ].filter(Boolean)
+      : detailPanel === 'lineage'
+        ? [...(drawerContent?.lineage || []), ...(item?.connectedLabels || [])]
     : detailPanel === 'details'
         ? [
           item?.title ? `Title: ${item.title}` : '',
@@ -825,6 +856,8 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           : [];
   const detailPanelItems = detailPanel === 'more'
     ? drawerContent?.moreFromCreator || []
+    : detailPanel === 'worked'
+      ? drawerContent?.moreTheyWorkedOn || []
     : detailPanel === 'connections'
       ? drawerContent?.relatedWorks || []
       : [];
@@ -951,8 +984,26 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>
                 More / Details
               </button>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'worked' ? null : 'worked'))}>
+                Worked On
+              </button>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'lineage' ? null : 'lineage'))}>
+                Lineage
+              </button>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'proofs' ? null : 'proofs'))}>
+                Proofs
+              </button>
+              {item?.creatorUrl ? (
+                <a className="stage1a-rich-overlay-link" href={item.creatorUrl} target="_blank" rel="noreferrer">
+                  Creator
+                </a>
+              ) : (
+                <button type="button" onClick={() => setDetailPanel((current) => (current === 'creator' ? null : 'creator'))}>
+                  Creator
+                </button>
+              )}
               <button type="button" onClick={toggleCurrentFollowed} disabled={!currentCreator}>
-                {isCurrentFollowed ? 'Following' : 'Follow Creator'}
+                {isCurrentFollowed ? 'Following' : 'Follow'}
               </button>
             </div>
             <div className="stage1a-rich-actions">
@@ -962,7 +1013,10 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
             </div>
             <div className="stage1a-rich-links" aria-label="Work details">
               <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>Details</button>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'creator' ? null : 'creator'))}>Creator</button>
               <button type="button" onClick={() => setDetailPanel((current) => (current === 'more' ? null : 'more'))}>More from Creator</button>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'worked' ? null : 'worked'))}>More They Worked On</button>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'lineage' ? null : 'lineage'))}>Attribution / Lineage</button>
               <button type="button" onClick={() => setDetailPanel((current) => (current === 'connections' ? null : 'connections'))}>Connections</button>
               <button type="button" onClick={() => setDetailPanel((current) => (current === 'proofs' ? null : 'proofs'))}>Proofs / Credits</button>
               {item?.creatorUrl ? (

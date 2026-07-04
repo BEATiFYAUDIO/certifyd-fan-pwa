@@ -4,7 +4,7 @@ import type { PlayerCommerceState } from '../lib/playbackDisplay';
 
 export type Stage1APlayerState = 'idle' | 'loading' | 'playing' | 'paused' | 'ended' | 'error';
 export type Stage1APlaybackMode = 'full' | 'preview' | 'none';
-export type Stage1APlayerDrawerPanel = 'details' | 'more' | 'connections' | 'proofs' | null;
+export type Stage1APlayerDrawerPanel = 'details' | 'creator' | 'more' | 'worked' | 'lineage' | 'connections' | 'proofs' | null;
 export type Stage1APlayerMediaAspect = 'landscape' | 'portrait' | 'square' | 'unknown';
 
 export type Stage1APlayerItem = {
@@ -36,8 +36,10 @@ export type Stage1APlayerItem = {
 
 export type Stage1APlayerDrawerContent = {
   moreFromCreator?: DiscoverableItem[];
+  moreTheyWorkedOn?: DiscoverableItem[];
   relatedWorks?: DiscoverableItem[];
   connections?: string[];
+  lineage?: string[];
   credits?: string[];
 };
 

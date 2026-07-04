@@ -1505,14 +1505,20 @@ body.has-stage1a-player {
   gap: 8px;
 }
 
-.stage1a-rich-overlay-actions button {
+.stage1a-rich-overlay-actions button,
+.stage1a-rich-overlay-link {
+  display: inline-flex;
   min-height: 36px;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.055);
   color: rgba(246, 240, 247, 0.9);
   font-size: 11px;
   font-weight: 850;
+  text-align: center;
+  text-decoration: none;
 }
 
 .stage1a-rich-overlay-actions button:disabled {
@@ -2017,19 +2023,20 @@ body.has-stage1a-player {
   .stage1a-rich-player-mobile-open .stage1a-rich-overlay-actions {
     position: absolute;
     right: 14px;
-    bottom: calc(378px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(292px + env(safe-area-inset-bottom, 0px));
     z-index: 5;
     display: grid;
     grid-template-columns: 1fr;
-    width: 74px;
+    width: 82px;
   }
 
-  .stage1a-rich-player-mobile-open .stage1a-rich-overlay-actions button {
-    min-height: 42px;
+  .stage1a-rich-player-mobile-open .stage1a-rich-overlay-actions button,
+  .stage1a-rich-player-mobile-open .stage1a-rich-overlay-link {
+    min-height: 36px;
     border-radius: 999px;
     background: rgba(20, 20, 24, 0.68);
     backdrop-filter: blur(14px);
-    font-size: 10px;
+    font-size: 9px;
     line-height: 1.1;
   }
 

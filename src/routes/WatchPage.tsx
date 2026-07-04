@@ -983,8 +983,10 @@ function FreebiesWatch({
     if (!activeItem) return;
     setDrawerContent({
       moreFromCreator: items.filter((row) => row.creatorHandle === activeItem.creatorHandle && row.contentId !== activeItem.contentId).slice(0, 12),
+      moreTheyWorkedOn: [],
       relatedWorks: items.filter((row) => row.contentId !== activeItem.contentId).slice(0, 12),
       connections: activeRelationshipContext ? ['Connected relationship data is available for this work.'] : [],
+      lineage: activeRelationshipContext ? ['Attribution and lineage context is available for this work.'] : [],
     });
     return () => setDrawerContent(null);
   }, [activeItem, activeRelationshipContext, items, setDrawerContent]);
@@ -1274,8 +1276,10 @@ function StandardWatch({
       : [];
     setDrawerContent({
       moreFromCreator: creatorWorks.length ? creatorWorks : relatedWorks,
+      moreTheyWorkedOn: relatedWorks,
       relatedWorks,
       connections: connectionRows,
+      lineage: connectionRows,
       credits: creditRows,
     });
     return () => setDrawerContent(null);
