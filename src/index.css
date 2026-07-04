@@ -1185,7 +1185,7 @@ body.has-stage1a-player {
 .stage1a-rich-visual {
   display: grid;
   width: 100%;
-  min-height: 0;
+  min-height: 220px;
   max-height: min(78dvh, 860px);
   place-items: center;
   overflow: hidden;
@@ -1196,26 +1196,26 @@ body.has-stage1a-player {
 
 .stage1a-rich-visual-landscape {
   aspect-ratio: 16 / 9;
-  height: auto;
+  height: clamp(220px, 26vw, 340px);
 }
 
 .stage1a-rich-visual-portrait {
   aspect-ratio: 9 / 16;
   width: min(100%, 420px);
-  height: auto;
+  height: min(68dvh, 720px);
   justify-self: center;
 }
 
 .stage1a-rich-visual-square {
   aspect-ratio: 1;
-  height: auto;
+  height: min(58dvh, 520px);
   width: min(100%, 520px);
   justify-self: center;
 }
 
 .stage1a-rich-visual-unknown {
   aspect-ratio: 16 / 9;
-  height: auto;
+  height: clamp(220px, 26vw, 340px);
 }
 
 .stage1a-rich-player .stage1a-player-video {
@@ -1249,7 +1249,7 @@ body.has-stage1a-player {
 
 .stage1a-rich-visual-square .stage1a-player-video,
 .stage1a-rich-visual-square .stage1a-rich-artwork {
-  width: auto;
+  width: 100%;
   height: 100%;
   aspect-ratio: 1;
   max-width: 100%;
@@ -2144,7 +2144,7 @@ body.has-stage1a-player {
     position: relative;
     display: grid;
     width: 100%;
-    min-height: 0;
+    min-height: 220px;
     max-height: min(76vh, 860px);
     place-items: center;
     overflow: hidden;
@@ -2156,26 +2156,26 @@ body.has-stage1a-player {
 
   .stage1a-rich-visual-landscape {
     aspect-ratio: 16 / 9;
-    height: auto;
+    height: clamp(220px, 15vw, 300px);
   }
 
   .stage1a-rich-visual-portrait {
     aspect-ratio: 9 / 16;
     width: min(100%, 430px);
-    height: auto;
+    height: min(70vh, 760px);
     justify-self: center;
   }
 
   .stage1a-rich-visual-square {
     aspect-ratio: 1;
-    height: auto;
+    height: min(52vh, 520px);
     width: min(100%, 520px);
     justify-self: center;
   }
 
   .stage1a-rich-visual-unknown {
     aspect-ratio: 16 / 9;
-    height: auto;
+    height: clamp(220px, 15vw, 300px);
   }
 
   .stage1a-rich-player .stage1a-player-video {
@@ -2209,7 +2209,7 @@ body.has-stage1a-player {
 
   .stage1a-rich-visual-square .stage1a-player-video,
   .stage1a-rich-visual-square .stage1a-rich-artwork {
-    width: auto;
+    width: 100%;
     height: 100%;
     aspect-ratio: 1;
     max-width: 100%;
