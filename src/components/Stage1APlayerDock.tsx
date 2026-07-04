@@ -395,6 +395,27 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     return () => document.body.classList.remove('has-stage1a-player');
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    if (!item?.artwork || item.mediaKind !== 'video') return () => {
+      active = false;
+    };
+    const image = new Image();
+    image.referrerPolicy = 'no-referrer';
+    image.onload = () => {
+      if (!active) return;
+      const posterAspect = classifyAspect(image.naturalWidth, image.naturalHeight);
+      if (posterAspect === 'portrait' || posterAspect === 'square') {
+        mediaAspectHintRef.current = posterAspect;
+        setMediaAspect(posterAspect);
+      }
+    };
+    image.src = item.artwork;
+    return () => {
+      active = false;
+    };
+  }, [item?.artwork, item?.mediaKind]);
+
   const clearActiveMedia = useCallback(() => {
     const current = activeMediaRef.current;
     if (current) {
