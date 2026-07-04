@@ -1991,7 +1991,7 @@ body.has-stage1a-player {
   }
 
   .stage1a-rich-player-mobile-open .stage1a-rich-play {
-    order: -1;
+    display: none;
   }
 
   .stage1a-rich-player-mobile-open .stage1a-rich-nav {
