@@ -697,14 +697,32 @@ function HeroAttributionLineage({
 
   return (
     <div className="watch-hero-lineage">
-      <div className="watch-hero-lineage-heading">Attribution & Lineage</div>
+      <div className="watch-hero-lineage-head">
+        <div>
+          <div className="watch-hero-lineage-heading">Attribution & Lineage</div>
+          <p>Where this work comes from and who is publicly connected to it.</p>
+        </div>
+        {creator?.profileUrl ? (
+          <a className="watch-hero-lineage-open" href={creator.profileUrl} target="_blank" rel="noreferrer">
+            Open Creator
+          </a>
+        ) : null}
+      </div>
       <div className="watch-hero-lineage-grid">
         {creator ? (
-          <div className="watch-hero-lineage-card">
+          <a
+            className="watch-hero-lineage-card watch-hero-lineage-person"
+            href={creator.profileUrl || undefined}
+            target={creator.profileUrl ? '_blank' : undefined}
+            rel={creator.profileUrl ? 'noreferrer' : undefined}
+          >
             <span>Created by</span>
-            <strong>{compactPersonLabel(creator)}</strong>
-            {creator.handle ? <small>@{String(creator.handle).replace(/^@+/, '')}</small> : null}
-          </div>
+            <div>
+              {creator.avatarUrl ? <img src={creator.avatarUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
+              <strong>{compactPersonLabel(creator)}</strong>
+              {creator.handle ? <small>@{String(creator.handle).replace(/^@+/, '')}</small> : null}
+            </div>
+          </a>
         ) : null}
         {source ? (
           <div className="watch-hero-lineage-card">
@@ -717,9 +735,22 @@ function HeroAttributionLineage({
           <div className="watch-hero-lineage-card">
             <span>People involved</span>
             <div className="watch-hero-lineage-chips">
-              {people.map((person) => (
-                <small key={personKey(person)}>{compactPersonLabel(person)}</small>
-              ))}
+              {people.map((person) => {
+                const chip = (
+                  <small>
+                    {person.avatarUrl ? <img src={person.avatarUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
+                    <b>{compactPersonLabel(person)}</b>
+                    {person.handle ? <em>@{String(person.handle).replace(/^@+/, '')}</em> : null}
+                  </small>
+                );
+                return person.profileUrl ? (
+                  <a key={personKey(person)} href={person.profileUrl} target="_blank" rel="noreferrer">
+                    {chip}
+                  </a>
+                ) : (
+                  <span key={personKey(person)}>{chip}</span>
+                );
+              })}
             </div>
           </div>
         ) : null}

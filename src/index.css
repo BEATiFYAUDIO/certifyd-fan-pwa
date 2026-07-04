@@ -958,7 +958,7 @@ body::after {
 
 .watch-hero-lineage {
   margin-top: 1.5rem;
-  max-width: 42rem;
+  max-width: 44rem;
   border: 1px solid rgba(34, 197, 94, 0.28);
   border-radius: 1rem;
   background:
@@ -970,11 +970,42 @@ body::after {
     0 12px 34px rgba(0, 0, 0, 0.22);
 }
 
+.watch-hero-lineage-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .watch-hero-lineage-heading {
   color: rgba(134, 239, 172, 0.98);
   font-size: 0.72rem;
   font-weight: 950;
   letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.watch-hero-lineage-head p {
+  margin-top: 0.35rem;
+  color: rgba(212, 212, 216, 0.78);
+  font-size: 0.84rem;
+}
+
+.watch-hero-lineage-open {
+  display: inline-flex;
+  min-height: 2rem;
+  shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(250, 204, 21, 0.38);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.68);
+  padding: 0 0.9rem;
+  color: rgba(245, 245, 245, 0.95);
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-decoration: none;
   text-transform: uppercase;
 }
 
@@ -991,6 +1022,7 @@ body::after {
   border-radius: 0.85rem;
   background: rgba(2, 6, 12, 0.62);
   padding: 0.7rem;
+  text-decoration: none;
 }
 
 .watch-hero-lineage-card span,
@@ -1023,11 +1055,70 @@ body::after {
   font-size: 0.74rem;
 }
 
+.watch-hero-lineage-person > div {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, max-content) minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
+  margin-top: 0.45rem;
+}
+
+.watch-hero-lineage-person img {
+  grid-row: span 2;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  object-fit: cover;
+}
+
 .watch-hero-lineage-chips,
 .watch-hero-lineage-list {
   display: grid;
   gap: 0.22rem;
   margin-top: 0.35rem;
+}
+
+.watch-hero-lineage-chips a,
+.watch-hero-lineage-chips > span {
+  min-width: 0;
+  text-decoration: none;
+}
+
+.watch-hero-lineage-chips small {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.42rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.44);
+  padding: 0.34rem 0.58rem;
+}
+
+.watch-hero-lineage-chips img {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.watch-hero-lineage-chips b,
+.watch-hero-lineage-chips em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watch-hero-lineage-chips b {
+  color: rgba(245, 245, 245, 0.94);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.watch-hero-lineage-chips em {
+  color: rgba(161, 161, 170, 0.86);
+  font-style: normal;
 }
 
 .watch-play-now,
