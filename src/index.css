@@ -1185,9 +1185,9 @@ body.has-stage1a-player {
 .stage1a-rich-visual {
   display: grid;
   width: 100%;
-  height: min(58dvh, 620px);
-  min-height: min(58dvh, 460px);
-  max-height: min(58dvh, 620px);
+  height: auto;
+  min-height: 320px;
+  max-height: min(78dvh, 860px);
   place-items: center;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.09);
@@ -1899,8 +1899,8 @@ body.has-stage1a-player {
     position: relative;
     display: grid;
     width: 100%;
-    height: clamp(520px, 68vh, 820px);
-    min-height: 520px;
+    height: auto;
+    min-height: 320px;
     max-height: min(76vh, 860px);
     place-items: center;
     overflow: hidden;
