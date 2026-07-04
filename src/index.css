@@ -291,7 +291,7 @@ body::after {
     grid-template-columns:
       clamp(220px, 14vw, 260px)
       minmax(0, 1fr)
-      clamp(400px, 28vw, 480px);
+      clamp(520px, 34vw, 620px);
     gap: 14px;
     padding: 0 14px;
   }
@@ -2156,7 +2156,7 @@ body.has-stage1a-player {
     bottom: auto;
     z-index: 70;
     display: flex;
-    width: clamp(400px, 28vw, 480px);
+    width: clamp(520px, 34vw, 620px);
     height: 100vh;
     max-height: none;
     min-height: 0;
@@ -2206,7 +2206,8 @@ body.has-stage1a-player {
   }
 
   .stage1a-player-media-frame {
-    max-height: 40vh !important;
+    min-height: 260px !important;
+    max-height: 48vh !important;
   }
 
   .stage1a-rich-visual-video,
