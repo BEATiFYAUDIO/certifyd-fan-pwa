@@ -992,7 +992,7 @@ function FreebiesWatch({
   useEffect(() => {
     if (!activeItem || !activeItemKey) return;
     if (playerItem?.contentId === activeItem.contentId && playerItem.publicOrigin === activeItem.publicOrigin) return;
-    void playItem(activeItem, { muted: true });
+    void playItem(activeItem, { muted: true, mediaAspect: 'portrait' });
   }, [activeItem, activeItemKey, playItem, playerItem]);
 
   useEffect(() => {
@@ -1043,7 +1043,7 @@ function FreebiesWatch({
 	                  className="block h-full w-full bg-black text-left"
 		                  onClick={() => {
                         setMobilePlayerOpen(true);
-                        void playItem(it);
+                        void playItem(it, { mediaAspect: 'portrait' });
                       }}
                   aria-label={`Play ${it.title || 'Free Drop'}`}
                 >

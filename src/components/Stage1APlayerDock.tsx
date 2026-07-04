@@ -5,10 +5,10 @@ import { fetchCanonicalOfferPayload } from '../lib/offerFetch';
 import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
 import { displayStateFromItem, displayStateFromPlayback } from '../lib/playbackDisplay';
 import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
-import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerState, type Stage1APlaybackMode } from './stage1APlayerContext';
+import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerState, type Stage1APlaybackMode } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
-type MediaAspect = 'landscape' | 'portrait' | 'square' | 'unknown';
+type MediaAspect = Stage1APlayerMediaAspect;
 type DetailPanel = Stage1APlayerDrawerPanel;
 
 type CanonicalPlayback = {
@@ -386,6 +386,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const visualRef = useRef<HTMLDivElement | null>(null);
   const activeMediaRef = useRef<HTMLMediaElement | null>(null);
   const touchStartYRef = useRef<number | null>(null);
+  const mediaAspectHintRef = useRef<MediaAspect | null>(null);
   const mutedAutoplayRef = useRef(false);
   const endingRef = useRef(false);
 
@@ -404,13 +405,14 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     }
     activeMediaRef.current = null;
     endingRef.current = false;
+    mediaAspectHintRef.current = null;
     setProgress(0);
     setDuration(0);
     setMediaAspect('square');
     setMediaMuted(false);
   }, []);
 
-  const playItem = useCallback(async (nextItem: DiscoverableItem, options?: { muted?: boolean; openPlayer?: boolean; drawer?: Stage1APlayerDrawerPanel }) => {
+  const playItem = useCallback(async (nextItem: DiscoverableItem, options?: { muted?: boolean; openPlayer?: boolean; drawer?: Stage1APlayerDrawerPanel; mediaAspect?: MediaAspect }) => {
     setDetailPanel(options?.drawer ?? null);
     setDrawerContent({
       moreFromCreator: [],
@@ -419,6 +421,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       credits: creditLabelsFromItem(nextItem),
     });
     mutedAutoplayRef.current = options?.muted === true;
+    mediaAspectHintRef.current = options?.mediaAspect && options.mediaAspect !== 'unknown' ? options.mediaAspect : null;
     setMediaMuted(options?.muted === true);
     if (options?.openPlayer !== false) setMobileSheetOpen(true);
     setRecentItems((current) => {
@@ -450,7 +453,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       mediaKind: 'audio',
       playback: { mode: 'none', streamUrl: null, previewLimitSeconds: null, canPlayFull: false },
     });
-    setMediaAspect('square');
+    setMediaAspect(mediaAspectHintRef.current || 'square');
 
     try {
       const offer = await fetchCanonicalOffer(nextItem);
@@ -499,7 +502,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       }
 
       const nextMediaKind = mediaKind(offer, nextItem, streamUrl);
-      setMediaAspect(inferMediaAspect(offer, nextItem, nextMediaKind));
+      setMediaAspect(mediaAspectHintRef.current || inferMediaAspect(offer, nextItem, nextMediaKind));
       setItem({
         sourceItem: nextItem,
         contentId: nextItem.contentId,
@@ -639,12 +642,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
   const playNextFreeDrop = useCallback(() => {
     if (currentFreeDropIndex < 0 || currentFreeDropIndex >= freeDropQueue.length - 1) return;
-    void playItem(freeDropQueue[currentFreeDropIndex + 1]);
+    void playItem(freeDropQueue[currentFreeDropIndex + 1], { mediaAspect: 'portrait' });
   }, [currentFreeDropIndex, freeDropQueue, playItem]);
 
   const playPreviousFreeDrop = useCallback(() => {
     if (currentFreeDropIndex <= 0) return;
-    void playItem(freeDropQueue[currentFreeDropIndex - 1]);
+    void playItem(freeDropQueue[currentFreeDropIndex - 1], { mediaAspect: 'portrait' });
   }, [currentFreeDropIndex, freeDropQueue, playItem]);
 
   const canPlayNextFreeDrop = currentFreeDropIndex >= 0 && currentFreeDropIndex < freeDropQueue.length - 1;
@@ -762,7 +765,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     setMessage('Ended');
     if (!autoplayNext || item?.playback.mode !== 'full') return;
     if (currentFreeDropIndex < 0 || currentFreeDropIndex >= freeDropQueue.length - 1) return;
-    void playItem(freeDropQueue[currentFreeDropIndex + 1]);
+    void playItem(freeDropQueue[currentFreeDropIndex + 1], { mediaAspect: 'portrait' });
   }, [autoplayNext, currentFreeDropIndex, freeDropQueue, item, playItem]);
   const toggleAutoplayNext = useCallback(() => {
     setAutoplayNext((current) => {
@@ -852,7 +855,9 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               onPause={() => { if (!endingRef.current && state !== 'ended' && activeMediaRef.current?.currentTime) { setState('paused'); setMessage('Paused'); } }}
               onLoadedMetadata={(event) => {
                 setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0);
-                setMediaAspect(classifyAspect(event.currentTarget.videoWidth, event.currentTarget.videoHeight));
+                if (!mediaAspectHintRef.current) {
+                  setMediaAspect(classifyAspect(event.currentTarget.videoWidth, event.currentTarget.videoHeight));
+                }
               }}
               onTimeUpdate={onTimeUpdate}
               onEnded={handleEnded}
@@ -864,7 +869,11 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               alt=""
               className="stage1a-rich-artwork"
               referrerPolicy="no-referrer"
-              onLoad={(event) => setMediaAspect(classifyAspect(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight))}
+              onLoad={(event) => {
+                if (!mediaAspectHintRef.current) {
+                  setMediaAspect(classifyAspect(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight));
+                }
+              }}
             />
           ) : (
             <div className="stage1a-rich-empty" aria-hidden="true">CERTIFYD</div>

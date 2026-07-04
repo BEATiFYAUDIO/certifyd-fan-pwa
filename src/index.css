@@ -1902,9 +1902,11 @@ body.has-stage1a-player {
     height: 100dvh;
     max-height: none;
     min-height: 100dvh;
+    overflow: hidden;
     border: 0;
     border-radius: 0;
-    padding: calc(10px + env(safe-area-inset-top, 0px)) 14px calc(96px + env(safe-area-inset-bottom, 0px));
+    background: #000;
+    padding: 0;
   }
 
   .stage1a-rich-player-mobile-open {
@@ -1918,9 +1920,123 @@ body.has-stage1a-player {
   }
 
   .stage1a-rich-player-mobile-open .stage1a-rich-visual {
-    height: min(70dvh, 720px);
-    min-height: min(64dvh, 680px);
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    min-height: 100dvh;
     max-height: none;
+    border: 0;
+    border-radius: 0;
+    background: #000;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-visual-portrait .stage1a-player-video,
+  .stage1a-rich-player-mobile-open .stage1a-rich-visual-portrait .stage1a-rich-artwork {
+    width: auto;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: 9 / 16;
+    object-fit: contain;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-visual-landscape .stage1a-player-video,
+  .stage1a-rich-player-mobile-open .stage1a-rich-visual-landscape .stage1a-rich-artwork,
+  .stage1a-rich-player-mobile-open .stage1a-rich-visual-unknown .stage1a-player-video,
+  .stage1a-rich-player-mobile-open .stage1a-rich-visual-unknown .stage1a-rich-artwork {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-topline {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    z-index: 4;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-mobile-handle {
+    display: none;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-copy {
+    position: absolute;
+    left: 16px;
+    right: 92px;
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    z-index: 4;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.82);
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-title {
+    font-size: clamp(22px, 7vw, 34px);
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-controls {
+    position: absolute;
+    right: 14px;
+    bottom: calc(178px + env(safe-area-inset-bottom, 0px));
+    z-index: 5;
+    display: grid;
+    gap: 12px;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-play {
+    order: -1;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-nav {
+    background: rgba(20, 20, 24, 0.72);
+    backdrop-filter: blur(14px);
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-autoplay {
+    position: absolute;
+    left: 16px;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    z-index: 4;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-progress-row {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    z-index: 4;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-message,
+  .stage1a-rich-player-mobile-open .stage1a-rich-description,
+  .stage1a-rich-player-mobile-open .stage1a-rich-detail-grid {
+    display: none;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-overlay-actions {
+    position: absolute;
+    right: 14px;
+    bottom: calc(378px + env(safe-area-inset-bottom, 0px));
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 74px;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-overlay-actions button {
+    min-height: 42px;
+    border-radius: 999px;
+    background: rgba(20, 20, 24, 0.68);
+    backdrop-filter: blur(14px);
+    font-size: 10px;
+    line-height: 1.1;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-actions,
+  .stage1a-rich-player-mobile-open .stage1a-rich-links,
+  .stage1a-rich-player-mobile-open .stage1a-rich-connected {
+    display: none;
   }
 
   .stage1a-player-dock {
