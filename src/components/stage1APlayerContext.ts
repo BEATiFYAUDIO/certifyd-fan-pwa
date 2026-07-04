@@ -6,6 +6,7 @@ export type Stage1APlayerState = 'idle' | 'loading' | 'playing' | 'paused' | 'en
 export type Stage1APlaybackMode = 'full' | 'preview' | 'none';
 
 export type Stage1APlayerItem = {
+  sourceItem?: DiscoverableItem;
   contentId: string;
   publicOrigin: string;
   title: string;
@@ -31,10 +32,18 @@ export type Stage1APlayerItem = {
   };
 };
 
+export type Stage1APlayerDrawerContent = {
+  moreFromCreator?: DiscoverableItem[];
+  relatedWorks?: DiscoverableItem[];
+  connections?: string[];
+  credits?: string[];
+};
+
 export type Stage1APlayerContextValue = {
   playItem: (item: DiscoverableItem, options?: { muted?: boolean; openPlayer?: boolean }) => Promise<void>;
   setMobilePlayerOpen: (open: boolean) => void;
   setFreeDropQueue: (items: DiscoverableItem[]) => void;
+  setDrawerContent: (content: Stage1APlayerDrawerContent | null) => void;
   togglePlay: () => void;
   playNextFreeDrop: () => void;
   playPreviousFreeDrop: () => void;
@@ -58,6 +67,7 @@ export function useStage1APlayer() {
     playItem: async () => undefined,
     setMobilePlayerOpen: () => undefined,
     setFreeDropQueue: () => undefined,
+    setDrawerContent: () => undefined,
     togglePlay: () => undefined,
     playNextFreeDrop: () => undefined,
     playPreviousFreeDrop: () => undefined,

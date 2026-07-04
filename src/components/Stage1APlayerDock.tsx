@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent, type TouchEvent } from 'react';
 import type { DiscoverableItem } from '../lib/types';
 import { fetchCanonicalOfferPayload } from '../lib/offerFetch';
+import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
 import { displayStateFromItem, displayStateFromPlayback } from '../lib/playbackDisplay';
 import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
-import { Stage1APlayerContext, type Stage1APlayerItem, type Stage1APlayerState, type Stage1APlaybackMode } from './stage1APlayerContext';
+import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerItem, type Stage1APlayerState, type Stage1APlaybackMode } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
 type MediaAspect = 'landscape' | 'portrait' | 'square' | 'unknown';
-type DetailPanel = 'credits' | 'proofs' | 'about' | 'connected' | null;
+type DetailPanel = 'details' | 'more' | 'connections' | 'proofs' | null;
 
 type CanonicalPlayback = {
   mode: Stage1APlaybackMode;
@@ -323,6 +324,12 @@ function statusLabel(state: Stage1APlayerState): string {
 }
 
 export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
+  const {
+    savedWorkKeys,
+    followedCreatorKeys,
+    toggleSavedWork,
+    toggleFollowedCreator,
+  } = useLocalLibrary();
   const [state, setState] = useState<Stage1APlayerState>('idle');
   const [item, setItem] = useState<Stage1APlayerItem | null>(null);
   const [message, setMessage] = useState('Tap Play to start listening');
@@ -332,6 +339,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const [freeDropQueue, setFreeDropQueueState] = useState<DiscoverableItem[]>([]);
   const [recentItems, setRecentItems] = useState<DiscoverableItem[]>(() => safeRecentItemsFromStorage());
   const [detailPanel, setDetailPanel] = useState<DetailPanel>(null);
+  const [drawerContent, setDrawerContent] = useState<Stage1APlayerDrawerContent | null>(null);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [mediaMuted, setMediaMuted] = useState(false);
   const [autoplayNext, setAutoplayNext] = useState(() => {
@@ -342,6 +350,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const visualRef = useRef<HTMLDivElement | null>(null);
   const activeMediaRef = useRef<HTMLMediaElement | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
   const mutedAutoplayRef = useRef(false);
   const endingRef = useRef(false);
 
@@ -381,6 +390,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     setMessage('Loading');
     const initialDisplayState = displayStateFromItem(nextItem);
     setItem({
+      sourceItem: nextItem,
       contentId: nextItem.contentId,
       publicOrigin: nextItem.publicOrigin,
       title: nextItem.title || 'Untitled',
@@ -423,6 +433,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
       if (!playback || playback.mode === 'none' || !streamUrl) {
         setItem({
+          sourceItem: nextItem,
           contentId: nextItem.contentId,
           publicOrigin: nextItem.publicOrigin,
           title,
@@ -449,6 +460,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       const nextMediaKind = mediaKind(offer, nextItem, streamUrl);
       setMediaAspect(inferMediaAspect(offer, nextItem, nextMediaKind));
       setItem({
+        sourceItem: nextItem,
         contentId: nextItem.contentId,
         publicOrigin: nextItem.publicOrigin,
         title,
@@ -596,6 +608,53 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
   const canPlayNextFreeDrop = currentFreeDropIndex >= 0 && currentFreeDropIndex < freeDropQueue.length - 1;
   const canPlayPreviousFreeDrop = currentFreeDropIndex > 0;
+
+  const currentSourceItem = item?.sourceItem || null;
+  const currentWorkKey = currentSourceItem ? `${currentSourceItem.publicOrigin}::${currentSourceItem.contentId}` : '';
+  const currentCreator = currentSourceItem ? creatorFromItem(currentSourceItem) : null;
+  const currentCreatorKey = currentCreator?.key || '';
+  const isCurrentSaved = Boolean(currentWorkKey && savedWorkKeys.has(currentWorkKey));
+  const isCurrentFollowed = Boolean(currentCreatorKey && followedCreatorKeys.has(currentCreatorKey));
+
+  const toggleCurrentSaved = useCallback(() => {
+    if (!currentSourceItem) return;
+    toggleSavedWork(currentSourceItem);
+  }, [currentSourceItem, toggleSavedWork]);
+
+  const toggleCurrentFollowed = useCallback(() => {
+    toggleFollowedCreator(currentCreator);
+  }, [currentCreator, toggleFollowedCreator]);
+
+  const shareCurrent = useCallback(async () => {
+    if (!item) return;
+    const url = item.buyUrl && item.buyUrl !== '#' ? item.buyUrl : item.creatorUrl || window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: item.title, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setMessage('Link copied.');
+    } catch {
+      setMessage('Share unavailable.');
+    }
+  }, [item]);
+
+  const handleVisualTouchStart = useCallback((event: TouchEvent<HTMLDivElement>) => {
+    touchStartYRef.current = event.touches[0]?.clientY ?? null;
+  }, []);
+
+  const handleVisualTouchEnd = useCallback((event: TouchEvent<HTMLDivElement>) => {
+    const startY = touchStartYRef.current;
+    touchStartYRef.current = null;
+    if (startY === null || currentFreeDropIndex < 0) return;
+    const endY = event.changedTouches[0]?.clientY ?? startY;
+    const delta = endY - startY;
+    if (Math.abs(delta) < 56) return;
+    if (delta < 0) playNextFreeDrop();
+    else playPreviousFreeDrop();
+  }, [currentFreeDropIndex, playNextFreeDrop, playPreviousFreeDrop]);
+
   const handleEnded = useCallback(() => {
     endingRef.current = true;
     setState('ended');
@@ -616,6 +675,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     playItem,
     setMobilePlayerOpen: setMobileSheetOpen,
     setFreeDropQueue,
+    setDrawerContent,
     togglePlay,
     playNextFreeDrop,
     playPreviousFreeDrop,
@@ -639,16 +699,14 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const progressValue = Math.min(progress, Math.max(duration || progress || 1, 1));
   const visualAspectClass = `stage1a-rich-visual-${mediaAspect}`;
   const detailPanelTitle =
-    detailPanel === 'credits' ? 'Credits & Contributors'
-      : detailPanel === 'proofs' ? 'Proofs & Receipts'
-        : detailPanel === 'about' ? 'About This Work'
-          : detailPanel === 'connected' ? 'Connected To'
+    detailPanel === 'details' ? 'Details'
+      : detailPanel === 'more' ? 'More From Creator'
+        : detailPanel === 'connections' ? 'Connections'
+          : detailPanel === 'proofs' ? 'Proofs & Credits'
             : '';
-  const detailPanelRows = detailPanel === 'credits'
-    ? item?.creditLabels || []
-    : detailPanel === 'proofs'
-      ? item?.proofLabels || []
-      : detailPanel === 'about'
+  const detailPanelRows = detailPanel === 'proofs'
+    ? [...(item?.creditLabels || []), ...(item?.proofLabels || []), ...(drawerContent?.credits || [])]
+    : detailPanel === 'details'
         ? [
           item?.title ? `Title: ${item.title}` : '',
           item?.creator ? `Creator: @${item.creator}` : '',
@@ -657,9 +715,14 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           ...(item?.detailLabels || []),
           item?.description || '',
         ].filter(Boolean)
-        : detailPanel === 'connected'
-          ? item?.connectedLabels || []
+        : detailPanel === 'connections'
+          ? [...(item?.connectedLabels || []), ...(drawerContent?.connections || [])]
           : [];
+  const detailPanelItems = detailPanel === 'more'
+    ? drawerContent?.moreFromCreator || []
+    : detailPanel === 'connections'
+      ? drawerContent?.relatedWorks || []
+      : [];
 
   return (
     <Stage1APlayerContext.Provider value={contextValue}>
@@ -670,7 +733,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           <div className="stage1a-rich-kicker">Now Playing</div>
           <button type="button" className="stage1a-rich-collapse" onClick={() => setMobileSheetOpen(false)} aria-label="Collapse player">↓</button>
         </div>
-        <div ref={visualRef} className={`stage1a-rich-visual ${item?.mediaKind === 'video' ? 'stage1a-rich-visual-video' : 'stage1a-rich-visual-artwork'} ${visualAspectClass}`}>
+        <div
+          ref={visualRef}
+          className={`stage1a-rich-visual ${item?.mediaKind === 'video' ? 'stage1a-rich-visual-video' : 'stage1a-rich-visual-artwork'} ${visualAspectClass}`}
+          onTouchStart={handleVisualTouchStart}
+          onTouchEnd={handleVisualTouchEnd}
+        >
           {item?.mediaKind === 'video' ? (
             <video
               ref={videoRef}
@@ -762,27 +830,42 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                 ))}
               </div>
             ) : null}
+            <div className="stage1a-rich-overlay-actions" aria-label="Work actions">
+              <button type="button" onClick={toggleCurrentSaved} disabled={!currentSourceItem}>
+                {isCurrentSaved ? 'Saved' : 'Save Work'}
+              </button>
+              <button type="button" onClick={shareCurrent}>
+                Share
+              </button>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>
+                More / Details
+              </button>
+              <button type="button" onClick={toggleCurrentFollowed} disabled={!currentCreator}>
+                {isCurrentFollowed ? 'Following' : 'Follow Creator'}
+              </button>
+            </div>
             <div className="stage1a-rich-actions">
               <a className="stage1a-rich-support" href={item?.buyUrl || '#'} target="_blank" rel="noreferrer">
                 {item?.supportLabel || 'Support Creator'}
               </a>
+            </div>
+            <div className="stage1a-rich-links" aria-label="Work details">
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>Details</button>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'more' ? null : 'more'))}>More from Creator</button>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'connections' ? null : 'connections'))}>Connections</button>
+              <button type="button" onClick={() => setDetailPanel((current) => (current === 'proofs' ? null : 'proofs'))}>Proofs / Credits</button>
               {item?.creatorUrl ? (
-                <a className="stage1a-rich-creator-link" href={item.creatorUrl} target="_blank" rel="noreferrer">
+                <a className="stage1a-rich-inline-link" href={item.creatorUrl} target="_blank" rel="noreferrer">
                   Visit Creator
                 </a>
               ) : null}
-            </div>
-            <div className="stage1a-rich-links" aria-label="Work details">
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'credits' ? null : 'credits'))}>Credits & Contributors</button>
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'proofs' ? null : 'proofs'))}>Proofs & Receipts</button>
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'about' ? null : 'about'))}>About This Work</button>
             </div>
             {item?.connectedLabels.length ? (
               <div className="stage1a-rich-connected">
                 <div className="stage1a-rich-connected-title">Connected to</div>
                 <div className="stage1a-rich-connected-list">
                   {item.connectedLabels.map((label) => (
-                    <button type="button" key={label} onClick={() => setDetailPanel('connected')}>{label}</button>
+                    <button type="button" key={label} onClick={() => setDetailPanel('connections')}>{label}</button>
                   ))}
                 </div>
               </div>
@@ -793,6 +876,24 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                   <div>{detailPanelTitle}</div>
                   <button type="button" onClick={() => setDetailPanel(null)} aria-label="Close details">×</button>
                 </div>
+                {detailPanelItems.length > 0 ? (
+                  <div className="stage1a-rich-drawer-cards">
+                    {detailPanelItems.map((drawerItem) => (
+                      <button
+                        type="button"
+                        key={`${drawerItem.publicOrigin}:${drawerItem.contentId}`}
+                        className="stage1a-rich-drawer-card"
+                        onClick={() => void playItem(drawerItem)}
+                      >
+                        {drawerItem.coverUrl ? <img src={drawerItem.coverUrl} alt="" referrerPolicy="no-referrer" /> : <span aria-hidden="true">♪</span>}
+                        <span>
+                          <strong>{drawerItem.title || 'Untitled'}</strong>
+                          <small>@{String(drawerItem.creatorHandle || 'creator').replace(/^@+/, '')}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 {detailPanelRows.length > 0 ? (
                   <ul>
                     {detailPanelRows.map((row) => (

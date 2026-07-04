@@ -884,7 +884,7 @@ function FreebiesWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
-  const { item: playerItem, playItem, setFreeDropQueue, setMobilePlayerOpen } = useStage1APlayer();
+  const { item: playerItem, playItem, setFreeDropQueue, setMobilePlayerOpen, setDrawerContent } = useStage1APlayer();
   const [items, setItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -978,6 +978,16 @@ function FreebiesWatch({
   useEffect(() => {
     setFreeDropQueue(items);
   }, [items, setFreeDropQueue]);
+
+  useEffect(() => {
+    if (!activeItem) return;
+    setDrawerContent({
+      moreFromCreator: items.filter((row) => row.creatorHandle === activeItem.creatorHandle && row.contentId !== activeItem.contentId).slice(0, 12),
+      relatedWorks: items.filter((row) => row.contentId !== activeItem.contentId).slice(0, 12),
+      connections: activeRelationshipContext ? ['Connected relationship data is available for this work.'] : [],
+    });
+    return () => setDrawerContent(null);
+  }, [activeItem, activeRelationshipContext, items, setDrawerContent]);
 
   useEffect(() => {
     if (!activeItem || !activeItemKey) return;
@@ -1092,7 +1102,7 @@ function StandardWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
-  const { playItem } = useStage1APlayer();
+  const { playItem, setDrawerContent } = useStage1APlayer();
   const {
     followedCreatorKeys,
     savedCreatorKeys,
@@ -1238,6 +1248,38 @@ function StandardWatch({
       '--watch-cover-url': `url("${item.coverUrl.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}")`,
     } as CSSProperties
     : themeVars;
+
+  useEffect(() => {
+    if (!item) return;
+    const railItems = dedupeDiscoveryItems(explorationRails.flatMap((rail) => rail.items || []))
+      .filter((row) => row.contentId !== item.contentId || row.publicOrigin !== item.publicOrigin);
+    const creatorWorks = railItems
+      .filter((row) => row.creatorHandle === item.creatorHandle)
+      .slice(0, 12);
+    const relatedWorks = railItems.slice(0, 12);
+    const creditRows = credits.map((credit) => {
+      const name = credit.displayName || credit.participantName || 'Contributor';
+      const handle = credit.handle ? `@${String(credit.handle).replace(/^@+/, '')}` : '';
+      const role = credit.role ? ` • ${credit.role}` : '';
+      const pct = credit.sharePercent ?? credit.percent;
+      return `${name}${handle ? ` (${handle})` : ''}${role}${pct != null ? ` • ${pct}%` : ''}`;
+    });
+    const connectionRows = relationshipContext
+      ? [
+        relationshipContext.creator ? 'Creator relationship context available.' : '',
+        Array.isArray(relationshipContext.connectedCreators) && relationshipContext.connectedCreators.length ? `${relationshipContext.connectedCreators.length} connected creators` : '',
+        Array.isArray(relationshipContext.relatedWorks) && relationshipContext.relatedWorks.length ? `${relationshipContext.relatedWorks.length} related works` : '',
+        Array.isArray(relationshipContext.moreTheyWorkedOn) && relationshipContext.moreTheyWorkedOn.length ? `${relationshipContext.moreTheyWorkedOn.length} works they also worked on` : '',
+      ].filter(Boolean)
+      : [];
+    setDrawerContent({
+      moreFromCreator: creatorWorks.length ? creatorWorks : relatedWorks,
+      relatedWorks,
+      connections: connectionRows,
+      credits: creditRows,
+    });
+    return () => setDrawerContent(null);
+  }, [credits, explorationRails, item, relationshipContext, setDrawerContent]);
 
   async function onShare() {
     if (!item) return;

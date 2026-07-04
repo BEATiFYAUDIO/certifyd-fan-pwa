@@ -672,6 +672,9 @@ function RankingRow({
         to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
         state={{ item }}
         className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden sm:gap-3"
+        onClick={() => {
+          void playItem(item);
+        }}
       >
         <div className="creator-themed-rank flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold">
           {rank}
