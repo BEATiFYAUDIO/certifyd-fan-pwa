@@ -58,6 +58,8 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
     if (shouldOpenMobilePlayerOnly()) {
       event?.preventDefault();
       setMobilePlayerOpen(true);
+      void playItem(item, { muted: true, drawer: 'details' });
+      return;
     }
     void playItem(item, { muted: true });
   };

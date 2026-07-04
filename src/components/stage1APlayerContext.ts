@@ -4,6 +4,7 @@ import type { PlayerCommerceState } from '../lib/playbackDisplay';
 
 export type Stage1APlayerState = 'idle' | 'loading' | 'playing' | 'paused' | 'ended' | 'error';
 export type Stage1APlaybackMode = 'full' | 'preview' | 'none';
+export type Stage1APlayerDrawerPanel = 'details' | 'more' | 'connections' | 'proofs' | null;
 
 export type Stage1APlayerItem = {
   sourceItem?: DiscoverableItem;
@@ -40,10 +41,11 @@ export type Stage1APlayerDrawerContent = {
 };
 
 export type Stage1APlayerContextValue = {
-  playItem: (item: DiscoverableItem, options?: { muted?: boolean; openPlayer?: boolean }) => Promise<void>;
+  playItem: (item: DiscoverableItem, options?: { muted?: boolean; openPlayer?: boolean; drawer?: Stage1APlayerDrawerPanel }) => Promise<void>;
   setMobilePlayerOpen: (open: boolean) => void;
   setFreeDropQueue: (items: DiscoverableItem[]) => void;
   setDrawerContent: (content: Stage1APlayerDrawerContent | null) => void;
+  openDrawer: (panel: Stage1APlayerDrawerPanel) => void;
   togglePlay: () => void;
   playNextFreeDrop: () => void;
   playPreviousFreeDrop: () => void;
@@ -68,6 +70,7 @@ export function useStage1APlayer() {
     setMobilePlayerOpen: () => undefined,
     setFreeDropQueue: () => undefined,
     setDrawerContent: () => undefined,
+    openDrawer: () => undefined,
     togglePlay: () => undefined,
     playNextFreeDrop: () => undefined,
     playPreviousFreeDrop: () => undefined,

@@ -45,6 +45,8 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
     if (shouldOpenMobilePlayerOnly()) {
       event?.preventDefault();
       setMobilePlayerOpen(true);
+      void playItem(item, { drawer: 'details' });
+      return;
     }
     void playItem(item);
   };

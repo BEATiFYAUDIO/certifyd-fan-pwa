@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent, type TouchEvent } from 'react';
-import type { DiscoverableItem } from '../lib/types';
+import { fetchContentContext } from '../lib/api';
+import type { ContentContextWork, DiscoverableItem } from '../lib/types';
 import { fetchCanonicalOfferPayload } from '../lib/offerFetch';
 import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
 import { displayStateFromItem, displayStateFromPlayback } from '../lib/playbackDisplay';
 import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
-import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerItem, type Stage1APlayerState, type Stage1APlaybackMode } from './stage1APlayerContext';
+import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerState, type Stage1APlaybackMode } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
 type MediaAspect = 'landscape' | 'portrait' | 'square' | 'unknown';
-type DetailPanel = 'details' | 'more' | 'connections' | 'proofs' | null;
+type DetailPanel = Stage1APlayerDrawerPanel;
 
 type CanonicalPlayback = {
   mode: Stage1APlaybackMode;
@@ -323,6 +324,40 @@ function statusLabel(state: Stage1APlayerState): string {
   return state[0].toUpperCase() + state.slice(1);
 }
 
+function contextWorkToDiscoverable(work: ContentContextWork, fallbackOrigin: string): DiscoverableItem | null {
+  const publicOrigin = work.creator?.publicOrigin || fallbackOrigin;
+  if (!work.contentId || !publicOrigin) return null;
+  return {
+    contentId: work.contentId,
+    title: work.title || 'Untitled',
+    description: null,
+    contentType: work.contentType || 'other',
+    primaryTopic: work.primaryTopic === 'all' ? null : work.primaryTopic as DiscoverableItem['primaryTopic'],
+    creatorHandle: work.creator?.handle || 'creator',
+    creatorDisplayName: work.creator?.displayName || work.creator?.handle || 'Creator',
+    creatorAvatarUrl: work.creator?.avatarUrl || '',
+    coverUrl: work.coverUrl || '',
+    previewUrl: work.previewUrl || '',
+    buyUrl: work.publicUrl || '',
+    offerUrl: resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(work.contentId)}/offer`, publicOrigin),
+    priceSats: 0,
+    accessMode: 'unlocked',
+    publicOrigin,
+    profileTheme: work.profileTheme || work.creator?.profileTheme || null,
+    relationshipBadges: work.relationshipLabel ? [work.relationshipLabel] : [],
+  } as DiscoverableItem;
+}
+
+function dedupeDrawerItems(items: DiscoverableItem[]): DiscoverableItem[] {
+  const seen = new Set<string>();
+  return items.filter((row) => {
+    const key = `${row.publicOrigin}::${row.contentId}`;
+    if (!row.contentId || !row.publicOrigin || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const {
     savedWorkKeys,
@@ -375,8 +410,14 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     setMediaMuted(false);
   }, []);
 
-  const playItem = useCallback(async (nextItem: DiscoverableItem, options?: { muted?: boolean; openPlayer?: boolean }) => {
-    setDetailPanel(null);
+  const playItem = useCallback(async (nextItem: DiscoverableItem, options?: { muted?: boolean; openPlayer?: boolean; drawer?: Stage1APlayerDrawerPanel }) => {
+    setDetailPanel(options?.drawer ?? null);
+    setDrawerContent({
+      moreFromCreator: [],
+      relatedWorks: [],
+      connections: connectedLabelsFromItem(nextItem),
+      credits: creditLabelsFromItem(nextItem),
+    });
     mutedAutoplayRef.current = options?.muted === true;
     setMediaMuted(options?.muted === true);
     if (options?.openPlayer !== false) setMobileSheetOpen(true);
@@ -655,6 +696,66 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     else playPreviousFreeDrop();
   }, [currentFreeDropIndex, playNextFreeDrop, playPreviousFreeDrop]);
 
+  useEffect(() => {
+    let active = true;
+    if (!currentSourceItem?.contentId || !currentSourceItem.publicOrigin) {
+      return () => {
+        active = false;
+      };
+    }
+    const fallbackContent: Stage1APlayerDrawerContent = {
+      moreFromCreator: [],
+      relatedWorks: [],
+      connections: connectedLabelsFromItem(currentSourceItem),
+      credits: creditLabelsFromItem(currentSourceItem),
+    };
+    void fetchContentContext({ origin: currentSourceItem.publicOrigin, contentId: currentSourceItem.contentId })
+      .then((context) => {
+        if (!active || !context) return;
+        const contextWorks = dedupeDrawerItems([
+          ...context.moreTheyWorkedOn,
+          ...context.relatedWorks,
+          ...context.worksThatBuiltOnThis,
+          ...context.builtFrom,
+          ...context.derivedFrom,
+        ].map((work) => contextWorkToDiscoverable(work, currentSourceItem.publicOrigin)).filter((row): row is DiscoverableItem => Boolean(row)));
+        const creatorWorks = contextWorks
+          .filter((row) => row.creatorHandle === currentSourceItem.creatorHandle)
+          .slice(0, 12);
+        const people = [
+          ...context.peopleBehindThis,
+          ...context.featuring,
+          ...context.createdWith,
+          ...context.connectedCreators,
+        ]
+          .map((person) => {
+            const handle = person.handle ? `@${String(person.handle).replace(/^@+/, '')}` : '';
+            const role = 'relationshipLabel' in person && person.relationshipLabel ? ` • ${person.relationshipLabel}` : '';
+            return `${person.displayName || person.handle || 'Creator'}${handle ? ` (${handle})` : ''}${role}`;
+          })
+          .filter(Boolean);
+        setDrawerContent({
+          moreFromCreator: creatorWorks.length ? creatorWorks : contextWorks.slice(0, 12),
+          relatedWorks: contextWorks.slice(0, 16),
+          connections: [
+            context.creator ? `Creator: ${context.creator.displayName || context.creator.handle || 'Creator'}` : '',
+            context.connectedCreators.length ? `${context.connectedCreators.length} connected creators` : '',
+            context.moreTheyWorkedOn.length ? `${context.moreTheyWorkedOn.length} works they also worked on` : '',
+            context.relatedWorks.length ? `${context.relatedWorks.length} related works` : '',
+            context.provenance?.hasManifest ? 'Manifest available' : '',
+            context.provenance?.hasLockedProof ? 'Locked proof available' : '',
+          ].filter(Boolean),
+          credits: people,
+        });
+      })
+      .catch(() => {
+        if (active) setDrawerContent((current) => current || fallbackContent);
+      });
+    return () => {
+      active = false;
+    };
+  }, [currentSourceItem]);
+
   const handleEnded = useCallback(() => {
     endingRef.current = true;
     setState('ended');
@@ -676,6 +777,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     setMobilePlayerOpen: setMobileSheetOpen,
     setFreeDropQueue,
     setDrawerContent,
+    openDrawer: setDetailPanel,
     togglePlay,
     playNextFreeDrop,
     playPreviousFreeDrop,
@@ -875,6 +977,14 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                 <div className="stage1a-rich-detail-panel-head">
                   <div>{detailPanelTitle}</div>
                   <button type="button" onClick={() => setDetailPanel(null)} aria-label="Close details">×</button>
+                </div>
+                <div className="stage1a-rich-drawer-hero">
+                  {item?.artwork ? <img src={item.artwork} alt="" referrerPolicy="no-referrer" /> : <div aria-hidden="true">CERTIFYD</div>}
+                  <div>
+                    <span>{item?.playbackLabel || 'READY'}</span>
+                    <strong>{item?.title || 'Certifyd Player'}</strong>
+                    <small>{isIdle ? 'Choose a work to start playback.' : `@${item?.creator || 'creator'}`}</small>
+                  </div>
                 </div>
                 {detailPanelItems.length > 0 ? (
                   <div className="stage1a-rich-drawer-cards">

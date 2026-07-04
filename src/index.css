@@ -1480,6 +1480,68 @@ body.has-stage1a-player {
   margin-bottom: 12px;
 }
 
+.stage1a-rich-drawer-hero {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(232, 146, 255, 0.18), transparent 42%),
+    rgba(255, 255, 255, 0.045);
+  padding: 10px;
+}
+
+.stage1a-rich-drawer-hero img,
+.stage1a-rich-drawer-hero > div:first-child {
+  width: 72px;
+  height: 54px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  object-fit: cover;
+}
+
+.stage1a-rich-drawer-hero > div:first-child {
+  display: grid;
+  place-items: center;
+  color: rgba(246, 240, 247, 0.52);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.stage1a-rich-drawer-hero span,
+.stage1a-rich-drawer-hero strong,
+.stage1a-rich-drawer-hero small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stage1a-rich-drawer-hero span {
+  color: #ffd84d;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.stage1a-rich-drawer-hero strong {
+  margin-top: 3px;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.stage1a-rich-drawer-hero small {
+  margin-top: 2px;
+  color: rgba(246, 240, 247, 0.66);
+  font-size: 12px;
+  font-weight: 750;
+}
+
 .stage1a-rich-drawer-card {
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr);
@@ -1761,7 +1823,11 @@ body.has-stage1a-player {
     max-height: min(62dvh, 520px);
     overflow: auto;
     border-radius: 22px 22px 18px 18px;
-    box-shadow: 0 -18px 60px rgba(0, 0, 0, 0.52);
+    background:
+      radial-gradient(circle at 50% -20%, rgba(232, 146, 255, 0.22), transparent 44%),
+      linear-gradient(180deg, rgba(18, 12, 24, 0.96), rgba(3, 6, 12, 0.94));
+    backdrop-filter: blur(24px);
+    box-shadow: 0 -18px 60px rgba(0, 0, 0, 0.62);
   }
 
   .watch-page .watch-related-area,
