@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type SyntheticEvent, type TouchEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent, type TouchEvent } from 'react';
 import { fetchContentContext } from '../lib/api';
 import type { ContentContextWork, DiscoverableItem } from '../lib/types';
 import { fetchCanonicalOfferPayload } from '../lib/offerFetch';
@@ -800,23 +800,6 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const progressMax = Math.max(duration || 0, progress || 0, 1);
   const progressValue = Math.min(progress, Math.max(duration || progress || 1, 1));
   const visualAspectClass = `stage1a-rich-visual-${mediaAspect}`;
-  const visualStyle = useMemo(() => {
-    const style: CSSProperties = {};
-    if (mediaAspect === 'portrait') {
-      style.aspectRatio = '9 / 16';
-      style.width = 'min(100%, 54vh)';
-      style.minHeight = 'min(72vh, 760px)';
-    } else if (mediaAspect === 'square') {
-      style.aspectRatio = '1 / 1';
-      style.width = 'min(100%, 620px)';
-      style.minHeight = 'min(62vh, 620px)';
-    } else {
-      style.aspectRatio = '16 / 9';
-      style.width = '100%';
-      style.minHeight = '320px';
-    }
-    return style;
-  }, [mediaAspect]);
   const detailPanelTitle =
     detailPanel === 'details' ? 'Details'
       : detailPanel === 'more' ? 'More From Creator'
@@ -855,7 +838,6 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
         <div
           ref={visualRef}
           className={`stage1a-rich-visual ${item?.mediaKind === 'video' ? 'stage1a-rich-visual-video' : 'stage1a-rich-visual-artwork'} ${visualAspectClass}`}
-          style={visualStyle}
           onTouchStart={handleVisualTouchStart}
           onTouchEnd={handleVisualTouchEnd}
         >

@@ -1185,7 +1185,7 @@ body.has-stage1a-player {
 .stage1a-rich-visual {
   display: grid;
   width: 100%;
-  height: auto;
+  height: min(58dvh, 620px);
   min-height: 320px;
   max-height: min(78dvh, 860px);
   place-items: center;
@@ -1196,39 +1196,57 @@ body.has-stage1a-player {
 }
 
 .stage1a-rich-visual-landscape {
-  height: auto;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: auto;
 }
 
 .stage1a-rich-visual-portrait {
-  width: min(100%, calc(min(58dvh, 620px) * 9 / 16));
-  height: auto;
-  min-height: 0;
-  aspect-ratio: 9 / 16;
-  align-self: center;
-  justify-self: center;
+  aspect-ratio: auto;
 }
 
 .stage1a-rich-visual-square {
-  width: min(100%, min(58dvh, 620px));
-  height: auto;
-  min-height: 0;
-  aspect-ratio: 1;
-  justify-self: center;
+  aspect-ratio: auto;
 }
 
 .stage1a-rich-visual-unknown {
-  height: auto;
-  min-height: 0;
-  aspect-ratio: 16 / 9;
-  width: 100%;
+  aspect-ratio: auto;
 }
 
 .stage1a-rich-player .stage1a-player-video {
   display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  background: #000;
+  object-fit: contain;
+}
+
+.stage1a-rich-visual-portrait .stage1a-player-video,
+.stage1a-rich-visual-portrait .stage1a-rich-artwork {
+  width: auto;
+  height: 100%;
+  aspect-ratio: 9 / 16;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.stage1a-rich-visual-landscape .stage1a-player-video,
+.stage1a-rich-visual-landscape .stage1a-rich-artwork,
+.stage1a-rich-visual-unknown .stage1a-player-video,
+.stage1a-rich-visual-unknown .stage1a-rich-artwork {
   width: 100%;
   height: 100%;
-  background: #000;
+  object-fit: contain;
+}
+
+.stage1a-rich-visual-square .stage1a-player-video,
+.stage1a-rich-visual-square .stage1a-rich-artwork {
+  width: auto;
+  height: 100%;
+  aspect-ratio: 1;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
 }
 
@@ -1279,8 +1297,10 @@ body.has-stage1a-player {
 }
 
 .stage1a-rich-artwork {
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
 }
 
@@ -1898,6 +1918,7 @@ body.has-stage1a-player {
   }
 
   .stage1a-rich-player-mobile-open .stage1a-rich-visual {
+    height: min(70dvh, 720px);
     min-height: min(64dvh, 680px);
     max-height: none;
   }
@@ -1993,8 +2014,8 @@ body.has-stage1a-player {
     position: relative;
     display: grid;
     width: 100%;
-    height: auto;
-    min-height: 320px;
+    height: min(68vh, 820px);
+    min-height: 420px;
     max-height: min(76vh, 860px);
     place-items: center;
     overflow: hidden;
@@ -2005,47 +2026,65 @@ body.has-stage1a-player {
   }
 
   .stage1a-rich-visual-landscape {
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: auto;
   }
 
   .stage1a-rich-visual-portrait {
-    width: min(100%, calc(min(76vh, 860px) * 9 / 16));
-    height: auto;
-    min-height: 0;
-    aspect-ratio: 9 / 16;
-    justify-self: center;
+    aspect-ratio: auto;
   }
 
   .stage1a-rich-visual-square {
-    width: min(100%, min(76vh, 620px));
-    height: auto;
-    min-height: 0;
-    aspect-ratio: 1;
-    justify-self: center;
+    aspect-ratio: auto;
   }
 
   .stage1a-rich-visual-unknown {
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    aspect-ratio: 16 / 9;
-    justify-self: center;
+    aspect-ratio: auto;
   }
 
   .stage1a-rich-player .stage1a-player-video {
     display: block;
-    width: 100%;
-    height: 100%;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
     background: #000;
     object-fit: contain;
   }
 
-  .stage1a-rich-artwork {
+  .stage1a-rich-visual-portrait .stage1a-player-video,
+  .stage1a-rich-visual-portrait .stage1a-rich-artwork {
+    width: auto;
+    height: 100%;
+    aspect-ratio: 9 / 16;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  .stage1a-rich-visual-landscape .stage1a-player-video,
+  .stage1a-rich-visual-landscape .stage1a-rich-artwork,
+  .stage1a-rich-visual-unknown .stage1a-player-video,
+  .stage1a-rich-visual-unknown .stage1a-rich-artwork {
     width: 100%;
     height: 100%;
+    object-fit: contain;
+  }
+
+  .stage1a-rich-visual-square .stage1a-player-video,
+  .stage1a-rich-visual-square .stage1a-rich-artwork {
+    width: auto;
+    height: 100%;
+    aspect-ratio: 1;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  .stage1a-rich-artwork {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
   }
 
