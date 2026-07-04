@@ -667,7 +667,7 @@ function RankingRow({
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches) {
       event?.preventDefault();
       setMobilePlayerOpen(true);
-      void playItem(item, { drawer: 'details' });
+      void playItem(item);
       return;
     }
     void playItem(item);
