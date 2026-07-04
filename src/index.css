@@ -231,7 +231,7 @@ body::after {
     grid-template-columns:
       clamp(220px, 14vw, 260px)
       minmax(0, 1fr)
-      clamp(520px, 34vw, 720px);
+      clamp(380px, 26vw, 520px);
     gap: 14px;
     padding: 0 14px;
   }
@@ -273,7 +273,7 @@ body::after {
 
   .certifyd-player-right-panel {
     gap: 18px;
-    padding: 40px 18px 132px;
+    padding: 40px 14px 132px;
     border-radius: 0 0 12px 12px;
   }
 
@@ -2092,7 +2092,7 @@ body.has-stage1a-player {
     bottom: auto;
     z-index: 70;
     display: flex;
-    width: clamp(520px, 34vw, 720px);
+    width: clamp(380px, 26vw, 520px);
     height: 100vh;
     max-height: none;
     min-height: 0;
@@ -2108,7 +2108,7 @@ body.has-stage1a-player {
       0 18px 52px rgba(0, 0, 0, 0.42),
       inset 0 1px 0 rgba(255, 255, 255, 0.04);
     color: #f6f0f7;
-    padding: 38px 22px 76px;
+    padding: 38px 16px 76px;
     transform: none;
     transition: none;
   }
