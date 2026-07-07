@@ -320,6 +320,10 @@ function PlayIcon({ playing }: { playing: boolean }) {
   return <span className={`stage1a-play-icon ${playing ? 'stage1a-play-icon-pause' : 'stage1a-play-icon-play'}`} aria-hidden="true" />;
 }
 
+function TransportIcon({ icon }: { icon: 'previous' | 'next' | 'fullscreen' | 'mute' | 'volume' }) {
+  return <span className={`stage1a-transport-icon stage1a-transport-icon-${icon}`} aria-hidden="true" />;
+}
+
 function statusLabel(state: Stage1APlayerState): string {
   return state[0].toUpperCase() + state.slice(1);
 }
@@ -981,15 +985,21 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
         {!isIdle ? (
           <>
             <div className="stage1a-rich-controls">
-              <button type="button" className="stage1a-rich-nav" onClick={playPreviousFreeDrop} disabled={!canPlayPreviousFreeDrop} aria-label="Previous Free Drop">‹</button>
+              <button type="button" className="stage1a-rich-nav" onClick={playPreviousFreeDrop} disabled={!canPlayPreviousFreeDrop} aria-label="Previous Free Drop">
+                <TransportIcon icon="previous" />
+              </button>
               <button type="button" className="stage1a-rich-play" onClick={togglePlay} disabled={!canControl} aria-label="Play or pause">
                 <PlayIcon playing={isPlaying} />
               </button>
-              <button type="button" className="stage1a-rich-nav" onClick={playNextFreeDrop} disabled={!canPlayNextFreeDrop} aria-label="Next Free Drop">›</button>
-              <button type="button" className="stage1a-rich-nav stage1a-rich-fullscreen" onClick={toggleFullscreen} disabled={!canControl} aria-label="Fullscreen">⛶</button>
+              <button type="button" className="stage1a-rich-nav" onClick={playNextFreeDrop} disabled={!canPlayNextFreeDrop} aria-label="Next Free Drop">
+                <TransportIcon icon="next" />
+              </button>
+              <button type="button" className="stage1a-rich-nav stage1a-rich-fullscreen" onClick={toggleFullscreen} disabled={!canControl} aria-label="Fullscreen">
+                <TransportIcon icon="fullscreen" />
+              </button>
               {item?.mediaKind === 'video' ? (
                 <button type="button" className="stage1a-rich-nav stage1a-rich-mute" onClick={toggleMute} disabled={!canControl} aria-label={mediaMuted ? 'Unmute' : 'Mute'}>
-                  {mediaMuted ? '🔇' : '🔊'}
+                  <TransportIcon icon={mediaMuted ? 'mute' : 'volume'} />
                 </button>
               ) : null}
             </div>
