@@ -1,27 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent, type TouchEvent } from 'react';
 import { fetchContentContext } from '../lib/api';
 import type { ContentContextWork, DiscoverableItem } from '../lib/types';
+import { resolveAccessFromOffer, type CanonicalOffer, type ResolvedPlayback } from '../lib/accessResolver';
 import { fetchCanonicalOfferPayload } from '../lib/offerFetch';
 import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
 import { displayStateFromItem, displayStateFromPlayback } from '../lib/playbackDisplay';
 import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
-import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerState, type Stage1APlaybackMode } from './stage1APlayerContext';
+import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
+import { restoreAccessForItem } from '../lib/restoreAccess';
+import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerState } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
 type MediaAspect = Stage1APlayerMediaAspect;
 type DetailPanel = Stage1APlayerDrawerPanel;
-
-type CanonicalPlayback = {
-  mode: Stage1APlaybackMode;
-  streamUrl: string | null;
-  previewLimitSeconds: number | null;
-  canPlayFull: boolean;
-  reason?: string;
-};
-
-type CanonicalOffer = Record<string, unknown> & {
-  playback?: Partial<CanonicalPlayback> | null;
-};
 
 const RECENT_ITEMS_STORAGE_KEY = 'certifyd-player:recent-items:v1';
 const AUTOPLAY_STORAGE_KEY = 'certifyd-player:autoplay-next:v1';
@@ -58,69 +49,35 @@ function creatorProfileUrl(item: DiscoverableItem, offer: CanonicalOffer | null)
   return `${String(item.publicOrigin).replace(/\/+$/, '')}/u/${encodeURIComponent(handle)}`;
 }
 
-async function fetchCanonicalOffer(item: DiscoverableItem): Promise<CanonicalOffer | null> {
+type CanonicalOfferResult = {
+  offer: CanonicalOffer | null;
+  receiptStatus: ReceiptAccessStatus | null;
+};
+
+async function fetchCanonicalOffer(item: DiscoverableItem): Promise<CanonicalOfferResult> {
+  let receiptStatus = await hydrateReceiptStatusForItem(item);
   const fallback = resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, item.publicOrigin);
   const baseOfferUrls = [...new Set([String(item.offerUrl || '').trim(), canonicalOfferUrl(item), fallback].filter(Boolean))];
   const offerUrls = baseOfferUrls.flatMap((offerUrl) => withReceiptProofs(offerUrl, item));
-  return normalizeOffer(await fetchCanonicalOfferPayload(offerUrls));
-}
-
-function normalizePlayback(offer: CanonicalOffer | null): CanonicalPlayback | null {
-  const playback = offer?.playback;
-  if (playback && typeof playback === 'object') {
-    const mode = playback.mode === 'full' || playback.mode === 'preview' || playback.mode === 'none' ? playback.mode : 'none';
-    const streamUrl = typeof playback.streamUrl === 'string' && playback.streamUrl.trim() ? playback.streamUrl.trim() : null;
-    const previewLimitSeconds = Number(playback.previewLimitSeconds);
-    const normalizedPreviewLimitSeconds = Number.isFinite(previewLimitSeconds) && previewLimitSeconds > 0 ? previewLimitSeconds : null;
-    return {
-      mode,
-      streamUrl,
-      previewLimitSeconds: mode === 'preview' ? normalizedPreviewLimitSeconds || 20 : normalizedPreviewLimitSeconds,
-      canPlayFull: playback.canPlayFull === true,
-      reason: typeof playback.reason === 'string' ? playback.reason : undefined,
-    };
+  const offer = normalizeOffer(await fetchCanonicalOfferPayload(offerUrls));
+  const paymentAccessProof = offer?.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
+    ? offer.paymentAccessProof as Record<string, unknown>
+    : null;
+  rememberReceiptProofForItem(item, {
+    receiptId: typeof paymentAccessProof?.paymentReceiptId === 'string' ? paymentAccessProof.paymentReceiptId : typeof offer?.receiptId === 'string' ? offer.receiptId : undefined,
+    receiptToken: typeof paymentAccessProof?.receiptToken === 'string' ? paymentAccessProof.receiptToken : typeof offer?.receiptToken === 'string' ? offer.receiptToken : undefined,
+    paymentIntentId: typeof paymentAccessProof?.paymentIntentId === 'string' ? paymentAccessProof.paymentIntentId : typeof offer?.paymentIntentId === 'string' ? offer.paymentIntentId : undefined,
+    paidAt: typeof paymentAccessProof?.paidAt === 'string' ? paymentAccessProof.paidAt : typeof offer?.paidAt === 'string' ? offer.paidAt : undefined,
+  });
+  if (!receiptStatus) receiptStatus = await hydrateReceiptStatusForItem(item);
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    console.debug('[Certifyd receipt propagation]', 'Player offer hydration result', {
+      item: { contentId: item.contentId, publicOrigin: item.publicOrigin },
+      receiptStatus,
+      offer,
+    });
   }
-
-  if (!offer) return null;
-  const fullStreamUrl = [offer.fullMediaUrl, offer.fullContentUrl, offer.mediaUrl, offer.contentUrl]
-    .find((value) => typeof value === 'string' && value.trim()) as string | undefined;
-  const previewStreamUrl = typeof offer.previewUrl === 'string' && offer.previewUrl.trim() ? offer.previewUrl.trim() : null;
-  const accessMode = String(offer.accessMode || '').trim().toLowerCase();
-  const price = Number(offer.priceSats || offer.price_sat || offer.amountSats || offer.price || 0);
-  const hasFullAccess =
-    offer.hasFullAccess === true ||
-    offer.owned === true ||
-    offer.isFree === true ||
-    accessMode === 'owned' ||
-    accessMode === 'unlocked' ||
-    (Number.isFinite(price) && price === 0);
-  const isLocked =
-    offer.isLocked === true ||
-    accessMode === 'locked' ||
-    (Number.isFinite(price) && price > 0 && !hasFullAccess);
-
-  if (isLocked) {
-    return {
-      mode: previewStreamUrl ? 'preview' : 'none',
-      streamUrl: previewStreamUrl,
-      previewLimitSeconds: previewStreamUrl ? 20 : null,
-      canPlayFull: false,
-      reason: previewStreamUrl ? undefined : 'missing-preview-stream',
-    };
-  }
-
-  if (hasFullAccess) {
-    const streamUrl = fullStreamUrl || previewStreamUrl;
-    return {
-      mode: streamUrl ? 'full' : 'none',
-      streamUrl: streamUrl || null,
-      previewLimitSeconds: null,
-      canPlayFull: Boolean(streamUrl),
-      reason: streamUrl ? undefined : 'missing-full-stream',
-    };
-  }
-
-  return null;
+  return { offer, receiptStatus };
 }
 
 function firstText(record: Record<string, unknown> | null | undefined, keys: string[]): string {
@@ -212,7 +169,7 @@ function connectedLabelsFromItem(item: DiscoverableItem): string[] {
   return [...labels].slice(0, 4);
 }
 
-function detailLabelsFromItem(item: DiscoverableItem, offer: CanonicalOffer | null, playback: CanonicalPlayback | null): string[] {
+function detailLabelsFromItem(item: DiscoverableItem, offer: CanonicalOffer | null, playback: ResolvedPlayback | null): string[] {
   const labels = new Set<string>();
   const contentType = offerText(offer?.contentType || offer?.type, item.contentType || '').replace(/_/g, ' ');
   const topic = offerText(offer?.primaryTopic, item.primaryTopic || '').replace(/_/g, ' ');
@@ -381,6 +338,10 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const [drawerContent, setDrawerContent] = useState<Stage1APlayerDrawerContent | null>(null);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [mediaMuted, setMediaMuted] = useState(false);
+  const [restoreAccessOpen, setRestoreAccessOpen] = useState(false);
+  const [restoreAccessInput, setRestoreAccessInput] = useState('');
+  const [restoreAccessMessage, setRestoreAccessMessage] = useState('');
+  const [restoreAccessBusy, setRestoreAccessBusy] = useState(false);
   const [autoplayNext, setAutoplayNext] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(AUTOPLAY_STORAGE_KEY) === 'true';
@@ -483,14 +444,17 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     setMediaAspect(mediaAspectHintRef.current || 'square');
 
     try {
-      const offer = await fetchCanonicalOffer(nextItem);
-      const paymentAccessProof = offer?.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
-        ? offer.paymentAccessProof as Record<string, unknown>
-        : null;
-      rememberReceiptProofForItem(nextItem, {
-        receiptId: typeof paymentAccessProof?.paymentReceiptId === 'string' ? paymentAccessProof.paymentReceiptId : undefined,
-      });
-      const playback = normalizePlayback(offer);
+      const { offer, receiptStatus } = await fetchCanonicalOffer(nextItem);
+      const access = resolveAccessFromOffer(nextItem, offer, receiptStatus);
+      const playback = access.playback;
+      if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        console.debug('[Certifyd receipt propagation]', 'Player resolved access and final playback', {
+          item: { contentId: nextItem.contentId, publicOrigin: nextItem.publicOrigin },
+          receiptStatus,
+          access,
+          playback,
+        });
+      }
       const origin = nextItem.publicOrigin;
       const streamUrl = resolveAbsoluteUrl(playback?.streamUrl, origin);
       const buyUrl = resolveAbsoluteUrl(offer?.buyUrl, origin) || nextItem.buyUrl || '#';
@@ -498,11 +462,16 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       const creator = offerText(offer?.creatorHandle, nextItem.creatorHandle || 'Creator');
       const artwork = resolveAbsoluteUrl(offer?.coverUrl, origin) || nextItem.coverUrl || '';
       const creatorUrl = creatorProfileUrl(nextItem, offer);
-      const displayState = playback
-        ? displayStateFromPlayback(playback, offer)
-        : { state: 'unavailable' as const, label: 'UNAVAILABLE', ctaLabel: 'Support Creator' };
+      const displayState = displayStateFromPlayback(playback, {
+        ...offer,
+        priceSats: access.priceSats,
+        accessMode: access.accessMode,
+        isFree: access.isFree,
+        owned: access.owned,
+        hasFullAccess: access.owned,
+      });
 
-      if (!playback || playback.mode === 'none' || !streamUrl) {
+      if (playback.mode === 'none' || !streamUrl) {
         setItem({
           sourceItem: nextItem,
           contentId: nextItem.contentId,
@@ -521,7 +490,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           proofLabels: proofLabelsFromItem(nextItem, offer),
           description: offerText(offer?.description, nextItem.description || ''),
           mediaKind: 'audio',
-          playback: playback || { mode: 'none', streamUrl: null, previewLimitSeconds: null, canPlayFull: false },
+          playback,
         });
         setState('error');
         setMessage('Playback is not available for this item.');
@@ -707,6 +676,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const currentCreatorKey = currentCreator?.key || '';
   const isCurrentSaved = Boolean(currentWorkKey && savedWorkKeys.has(currentWorkKey));
   const isCurrentFollowed = Boolean(currentCreatorKey && followedCreatorKeys.has(currentCreatorKey));
+  const canRestoreAccess = Boolean(currentSourceItem && item?.commerceState === 'preview');
 
   const toggleCurrentSaved = useCallback(() => {
     if (!currentSourceItem) return;
@@ -731,6 +701,23 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       setMessage('Share unavailable.');
     }
   }, [item]);
+
+  const submitRestoreAccess = useCallback(async () => {
+    if (!currentSourceItem) return;
+    setRestoreAccessBusy(true);
+    setRestoreAccessMessage('');
+    try {
+      await restoreAccessForItem(currentSourceItem, restoreAccessInput);
+      setRestoreAccessMessage('Access restored. Loading full playback…');
+      setRestoreAccessOpen(false);
+      setRestoreAccessInput('');
+      await playItem(currentSourceItem, { openPlayer: true });
+    } catch (error) {
+      setRestoreAccessMessage(error instanceof Error && error.message ? error.message : 'Unable to restore access.');
+    } finally {
+      setRestoreAccessBusy(false);
+    }
+  }, [currentSourceItem, playItem, restoreAccessInput]);
 
   const handleVisualTouchStart = useCallback((event: TouchEvent<HTMLDivElement>) => {
     touchStartYRef.current = event.touches[0]?.clientY ?? null;
@@ -1055,8 +1042,40 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                   Visit Work
                 </a>
               ) : null}
+              {canRestoreAccess ? (
+                <button type="button" onClick={() => {
+                  setRestoreAccessOpen((current) => !current);
+                  setRestoreAccessMessage('');
+                }}>
+                  Restore Access
+                </button>
+              ) : null}
               <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>Details</button>
             </div>
+            {restoreAccessOpen && canRestoreAccess ? (
+              <div className="stage1a-rich-detail-panel" role="region" aria-label="Restore access">
+                <div className="stage1a-rich-detail-panel-head">
+                  <div>Restore Access</div>
+                  <button type="button" onClick={() => setRestoreAccessOpen(false)} aria-label="Close restore access">×</button>
+                </div>
+                <p className="stage1a-rich-message">Paste a receipt ID, receipt token, or receipt URL from the buy page.</p>
+                <textarea
+                  className="stage1a-rich-restore-input"
+                  value={restoreAccessInput}
+                  onChange={(event) => setRestoreAccessInput(event.currentTarget.value)}
+                  placeholder="receiptId, receiptToken, or https://creator-node/buy/receipt/..."
+                  rows={3}
+                />
+                <div className="stage1a-rich-actions">
+                  <button type="button" className="stage1a-rich-support" onClick={submitRestoreAccess} disabled={restoreAccessBusy || !restoreAccessInput.trim()}>
+                    {restoreAccessBusy ? 'Checking…' : 'Restore Access'}
+                  </button>
+                </div>
+                {restoreAccessMessage ? <p className="stage1a-rich-message">{restoreAccessMessage}</p> : null}
+              </div>
+            ) : restoreAccessMessage ? (
+              <p className="stage1a-rich-message">{restoreAccessMessage}</p>
+            ) : null}
             {item?.connectedLabels.length ? (
               <div className="stage1a-rich-connected">
                 <div className="stage1a-rich-connected-title">Connected to</div>

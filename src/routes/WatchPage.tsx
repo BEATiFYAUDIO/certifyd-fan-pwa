@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { FeedCard } from '../components/FeedCard';
 import { useStage1APlayer } from '../components/stage1APlayerContext';
 import { fetchContentContext, fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
+import { resolveAccessFromOffer, type CanonicalOffer } from '../lib/accessResolver';
 import { fetchCanonicalOfferPayload, normalizeCanonicalOffer } from '../lib/offerFetch';
 import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
+import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
+import { normalizeCanonicalOrigin } from '../lib/origin';
+import { restoreAccessForItem } from '../lib/restoreAccess';
 import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem, Topic } from '../lib/types';
 import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
@@ -29,8 +33,6 @@ function ctaLabel(item: DiscoverableItem) {
   return displayStateFromItem(item).ctaLabel;
 }
 
-type CanonicalOffer = Record<string, unknown>;
-
 function resolveAbsoluteUrl(value: unknown, origin: string): string {
   if (typeof value !== 'string') return '';
   const trimmed = value.trim();
@@ -42,32 +44,24 @@ function resolveAbsoluteUrl(value: unknown, origin: string): string {
   }
 }
 
-function normalizedAccessMode(value: unknown): string {
-  return String(value || '').trim().toLowerCase();
-}
-
-function explicitTrue(value: unknown): boolean {
-  return value === true || String(value).trim().toLowerCase() === 'true';
-}
-
-function canonicalPlayback(offer: CanonicalOffer): { mode: 'full' | 'preview' | 'none'; previewLimitSeconds: number | null; canPlayFull: boolean } | null {
-  const playback = offer.playback;
-  if (!playback || typeof playback !== 'object') return null;
-  const source = playback as Record<string, unknown>;
-  const mode = source.mode === 'full' || source.mode === 'preview' || source.mode === 'none' ? source.mode : 'none';
-  const previewLimitSeconds = Number(source.previewLimitSeconds);
-  return {
-    mode,
-    previewLimitSeconds: Number.isFinite(previewLimitSeconds) && previewLimitSeconds > 0 ? previewLimitSeconds : null,
-    canPlayFull: source.canPlayFull === true,
-  };
-}
-
 function priceLabel(item: DiscoverableItem): string {
   return displayStateFromItem(item).label;
 }
 
-async function fetchCanonicalOffer(item: DiscoverableItem): Promise<CanonicalOffer | null> {
+function previewSecondsValue(...values: unknown[]): DiscoverableItem['previewSeconds'] {
+  for (const value of values) {
+    if (typeof value === 'number' || typeof value === 'string' || value === null) return value;
+  }
+  return null;
+}
+
+type CanonicalOfferResult = {
+  offer: CanonicalOffer | null;
+  receiptStatus: ReceiptAccessStatus | null;
+};
+
+async function fetchCanonicalOffer(item: DiscoverableItem): Promise<CanonicalOfferResult> {
+  let receiptStatus = await hydrateReceiptStatusForItem(item);
   const canonicalOfferUrl = resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, item.publicOrigin);
   const baseOfferUrls = [...new Set([String(item.offerUrl || '').trim(), canonicalOfferUrl].filter(Boolean))];
   const offerUrls = baseOfferUrls.flatMap((offerUrl) => withReceiptProofs(offerUrl, item));
@@ -76,41 +70,33 @@ async function fetchCanonicalOffer(item: DiscoverableItem): Promise<CanonicalOff
     ? offer.paymentAccessProof as Record<string, unknown>
     : null;
   rememberReceiptProofForItem(item, {
-    receiptId: typeof paymentAccessProof?.paymentReceiptId === 'string' ? paymentAccessProof.paymentReceiptId : undefined,
+    receiptId: typeof paymentAccessProof?.paymentReceiptId === 'string' ? paymentAccessProof.paymentReceiptId : typeof offer?.receiptId === 'string' ? offer.receiptId : undefined,
+    receiptToken: typeof paymentAccessProof?.receiptToken === 'string' ? paymentAccessProof.receiptToken : typeof offer?.receiptToken === 'string' ? offer.receiptToken : undefined,
+    paymentIntentId: typeof paymentAccessProof?.paymentIntentId === 'string' ? paymentAccessProof.paymentIntentId : typeof offer?.paymentIntentId === 'string' ? offer.paymentIntentId : undefined,
+    paidAt: typeof paymentAccessProof?.paidAt === 'string' ? paymentAccessProof.paidAt : typeof offer?.paidAt === 'string' ? offer.paidAt : undefined,
   });
-  return offer;
-}
-
-function offerPriceSats(offer: CanonicalOffer): number | null {
-  const candidates = [offer.priceSats, offer.price_sat, offer.unlockPriceSats, offer.amountSats, offer.price];
-  for (const value of candidates) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+  if (!receiptStatus) receiptStatus = await hydrateReceiptStatusForItem(item);
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    console.debug('[Certifyd receipt propagation]', 'WatchPage offer hydration result', {
+      item: { contentId: item.contentId, publicOrigin: item.publicOrigin },
+      receiptStatus,
+      offer,
+    });
   }
-  return null;
+  return { offer, receiptStatus };
 }
 
-function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer): DiscoverableItem {
+function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer, receiptStatus: ReceiptAccessStatus | null): DiscoverableItem {
   const origin = item.publicOrigin;
-  const playback = canonicalPlayback(offer);
-  const canonicalPriceSats = offerPriceSats(offer);
-  const priceSats = canonicalPriceSats ?? item.priceSats;
-  const accessMode = normalizedAccessMode(offer.accessMode || item.accessMode);
-  const playbackIsPreview = playback?.mode === 'preview';
-  const playbackIsFull = playback?.mode === 'full';
-  const hasFullAccess = playback ? playbackIsFull : explicitTrue(offer.hasFullAccess) || explicitTrue(offer.owned);
-  const isLocked = playback ? playbackIsPreview : explicitTrue(offer.isLocked) || accessMode === 'locked';
-  const isFree = playback ? playbackIsFull && canonicalPriceSats === 0 : canonicalPriceSats != null && priceSats === 0 && !isLocked;
-  const previewSeconds = playbackIsPreview
-    ? playback?.previewLimitSeconds || 20
-    : offer.previewSeconds ?? offer.previewDurationSeconds ?? offer.previewLimitSeconds ?? item.previewSeconds ?? null;
-  const nextAccessMode = playbackIsPreview
-    ? 'locked'
-    : playbackIsFull && (explicitTrue(offer.owned) || accessMode === 'owned' || accessMode === 'unlocked' || (canonicalPriceSats != null && canonicalPriceSats > 0))
-      ? 'owned'
-      : playbackIsFull
-        ? 'unlocked'
-        : accessMode;
+  const access = resolveAccessFromOffer(item, offer, receiptStatus);
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    console.debug('[Certifyd receipt propagation]', 'WatchPage resolved access', {
+      item: { contentId: item.contentId, publicOrigin: item.publicOrigin },
+      receiptStatus,
+      access,
+      playback: access.playback,
+    });
+  }
 
   return {
     ...item,
@@ -130,14 +116,14 @@ function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer): Dis
     previewUrl: resolveAbsoluteUrl(offer.previewUrl, origin) || item.previewUrl,
     buyUrl: resolveAbsoluteUrl(offer.buyUrl, origin) || item.buyUrl,
     offerUrl: resolveAbsoluteUrl(offer.offerUrl, origin) || item.offerUrl || resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, origin),
-    priceSats,
-    accessMode: (nextAccessMode === 'owned' || nextAccessMode === 'unlocked' || nextAccessMode === 'locked' ? nextAccessMode : item.accessMode) as DiscoverableItem['accessMode'],
-    isLocked,
-    isFree,
-    hasFullAccess,
-    owned: hasFullAccess && !isFree,
+    priceSats: access.priceSats,
+    accessMode: access.accessMode,
+    isLocked: access.isLocked,
+    isFree: access.isFree,
+    hasFullAccess: access.owned,
+    owned: access.owned,
     canonicalOfferHydrated: true,
-    previewSeconds: previewSeconds as DiscoverableItem['previewSeconds'],
+    previewSeconds: previewSecondsValue(access.playback.previewLimitSeconds, offer.previewSeconds, offer.previewDurationSeconds, offer.previewLimitSeconds, item.previewSeconds),
     primaryFileMime: typeof offer.primaryFileMime === 'string' ? offer.primaryFileMime : item.primaryFileMime,
     paymentAccessProof: offer.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
       ? offer.paymentAccessProof as DiscoverableItem['paymentAccessProof']
@@ -146,7 +132,7 @@ function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer): Dis
 }
 
 async function hydrateCanonicalOffer(item: DiscoverableItem): Promise<DiscoverableItem> {
-  const offer = await fetchCanonicalOffer(item);
+  const { offer, receiptStatus } = await fetchCanonicalOffer(item);
   if (!offer) {
     if (import.meta.env.DEV) {
       console.debug('[Certifyd WatchPage resolver]', {
@@ -157,7 +143,7 @@ async function hydrateCanonicalOffer(item: DiscoverableItem): Promise<Discoverab
     }
     return item;
   }
-  const hydrated = mergeCanonicalOffer(item, offer);
+  const hydrated = mergeCanonicalOffer(item, offer, receiptStatus);
   if (import.meta.env.DEV) {
     console.debug('[Certifyd WatchPage resolver]', {
       phase: 'canonical-offer-hydrated',
@@ -1204,6 +1190,10 @@ function StandardWatch({
   const [credits, setCredits] = useState<CreditItem[]>([]);
   const [discoveryItems, setDiscoveryItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [relationshipContextState, setRelationshipContextState] = useState<{ key: string; context: ContentRelationshipContext | null } | null>(null);
+  const [restoreAccessOpen, setRestoreAccessOpen] = useState(false);
+  const [restoreAccessInput, setRestoreAccessInput] = useState('');
+  const [restoreAccessMessage, setRestoreAccessMessage] = useState('');
+  const [restoreAccessBusy, setRestoreAccessBusy] = useState(false);
   const canonicalHydrationKeys = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -1322,6 +1312,28 @@ function StandardWatch({
     : null;
   const themeVars = useMemo(() => getCardThemeVars(item?.profileTheme), [item?.profileTheme]);
   const creatorLabel = item?.creatorHandle ? item.creatorHandle.replace(/^@+/, '') : 'creator';
+  const canRestoreAccess = Boolean(item && Number(item.priceSats || 0) > 0 && displayStateFromItem(item).state === 'preview');
+  const submitRestoreAccess = useCallback(async () => {
+    if (!item) return;
+    setRestoreAccessBusy(true);
+    setRestoreAccessMessage('');
+    try {
+      await restoreAccessForItem(item, restoreAccessInput);
+      const hydrated = await hydrateCanonicalOffer(item);
+      setItem(hydrated);
+      setDiscoveryItems((current) =>
+        dedupeDiscoveryItems([hydrated, ...current.filter((row) => row.contentId !== hydrated.contentId || row.publicOrigin !== hydrated.publicOrigin)]),
+      );
+      setRestoreAccessMessage('Access restored. Loading full playback…');
+      setRestoreAccessOpen(false);
+      setRestoreAccessInput('');
+      await playItem(hydrated);
+    } catch (error) {
+      setRestoreAccessMessage(error instanceof Error && error.message ? error.message : 'Unable to restore access.');
+    } finally {
+      setRestoreAccessBusy(false);
+    }
+  }, [item, playItem, restoreAccessInput]);
   const heroStyle = item?.coverUrl
     ? {
       ...themeVars,
@@ -1421,6 +1433,50 @@ function StandardWatch({
                       <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-zinc-100 sm:text-base">{item.description}</p>
                     ) : null}
                     <HeroAttributionLineage context={relationshipContext} credits={credits} />
+                    {canRestoreAccess ? (
+                      <div className="mt-5 flex flex-wrap items-center gap-3">
+                        <a className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold" href={item.buyUrl} target="_blank" rel="noreferrer">
+                          {ctaLabel(item)}
+                        </a>
+                        <button
+                          type="button"
+                          className="watch-action-secondary rounded-xl border px-4 py-2 text-sm font-bold"
+                          onClick={() => {
+                            setRestoreAccessOpen((current) => !current);
+                            setRestoreAccessMessage('');
+                          }}
+                        >
+                          Restore Access
+                        </button>
+                      </div>
+                    ) : null}
+                    {restoreAccessOpen && canRestoreAccess ? (
+                      <div className="watch-panel mt-4 max-w-xl rounded-2xl border p-4">
+                        <div className="text-xs font-black uppercase tracking-[0.18em] text-zinc-300">Restore Access</div>
+                        <p className="mt-2 text-sm text-zinc-300">Paste a receipt ID, receipt token, or receipt URL from the buy page.</p>
+                        <textarea
+                          className="stage1a-rich-restore-input mt-3"
+                          value={restoreAccessInput}
+                          onChange={(event) => setRestoreAccessInput(event.currentTarget.value)}
+                          placeholder="receiptId, receiptToken, or https://creator-node/buy/receipt/..."
+                          rows={3}
+                        />
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold"
+                            onClick={submitRestoreAccess}
+                            disabled={restoreAccessBusy || !restoreAccessInput.trim()}
+                          >
+                            {restoreAccessBusy ? 'Checking…' : 'Restore Access'}
+                          </button>
+                          <button type="button" className="watch-action-secondary rounded-xl border px-4 py-2 text-sm font-bold" onClick={() => setRestoreAccessOpen(false)}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {restoreAccessMessage ? <p className="mt-3 text-sm font-semibold text-zinc-200">{restoreAccessMessage}</p> : null}
                   </div>
                 </div>
 
@@ -1486,9 +1542,17 @@ export function WatchPage() {
   const params = useParams();
   const [search] = useSearchParams();
   const location = useLocation();
-  const stateItem = (location.state as { item?: DiscoverableItem } | null)?.item || null;
+  const rawStateItem = (location.state as { item?: DiscoverableItem } | null)?.item || null;
   const contentId = String(params.contentId || '').trim();
-  const originHint = search.get('origin');
+  const originHint = normalizeCanonicalOrigin(search.get('origin')) || null;
+  const stateItem = originHint && rawStateItem?.contentId === contentId
+    ? {
+      ...rawStateItem,
+      publicOrigin: originHint,
+      buyUrl: `${originHint}/buy/${encodeURIComponent(contentId)}`,
+      offerUrl: `${originHint}/buy/content/${encodeURIComponent(contentId)}/offer`,
+    }
+    : rawStateItem;
   const mode = String(search.get('mode') || '').toLowerCase();
   const topic = normalizeTopic(search.get('topic') || 'all');
   const useMobileReels = useMobileReelsMode();

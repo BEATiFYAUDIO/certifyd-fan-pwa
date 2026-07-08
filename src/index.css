@@ -2131,6 +2131,22 @@ body.has-stage1a-player {
   line-height: 1.45;
 }
 
+.stage1a-rich-restore-input {
+  min-height: 84px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.34);
+  padding: 10px 12px;
+  color: rgba(246, 240, 247, 0.94);
+  font: inherit;
+}
+
+.stage1a-rich-restore-input::placeholder {
+  color: rgba(246, 240, 247, 0.42);
+}
+
 .stage1a-player-dock {
   position: fixed;
   left: 12px;
