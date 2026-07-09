@@ -116,38 +116,38 @@ async function hydrateNodeAccessStatusForItem(item: DiscoverableItem): Promise<R
   const urls = accessStatusUrlsForItem(item);
   for (const url of urls) {
     try {
-    debugReceiptPropagation('calling node access status URL', {
-      url,
-      origin: normalizeCanonicalOrigin(item.publicOrigin),
-      contentId: item.contentId,
-    });
-    const status = await fetchReceiptStatusUrl(url);
-    if (!status) return null;
-    if (!receiptStatusMatchesItem(status, item)) {
-      debugReceiptPropagation('node access status contentId mismatch', { itemContentId: item.contentId, status });
-      return null;
-    }
-    if (status.receiptId || status.receiptToken || status.paymentIntentId) {
-      rememberReceiptProofForItem(item, {
-        publicOrigin: item.publicOrigin,
-        receiptToken: status.receiptToken || undefined,
-        receiptId: status.receiptId || undefined,
-        paymentIntentId: status.paymentIntentId || undefined,
-        paidAt: status.paidAt || undefined,
+      debugReceiptPropagation('calling node access status URL', {
+        url,
+        origin: normalizeCanonicalOrigin(item.publicOrigin),
+        contentId: item.contentId,
       });
+      const status = await fetchReceiptStatusUrl(url);
+      if (!status) continue;
+      if (!receiptStatusMatchesItem(status, item)) {
+        debugReceiptPropagation('node access status contentId mismatch', { itemContentId: item.contentId, status });
+        continue;
+      }
+      if (status.receiptId || status.receiptToken || status.paymentIntentId) {
+        rememberReceiptProofForItem(item, {
+          publicOrigin: item.publicOrigin,
+          receiptToken: status.receiptToken || undefined,
+          receiptId: status.receiptId || undefined,
+          paymentIntentId: status.paymentIntentId || undefined,
+          paidAt: status.paidAt || undefined,
+        });
+      }
+      debugReceiptPropagation('node access status result', {
+        origin: normalizeCanonicalOrigin(item.publicOrigin),
+        contentId: item.contentId,
+        receiptId: status.receiptId,
+        access: status.access,
+        paymentStatus: status.paymentStatus,
+        unlocked: isReceiptStatusUnlocked(status),
+      });
+      if (isReceiptStatusUnlocked(status)) return status;
+    } catch (error) {
+      debugReceiptPropagation('node access status fetch blocked or failed', { url, error });
     }
-    debugReceiptPropagation('node access status result', {
-      origin: normalizeCanonicalOrigin(item.publicOrigin),
-      contentId: item.contentId,
-      receiptId: status.receiptId,
-      access: status.access,
-      paymentStatus: status.paymentStatus,
-      unlocked: isReceiptStatusUnlocked(status),
-    });
-    return isReceiptStatusUnlocked(status) ? status : null;
-  } catch (error) {
-    debugReceiptPropagation('node access status fetch blocked or failed', { url, error });
-  }
   }
   return null;
 }
