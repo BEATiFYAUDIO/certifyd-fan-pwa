@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { FeedCard } from '../components/FeedCard';
 import { useStage1APlayer } from '../components/stage1APlayerContext';
@@ -1183,7 +1183,7 @@ function StandardWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
-  const { playItem, setDrawerContent } = useStage1APlayer();
+  const { item: playerItem, playItem, setDrawerContent } = useStage1APlayer();
   const [item, setItem] = useState<DiscoverableItem | null>(stateItem && isRenderableDiscoveryItem(stateItem) ? stateItem : null);
   const [loading, setLoading] = useState(!(stateItem && isRenderableDiscoveryItem(stateItem)));
   const [error, setError] = useState<string | null>(null);
@@ -1298,6 +1298,35 @@ function StandardWatch({
       active = false;
     };
   }, [item]);
+
+  const rehydrateCurrentItem = useCallback(async () => {
+    if (!item) return;
+    const hydrated = await hydrateCanonicalOffer(item);
+    if (hydrated === item) return;
+    setItem(hydrated);
+    setDiscoveryItems((current) =>
+      dedupeDiscoveryItems([hydrated, ...current.filter((row) => row.contentId !== hydrated.contentId || row.publicOrigin !== hydrated.publicOrigin)]),
+    );
+    if (playerItem?.contentId === hydrated.contentId && playerItem.publicOrigin === hydrated.publicOrigin) {
+      void playItem(hydrated, { openPlayer: false });
+    }
+  }, [item, playItem, playerItem]);
+
+  useEffect(() => {
+    if (!item) return undefined;
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') return;
+      void rehydrateCurrentItem().catch(() => undefined);
+    };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('pageshow', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('pageshow', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [item, rehydrateCurrentItem]);
 
   const explorationRails = useMemo(() => {
     if (!item) return [];
