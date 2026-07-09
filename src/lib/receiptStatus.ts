@@ -80,6 +80,13 @@ function statusUrlsForProof(item: DiscoverableItem, proof: ReceiptProof): string
   return urls;
 }
 
+function accessStatusUrlForItem(item: DiscoverableItem): string | null {
+  const origin = normalizeCanonicalOrigin(item.publicOrigin);
+  const contentId = clean(item.contentId);
+  if (!origin || !contentId) return null;
+  return `${origin}/buy/content/${encodeURIComponent(contentId)}/access-status`;
+}
+
 async function fetchReceiptStatusUrl(url: string): Promise<ReceiptAccessStatus | null> {
   debugReceiptPropagation('calling receipt status URL', { url });
   const response = await fetch(url, { credentials: 'include' });
@@ -93,7 +100,49 @@ async function fetchReceiptStatusUrl(url: string): Promise<ReceiptAccessStatus |
   return status;
 }
 
+async function hydrateNodeAccessStatusForItem(item: DiscoverableItem): Promise<ReceiptAccessStatus | null> {
+  const url = accessStatusUrlForItem(item);
+  if (!url) return null;
+  try {
+    debugReceiptPropagation('calling node access status URL', {
+      url,
+      origin: normalizeCanonicalOrigin(item.publicOrigin),
+      contentId: item.contentId,
+    });
+    const status = await fetchReceiptStatusUrl(url);
+    if (!status) return null;
+    if (!receiptStatusMatchesItem(status, item)) {
+      debugReceiptPropagation('node access status contentId mismatch', { itemContentId: item.contentId, status });
+      return null;
+    }
+    if (status.receiptId || status.receiptToken || status.paymentIntentId) {
+      rememberReceiptProofForItem(item, {
+        publicOrigin: item.publicOrigin,
+        receiptToken: status.receiptToken || undefined,
+        receiptId: status.receiptId || undefined,
+        paymentIntentId: status.paymentIntentId || undefined,
+        paidAt: status.paidAt || undefined,
+      });
+    }
+    debugReceiptPropagation('node access status result', {
+      origin: normalizeCanonicalOrigin(item.publicOrigin),
+      contentId: item.contentId,
+      receiptId: status.receiptId,
+      access: status.access,
+      paymentStatus: status.paymentStatus,
+      unlocked: isReceiptStatusUnlocked(status),
+    });
+    return isReceiptStatusUnlocked(status) ? status : null;
+  } catch (error) {
+    debugReceiptPropagation('node access status fetch blocked or failed', { url, error });
+    return null;
+  }
+}
+
 export async function hydrateReceiptStatusForItem(item: DiscoverableItem): Promise<ReceiptAccessStatus | null> {
+  const nodeAccessStatus = await hydrateNodeAccessStatusForItem(item);
+  if (nodeAccessStatus) return nodeAccessStatus;
+
   const proofs = receiptProofsForItem(item);
   debugReceiptPropagation('hydrating receipt status for item', {
     item: { contentId: item.contentId, publicOrigin: item.publicOrigin },
