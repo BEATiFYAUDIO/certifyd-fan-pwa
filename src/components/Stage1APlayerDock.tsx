@@ -8,6 +8,7 @@ import { displayStateFromItem, displayStateFromPlayback } from '../lib/playbackD
 import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
 import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
 import { restoreAccessForItem } from '../lib/restoreAccess';
+import { buyUrlWithFanReturnUrl } from '../lib/fanReturnUrl';
 import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerState } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
@@ -677,6 +678,9 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const isCurrentSaved = Boolean(currentWorkKey && savedWorkKeys.has(currentWorkKey));
   const isCurrentFollowed = Boolean(currentCreatorKey && followedCreatorKeys.has(currentCreatorKey));
   const canRestoreAccess = Boolean(currentSourceItem && item?.commerceState === 'preview');
+  const primaryActionUrl = canRestoreAccess && currentSourceItem
+    ? buyUrlWithFanReturnUrl(item?.buyUrl, currentSourceItem)
+    : item?.buyUrl || '#';
 
   const toggleCurrentSaved = useCallback(() => {
     if (!currentSourceItem) return;
@@ -1018,7 +1022,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               </div>
             ) : null}
             <div className="stage1a-rich-actions">
-              <a className="stage1a-rich-support" href={item?.buyUrl || '#'} target="_blank" rel="noreferrer">
+              <a className="stage1a-rich-support" href={primaryActionUrl} target="_blank" rel="noreferrer">
                 {item?.supportLabel || 'Support Creator'}
               </a>
             </div>
@@ -1047,7 +1051,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                   setRestoreAccessOpen((current) => !current);
                   setRestoreAccessMessage('');
                 }}>
-                  Restore Access
+                  Advanced Restore
                 </button>
               ) : null}
               <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>Details</button>

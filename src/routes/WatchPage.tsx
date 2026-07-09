@@ -10,6 +10,7 @@ import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptPr
 import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
 import { normalizeCanonicalOrigin } from '../lib/origin';
 import { restoreAccessForItem } from '../lib/restoreAccess';
+import { buyUrlWithFanReturnUrl } from '../lib/fanReturnUrl';
 import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem, Topic } from '../lib/types';
 import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
@@ -1313,6 +1314,7 @@ function StandardWatch({
   const themeVars = useMemo(() => getCardThemeVars(item?.profileTheme), [item?.profileTheme]);
   const creatorLabel = item?.creatorHandle ? item.creatorHandle.replace(/^@+/, '') : 'creator';
   const canRestoreAccess = Boolean(item && Number(item.priceSats || 0) > 0 && displayStateFromItem(item).state === 'preview');
+  const buyWithReturnUrl = item ? buyUrlWithFanReturnUrl(item.buyUrl, item) : '#';
   const submitRestoreAccess = useCallback(async () => {
     if (!item) return;
     setRestoreAccessBusy(true);
@@ -1435,19 +1437,22 @@ function StandardWatch({
                     <HeroAttributionLineage context={relationshipContext} credits={credits} />
                     {canRestoreAccess ? (
                       <div className="mt-5 flex flex-wrap items-center gap-3">
-                        <a className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold" href={item.buyUrl} target="_blank" rel="noreferrer">
+                        <a className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold" href={buyWithReturnUrl} target="_blank" rel="noreferrer">
                           {ctaLabel(item)}
                         </a>
-                        <button
-                          type="button"
-                          className="watch-action-secondary rounded-xl border px-4 py-2 text-sm font-bold"
-                          onClick={() => {
-                            setRestoreAccessOpen((current) => !current);
-                            setRestoreAccessMessage('');
-                          }}
-                        >
-                          Restore Access
-                        </button>
+                        <details className="watch-action-secondary rounded-xl border px-4 py-2 text-sm font-bold">
+                          <summary className="cursor-pointer list-none">Advanced</summary>
+                          <button
+                            type="button"
+                            className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-zinc-200"
+                            onClick={() => {
+                              setRestoreAccessOpen((current) => !current);
+                              setRestoreAccessMessage('');
+                            }}
+                          >
+                            Restore Access
+                          </button>
+                        </details>
                       </div>
                     ) : null}
                     {restoreAccessOpen && canRestoreAccess ? (
