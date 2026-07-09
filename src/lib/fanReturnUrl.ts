@@ -23,6 +23,10 @@ function isFanWatchUrl(url: URL): boolean {
   return url.pathname.replace(/\/+$/, '').split('/').filter(Boolean)[0] === 'watch';
 }
 
+function isContentboxBuyUrl(url: URL): boolean {
+  return url.pathname.replace(/\/+$/, '').split('/').filter(Boolean)[0] === 'buy';
+}
+
 function purchaseUrlOrFallback(
   buyUrl: string | null | undefined,
   item: Pick<DiscoverableItem, 'contentId' | 'publicOrigin'>,
@@ -33,7 +37,7 @@ function purchaseUrlOrFallback(
   if (typeof window === 'undefined') return rawBuyUrl || fallbackBuyUrl || '#';
   try {
     const url = new URL(rawBuyUrl, window.location.origin);
-    if (isFanWatchUrl(url)) return fallbackBuyUrl || '#';
+    if (isFanWatchUrl(url) || !isContentboxBuyUrl(url)) return fallbackBuyUrl || '#';
     return url.toString();
   } catch {
     return fallbackBuyUrl || rawBuyUrl;

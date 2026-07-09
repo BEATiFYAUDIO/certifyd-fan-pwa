@@ -672,8 +672,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const currentCreatorKey = currentCreator?.key || '';
   const isCurrentSaved = Boolean(currentWorkKey && savedWorkKeys.has(currentWorkKey));
   const isCurrentFollowed = Boolean(currentCreatorKey && followedCreatorKeys.has(currentCreatorKey));
-  const canRestoreAccess = Boolean(currentSourceItem && item?.commerceState === 'preview');
-  const primaryActionUrl = canRestoreAccess && currentSourceItem
+  const primaryActionUrl = currentSourceItem
     ? buyUrlWithFanReturnUrl(item?.buyUrl, currentSourceItem)
     : item?.buyUrl || '#';
 

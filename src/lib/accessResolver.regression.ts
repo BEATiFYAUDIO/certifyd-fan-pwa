@@ -153,6 +153,9 @@ export function runAccessResolverRegressionChecks() {
   const repairedBuyUrl = buyUrlWithFanReturnUrl('http://localhost:5174/watch/content-1?origin=https%3A%2F%2Fcreator.test', item);
   assert(repairedBuyUrl.startsWith('https://creator.test/buy/content-1?'), 'fan watch URL is repaired to contentbox buy URL');
   assert(repairedBuyUrl.includes('returnUrl=http%3A%2F%2Flocalhost%3A5174%2Fwatch%2Fcontent-1'), 'purchase URL carries fan returnUrl');
+
+  const repairedProfileUrl = buyUrlWithFanReturnUrl('https://creator.test/u/creator', item);
+  assert(repairedProfileUrl.startsWith('https://creator.test/buy/content-1?'), 'creator profile URL is repaired to contentbox buy URL');
 }
 
 runAccessResolverRegressionChecks();
