@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { FeedCard } from '../components/FeedCard';
 import { useStage1APlayer } from '../components/stage1APlayerContext';
@@ -9,7 +9,6 @@ import { fetchCanonicalOfferPayload, normalizeCanonicalOffer } from '../lib/offe
 import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
 import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
 import { normalizeCanonicalOrigin } from '../lib/origin';
-import { restoreAccessForItem } from '../lib/restoreAccess';
 import { buyUrlWithFanReturnUrl } from '../lib/fanReturnUrl';
 import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem, Topic } from '../lib/types';
 import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
@@ -1191,10 +1190,6 @@ function StandardWatch({
   const [credits, setCredits] = useState<CreditItem[]>([]);
   const [discoveryItems, setDiscoveryItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [relationshipContextState, setRelationshipContextState] = useState<{ key: string; context: ContentRelationshipContext | null } | null>(null);
-  const [restoreAccessOpen, setRestoreAccessOpen] = useState(false);
-  const [restoreAccessInput, setRestoreAccessInput] = useState('');
-  const [restoreAccessMessage, setRestoreAccessMessage] = useState('');
-  const [restoreAccessBusy, setRestoreAccessBusy] = useState(false);
   const canonicalHydrationKeys = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -1315,27 +1310,6 @@ function StandardWatch({
   const creatorLabel = item?.creatorHandle ? item.creatorHandle.replace(/^@+/, '') : 'creator';
   const canRestoreAccess = Boolean(item && Number(item.priceSats || 0) > 0 && displayStateFromItem(item).state === 'preview');
   const buyWithReturnUrl = item ? buyUrlWithFanReturnUrl(item.buyUrl, item) : '#';
-  const submitRestoreAccess = useCallback(async () => {
-    if (!item) return;
-    setRestoreAccessBusy(true);
-    setRestoreAccessMessage('');
-    try {
-      await restoreAccessForItem(item, restoreAccessInput);
-      const hydrated = await hydrateCanonicalOffer(item);
-      setItem(hydrated);
-      setDiscoveryItems((current) =>
-        dedupeDiscoveryItems([hydrated, ...current.filter((row) => row.contentId !== hydrated.contentId || row.publicOrigin !== hydrated.publicOrigin)]),
-      );
-      setRestoreAccessMessage('Access restored. Loading full playback…');
-      setRestoreAccessOpen(false);
-      setRestoreAccessInput('');
-      await playItem(hydrated);
-    } catch (error) {
-      setRestoreAccessMessage(error instanceof Error && error.message ? error.message : 'Unable to restore access.');
-    } finally {
-      setRestoreAccessBusy(false);
-    }
-  }, [item, playItem, restoreAccessInput]);
   const heroStyle = item?.coverUrl
     ? {
       ...themeVars,
@@ -1440,48 +1414,8 @@ function StandardWatch({
                         <a className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold" href={buyWithReturnUrl} target="_blank" rel="noreferrer">
                           {ctaLabel(item)}
                         </a>
-                        <details className="watch-action-secondary rounded-xl border px-4 py-2 text-sm font-bold">
-                          <summary className="cursor-pointer list-none">Advanced</summary>
-                          <button
-                            type="button"
-                            className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-zinc-200"
-                            onClick={() => {
-                              setRestoreAccessOpen((current) => !current);
-                              setRestoreAccessMessage('');
-                            }}
-                          >
-                            Restore Access
-                          </button>
-                        </details>
                       </div>
                     ) : null}
-                    {restoreAccessOpen && canRestoreAccess ? (
-                      <div className="watch-panel mt-4 max-w-xl rounded-2xl border p-4">
-                        <div className="text-xs font-black uppercase tracking-[0.18em] text-zinc-300">Restore Access</div>
-                        <p className="mt-2 text-sm text-zinc-300">Paste a receipt ID, receipt token, or receipt URL from the buy page.</p>
-                        <textarea
-                          className="stage1a-rich-restore-input mt-3"
-                          value={restoreAccessInput}
-                          onChange={(event) => setRestoreAccessInput(event.currentTarget.value)}
-                          placeholder="receiptId, receiptToken, or https://creator-node/buy/receipt/..."
-                          rows={3}
-                        />
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold"
-                            onClick={submitRestoreAccess}
-                            disabled={restoreAccessBusy || !restoreAccessInput.trim()}
-                          >
-                            {restoreAccessBusy ? 'Checking…' : 'Restore Access'}
-                          </button>
-                          <button type="button" className="watch-action-secondary rounded-xl border px-4 py-2 text-sm font-bold" onClick={() => setRestoreAccessOpen(false)}>
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
-                    {restoreAccessMessage ? <p className="mt-3 text-sm font-semibold text-zinc-200">{restoreAccessMessage}</p> : null}
                   </div>
                 </div>
 

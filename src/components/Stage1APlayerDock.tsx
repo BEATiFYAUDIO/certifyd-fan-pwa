@@ -7,7 +7,6 @@ import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
 import { displayStateFromItem, displayStateFromPlayback } from '../lib/playbackDisplay';
 import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
 import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
-import { restoreAccessForItem } from '../lib/restoreAccess';
 import { buyUrlWithFanReturnUrl } from '../lib/fanReturnUrl';
 import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerState } from './stage1APlayerContext';
 
@@ -339,10 +338,6 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const [drawerContent, setDrawerContent] = useState<Stage1APlayerDrawerContent | null>(null);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [mediaMuted, setMediaMuted] = useState(false);
-  const [restoreAccessOpen, setRestoreAccessOpen] = useState(false);
-  const [restoreAccessInput, setRestoreAccessInput] = useState('');
-  const [restoreAccessMessage, setRestoreAccessMessage] = useState('');
-  const [restoreAccessBusy, setRestoreAccessBusy] = useState(false);
   const [autoplayNext, setAutoplayNext] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(AUTOPLAY_STORAGE_KEY) === 'true';
@@ -706,23 +701,6 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [item]);
 
-  const submitRestoreAccess = useCallback(async () => {
-    if (!currentSourceItem) return;
-    setRestoreAccessBusy(true);
-    setRestoreAccessMessage('');
-    try {
-      await restoreAccessForItem(currentSourceItem, restoreAccessInput);
-      setRestoreAccessMessage('Access restored. Loading full playback…');
-      setRestoreAccessOpen(false);
-      setRestoreAccessInput('');
-      await playItem(currentSourceItem, { openPlayer: true });
-    } catch (error) {
-      setRestoreAccessMessage(error instanceof Error && error.message ? error.message : 'Unable to restore access.');
-    } finally {
-      setRestoreAccessBusy(false);
-    }
-  }, [currentSourceItem, playItem, restoreAccessInput]);
-
   const handleVisualTouchStart = useCallback((event: TouchEvent<HTMLDivElement>) => {
     touchStartYRef.current = event.touches[0]?.clientY ?? null;
   }, []);
@@ -1046,40 +1024,8 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                   Visit Work
                 </a>
               ) : null}
-              {canRestoreAccess ? (
-                <button type="button" onClick={() => {
-                  setRestoreAccessOpen((current) => !current);
-                  setRestoreAccessMessage('');
-                }}>
-                  Advanced Restore
-                </button>
-              ) : null}
               <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>Details</button>
             </div>
-            {restoreAccessOpen && canRestoreAccess ? (
-              <div className="stage1a-rich-detail-panel" role="region" aria-label="Restore access">
-                <div className="stage1a-rich-detail-panel-head">
-                  <div>Restore Access</div>
-                  <button type="button" onClick={() => setRestoreAccessOpen(false)} aria-label="Close restore access">×</button>
-                </div>
-                <p className="stage1a-rich-message">Paste a receipt ID, receipt token, or receipt URL from the buy page.</p>
-                <textarea
-                  className="stage1a-rich-restore-input"
-                  value={restoreAccessInput}
-                  onChange={(event) => setRestoreAccessInput(event.currentTarget.value)}
-                  placeholder="receiptId, receiptToken, or https://creator-node/buy/receipt/..."
-                  rows={3}
-                />
-                <div className="stage1a-rich-actions">
-                  <button type="button" className="stage1a-rich-support" onClick={submitRestoreAccess} disabled={restoreAccessBusy || !restoreAccessInput.trim()}>
-                    {restoreAccessBusy ? 'Checking…' : 'Restore Access'}
-                  </button>
-                </div>
-                {restoreAccessMessage ? <p className="stage1a-rich-message">{restoreAccessMessage}</p> : null}
-              </div>
-            ) : restoreAccessMessage ? (
-              <p className="stage1a-rich-message">{restoreAccessMessage}</p>
-            ) : null}
             {item?.connectedLabels.length ? (
               <div className="stage1a-rich-connected">
                 <div className="stage1a-rich-connected-title">Connected to</div>
