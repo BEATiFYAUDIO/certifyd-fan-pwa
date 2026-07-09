@@ -7,7 +7,7 @@ import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
 import { displayStateFromItem, displayStateFromPlayback } from '../lib/playbackDisplay';
 import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
 import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
-import { buyUrlWithFanReturnUrl } from '../lib/fanReturnUrl';
+import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
 import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerState } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
@@ -299,7 +299,7 @@ function contextWorkToDiscoverable(work: ContentContextWork, fallbackOrigin: str
     creatorAvatarUrl: work.creator?.avatarUrl || '',
     coverUrl: work.coverUrl || '',
     previewUrl: work.previewUrl || '',
-    buyUrl: work.publicUrl || '',
+    buyUrl: contentboxBuyUrlForItem({ contentId: work.contentId, publicOrigin }),
     offerUrl: resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(work.contentId)}/offer`, publicOrigin),
     priceSats: 0,
     accessMode: 'unlocked',

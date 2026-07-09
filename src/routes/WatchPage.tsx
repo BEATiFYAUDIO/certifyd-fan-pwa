@@ -9,7 +9,7 @@ import { fetchCanonicalOfferPayload, normalizeCanonicalOffer } from '../lib/offe
 import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
 import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
 import { normalizeCanonicalOrigin } from '../lib/origin';
-import { buyUrlWithFanReturnUrl } from '../lib/fanReturnUrl';
+import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
 import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem, Topic } from '../lib/types';
 import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
@@ -348,7 +348,7 @@ function workToDiscoverableItem(work: ContentContextWork): DiscoverableItem | nu
     publicOrigin = publicOrigin || '';
   }
   if (!work.contentId || !publicOrigin) return null;
-  const buyUrl = work.publicUrl || `${publicOrigin}/buy/${encodeURIComponent(work.contentId)}`;
+  const buyUrl = contentboxBuyUrlForItem({ contentId: work.contentId, publicOrigin });
   const normalizedTopic = normalizeTopic(work.primaryTopic || 'all');
   return {
     contentId: work.contentId,

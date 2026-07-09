@@ -18,6 +18,7 @@ import {
 } from '../lib/discoveryViewModel';
 import { creatorKey, useLocalLibrary, type LocalCreator } from '../lib/localLibrary';
 import { getCardThemeVars } from '../lib/profileTheme';
+import { contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
 
 const INITIAL_PAGE_LIMIT = 8;
 const NEXT_PAGE_LIMIT = 18;
@@ -481,7 +482,6 @@ function relationshipReasonForSignalWork(work: DiscoverySignalWork): string | nu
 
 function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableItem | null {
   if (!work.contentId || !work.publicOrigin) return null;
-  const publicUrl = work.publicUrl || '';
   const offerUrl = `${work.publicOrigin}/buy/content/${encodeURIComponent(work.contentId)}/offer`;
   const rawPriceSats = Number(work.priceSats);
   const priceKnown = Number.isFinite(rawPriceSats);
@@ -504,7 +504,7 @@ function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableIt
     primaryTopic: (work.primaryTopic || null) as DiscoverableItem['primaryTopic'],
     coverUrl: work.coverUrl || '',
     previewUrl: work.previewUrl || '',
-    buyUrl: publicUrl,
+    buyUrl: contentboxBuyUrlForItem({ contentId: work.contentId, publicOrigin: work.publicOrigin }),
     offerUrl,
     priceSats,
     accessMode,

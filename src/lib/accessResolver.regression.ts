@@ -3,6 +3,7 @@ import { normalizeCanonicalOrigin } from './origin';
 import { receiptProofsForItem, withReceiptProofs } from './receiptProofs';
 import { isReceiptStatusUnlocked, type ReceiptAccessStatus } from './receiptStatus';
 import { parseRestoreAccessInput } from './restoreAccess';
+import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from './fanReturnUrl';
 import type { DiscoverableItem } from './types';
 
 function fixtureItem(overrides: Partial<DiscoverableItem> = {}): DiscoverableItem {
@@ -140,6 +141,18 @@ export function runAccessResolverRegressionChecks() {
 
   const tokenPrefix = parseRestoreAccessInput('receiptToken: token-2', item.publicOrigin);
   assert(tokenPrefix.receiptToken === 'token-2', 'restore parser respects receiptToken prefix');
+
+  (globalThis as unknown as { window: { location: Record<string, string> } }).window.location = {
+    hostname: 'localhost',
+    origin: 'http://localhost:5174',
+    href: 'http://localhost:5174/watch/content-1?origin=https%3A%2F%2Fcreator.test',
+    search: '?origin=https%3A%2F%2Fcreator.test',
+  };
+  const canonicalBuyUrl = contentboxBuyUrlForItem(item);
+  assert(canonicalBuyUrl === 'https://creator.test/buy/content-1', 'contentbox buy URL uses canonical origin');
+  const repairedBuyUrl = buyUrlWithFanReturnUrl('http://localhost:5174/watch/content-1?origin=https%3A%2F%2Fcreator.test', item);
+  assert(repairedBuyUrl.startsWith('https://creator.test/buy/content-1?'), 'fan watch URL is repaired to contentbox buy URL');
+  assert(repairedBuyUrl.includes('returnUrl=http%3A%2F%2Flocalhost%3A5174%2Fwatch%2Fcontent-1'), 'purchase URL carries fan returnUrl');
 }
 
 runAccessResolverRegressionChecks();
