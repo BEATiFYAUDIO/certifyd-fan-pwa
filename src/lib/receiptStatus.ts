@@ -80,11 +80,23 @@ function statusUrlsForProof(item: DiscoverableItem, proof: ReceiptProof): string
   return urls;
 }
 
-function accessStatusUrlForItem(item: DiscoverableItem): string | null {
+function accessStatusUrlsForItem(item: DiscoverableItem): string[] {
   const origin = normalizeCanonicalOrigin(item.publicOrigin);
   const contentId = clean(item.contentId);
-  if (!origin || !contentId) return null;
-  return `${origin}/buy/content/${encodeURIComponent(contentId)}/access-status`;
+  if (!origin || !contentId) return [];
+  const baseUrl = `${origin}/buy/content/${encodeURIComponent(contentId)}/access-status`;
+  const urls = [baseUrl];
+  for (const proof of receiptProofsForItem(item)) {
+    try {
+      const next = new URL(baseUrl);
+      if (proof.receiptId) next.searchParams.set('receiptId', proof.receiptId);
+      if (proof.receiptToken) next.searchParams.set('receiptToken', proof.receiptToken);
+      urls.unshift(next.toString());
+    } catch {
+      // Keep base URL.
+    }
+  }
+  return [...new Set(urls)];
 }
 
 async function fetchReceiptStatusUrl(url: string): Promise<ReceiptAccessStatus | null> {
@@ -101,9 +113,9 @@ async function fetchReceiptStatusUrl(url: string): Promise<ReceiptAccessStatus |
 }
 
 async function hydrateNodeAccessStatusForItem(item: DiscoverableItem): Promise<ReceiptAccessStatus | null> {
-  const url = accessStatusUrlForItem(item);
-  if (!url) return null;
-  try {
+  const urls = accessStatusUrlsForItem(item);
+  for (const url of urls) {
+    try {
     debugReceiptPropagation('calling node access status URL', {
       url,
       origin: normalizeCanonicalOrigin(item.publicOrigin),
@@ -135,8 +147,9 @@ async function hydrateNodeAccessStatusForItem(item: DiscoverableItem): Promise<R
     return isReceiptStatusUnlocked(status) ? status : null;
   } catch (error) {
     debugReceiptPropagation('node access status fetch blocked or failed', { url, error });
-    return null;
   }
+  }
+  return null;
 }
 
 export async function hydrateReceiptStatusForItem(item: DiscoverableItem): Promise<ReceiptAccessStatus | null> {
