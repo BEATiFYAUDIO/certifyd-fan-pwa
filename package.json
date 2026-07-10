@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run validate:origins && tsc -b && vite build",
     "postbuild": "cp dist/index.html dist/404.html",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "validate:origins": "node scripts/validate-origins.mjs"
   },
   "dependencies": {
     "react": "^19.2.5",
