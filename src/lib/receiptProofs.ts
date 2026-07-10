@@ -22,11 +22,80 @@ function debugReceiptPropagation(...args: unknown[]) {
   console.debug('[Certifyd receipt propagation]', ...args);
 }
 
+function isNewsmaxProofContext(proof: ReceiptProof | Pick<DiscoverableItem, 'contentId' | 'publicOrigin'>): boolean {
+  return clean(proof.contentId) === 'cmp74z1ub00dtxw4eraqa75ea' ||
+    normalizeCanonicalOrigin(proof.publicOrigin) === 'https://certifyd.beatifygroup.com';
+}
+
+function debugNewsmaxProof(...args: unknown[]) {
+  if (typeof window === 'undefined') return;
+  console.debug('[Certifyd Newsmax receipt proof]', ...args);
+}
+
+function validReceiptValue(value: string): boolean {
+  return Boolean(value) && !value.includes('...') && !value.startsWith('_') && (value.startsWith('rcpt_') || value.startsWith('rct_'));
+}
+
+function normalizeProofFields(proof: ReceiptProof): ReceiptProof {
+  const rawReceiptId = clean(proof.receiptId);
+  const rawReceiptToken = clean(proof.receiptToken);
+  const receiptId = validReceiptValue(rawReceiptId) ? rawReceiptId : '';
+  const receiptToken = validReceiptValue(rawReceiptToken) ? rawReceiptToken : '';
+  const values = [receiptId, receiptToken].filter(Boolean);
+  let normalizedReceiptId = receiptId;
+  let normalizedReceiptToken = receiptToken;
+
+  for (const value of values) {
+    if (value.startsWith('rct_')) normalizedReceiptId = value;
+    if (value.startsWith('rcpt_')) {
+      normalizedReceiptToken = value;
+      if (!normalizedReceiptId) normalizedReceiptId = value;
+    }
+  }
+
+  return {
+    contentId: clean(proof.contentId),
+    publicOrigin: normalizeCanonicalOrigin(proof.publicOrigin),
+    receiptId: normalizedReceiptId,
+    receiptToken: normalizedReceiptToken,
+    paymentIntentId: clean(proof.paymentIntentId),
+    paidAt: clean(proof.paidAt),
+  };
+}
+
+function dedupeProofs(proofs: ReceiptProof[]): ReceiptProof[] {
+  const next: ReceiptProof[] = [];
+  for (const proof of proofs.map(normalizeProofFields).sort(compareProofPriority)) {
+    if (!proof.receiptId && !proof.receiptToken && !proof.paymentIntentId) continue;
+    if (next.some((row) => sameProof(row, proof))) continue;
+    next.push(proof);
+  }
+  return next;
+}
+
+function proofScore(proof: ReceiptProof): number {
+  let score = 0;
+  if (validReceiptValue(clean(proof.receiptId))) score += 100;
+  if (validReceiptValue(clean(proof.receiptToken))) score += 80;
+  if (clean(proof.paymentIntentId)) score += 20;
+  if (clean(proof.paidAt)) score += 10;
+  if (clean(proof.receiptId).startsWith('rct_')) score += 2;
+  if (clean(proof.receiptId).startsWith('rcpt_')) score += 1;
+  return score;
+}
+
+function compareProofPriority(left: ReceiptProof, right: ReceiptProof): number {
+  return proofScore(right) - proofScore(left);
+}
+
 function readProofs(): ReceiptProof[] {
   if (typeof window === 'undefined') return [];
   try {
     const parsed = JSON.parse(window.localStorage.getItem(RECEIPT_PROOFS_STORAGE_KEY) || '[]');
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    const normalized = dedupeProofs(parsed);
+    if (JSON.stringify(parsed) !== JSON.stringify(normalized)) writeProofs(normalized);
+    return normalized;
   } catch {
     return [];
   }
@@ -62,10 +131,12 @@ export function captureReceiptProofFromLocation(item?: Pick<DiscoverableItem, 'c
     paymentIntentId,
     paidAt,
   };
+  const nextProof = normalizeProofFields(proof);
   const current = readProofs();
-  const next = [proof, ...current.filter((row) => !sameProof(row, proof))];
+  const next = dedupeProofs([nextProof, ...current.filter((row) => !sameProof(row, nextProof))]);
   writeProofs(next);
-  debugReceiptPropagation('captured URL receipt proof', { proof, storageKey: RECEIPT_PROOFS_STORAGE_KEY, storedProofs: next });
+  debugReceiptPropagation('captured URL receipt proof', { proof: nextProof, storageKey: RECEIPT_PROOFS_STORAGE_KEY, storedProofs: next });
+  if (isNewsmaxProofContext(nextProof)) debugNewsmaxProof('captured URL receipt proof', { proof: nextProof, storedProofs: next });
 }
 
 export function rememberReceiptProofForItem(item: DiscoverableItem, proof: ReceiptProof) {
@@ -76,11 +147,12 @@ export function rememberReceiptProofForItem(item: DiscoverableItem, proof: Recei
   const contentId = clean(item.contentId);
   const publicOrigin = normalizeCanonicalOrigin(proof.publicOrigin) || normalizeCanonicalOrigin(item.publicOrigin);
   const paidAt = clean(proof.paidAt);
-  const nextProof: ReceiptProof = { contentId, publicOrigin, receiptId, receiptToken, paymentIntentId, paidAt };
+  const nextProof = normalizeProofFields({ contentId, publicOrigin, receiptId, receiptToken, paymentIntentId, paidAt });
   const current = readProofs();
-  const next = [nextProof, ...current.filter((row) => !sameProof(row, nextProof))];
+  const next = dedupeProofs([nextProof, ...current.filter((row) => !sameProof(row, nextProof))]);
   writeProofs(next);
   debugReceiptPropagation('remembered receipt proof for item', { proof: nextProof, storageKey: RECEIPT_PROOFS_STORAGE_KEY, storedProofs: next });
+  if (isNewsmaxProofContext(nextProof)) debugNewsmaxProof('remembered receipt proof for item', { proof: nextProof, storedProofs: next });
 }
 
 export function receiptProofsForItem(item: DiscoverableItem): ReceiptProof[] {
@@ -92,12 +164,13 @@ export function receiptProofsForItem(item: DiscoverableItem): ReceiptProof[] {
     const proofContentId = clean(proof.contentId);
     const proofOrigin = normalizeCanonicalOrigin(proof.publicOrigin);
     return (!proofContentId || proofContentId === contentId) && (!proofOrigin || proofOrigin === publicOrigin);
-  });
+  }).sort(compareProofPriority);
   debugReceiptPropagation('stored receipt proofs for item', {
     item: { contentId, publicOrigin },
     allProofs,
     matchingProofs,
   });
+  if (contentId === 'cmp74z1ub00dtxw4eraqa75ea') debugNewsmaxProof('matched stored proofs for item', { item: { contentId, publicOrigin }, matchingProofs });
   return matchingProofs;
 }
 
@@ -124,6 +197,12 @@ export function withReceiptProofs(url: string, item: DiscoverableItem): string[]
 }
 
 function sameProof(left: ReceiptProof, right: ReceiptProof): boolean {
+  const leftContentId = clean(left.contentId);
+  const rightContentId = clean(right.contentId);
+  if (leftContentId && rightContentId && leftContentId !== rightContentId) return false;
+  const leftOrigin = normalizeCanonicalOrigin(left.publicOrigin);
+  const rightOrigin = normalizeCanonicalOrigin(right.publicOrigin);
+  if (leftOrigin && rightOrigin && leftOrigin !== rightOrigin) return false;
   const leftReceiptId = clean(left.receiptId);
   const rightReceiptId = clean(right.receiptId);
   if (leftReceiptId && rightReceiptId && leftReceiptId === rightReceiptId) return true;

@@ -148,6 +148,22 @@ function inferMediaAspect(offer: CanonicalOffer | null, item: DiscoverableItem, 
   return 'square';
 }
 
+function mediaErrorMessage(error: MediaError | null): string {
+  if (!error) return 'Playback error.';
+  switch (error.code) {
+    case MediaError.MEDIA_ERR_ABORTED:
+      return 'Playback was interrupted.';
+    case MediaError.MEDIA_ERR_NETWORK:
+      return 'Playback network error.';
+    case MediaError.MEDIA_ERR_DECODE:
+      return 'Playback decode error.';
+    case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+      return 'Playback source is not supported.';
+    default:
+      return 'Playback error.';
+  }
+}
+
 function offerText(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
@@ -349,6 +365,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const touchStartYRef = useRef<number | null>(null);
   const mediaAspectHintRef = useRef<MediaAspect | null>(null);
   const mutedAutoplayRef = useRef(false);
+  const autoplayAfterLoadRef = useRef(false);
   const endingRef = useRef(false);
 
   useEffect(() => {
@@ -405,6 +422,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       credits: creditLabelsFromItem(nextItem),
     });
     mutedAutoplayRef.current = options?.muted === true;
+    autoplayAfterLoadRef.current = options?.muted === true;
     mediaAspectHintRef.current = options?.mediaAspect && options.mediaAspect !== 'unknown' ? options.mediaAspect : null;
     setMediaMuted(options?.muted === true);
     if (options?.openPlayer !== false) setMobileSheetOpen(true);
@@ -544,6 +562,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     media.muted = mutedAutoplayRef.current;
     setMediaMuted(media.muted);
     try { media.load(); } catch { /* ignore */ }
+    if (!autoplayAfterLoadRef.current) {
+      setState('paused');
+      setMessage('Tap Play to start playback.');
+      return;
+    }
+    autoplayAfterLoadRef.current = false;
     const promise = media.play();
     if (promise && typeof promise.catch === 'function') {
       promise.catch(() => {
@@ -601,6 +625,50 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       setMessage('Preview ended. Playing next.');
     }
   }, [autoplayNext, item, playNextQueuedItem]);
+
+  const handleMediaError = useCallback((event: SyntheticEvent<HTMLMediaElement>) => {
+    const media = event.currentTarget;
+    const activeMedia = activeMediaRef.current;
+    const expectedUrl = item?.playback.streamUrl || '';
+    const actualUrl = media.currentSrc || media.src || '';
+    const error = media.error;
+    const isStaleMedia = activeMedia !== media;
+    const isStaleSource = Boolean(expectedUrl && actualUrl && actualUrl !== expectedUrl);
+    const isAbort = error?.code === MediaError.MEDIA_ERR_ABORTED;
+
+    if (isStaleMedia || isStaleSource || isAbort) {
+      if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        console.debug('[Certifyd media error ignored]', {
+          isStaleMedia,
+          isStaleSource,
+          isAbort,
+          expectedUrl,
+          actualUrl,
+          errorCode: error?.code ?? null,
+          errorMessage: error?.message ?? '',
+          networkState: media.networkState,
+          readyState: media.readyState,
+        });
+      }
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      console.warn('[Certifyd media error]', {
+        contentId: item?.contentId,
+        publicOrigin: item?.publicOrigin,
+        playbackMode: item?.playback.mode,
+        expectedUrl,
+        actualUrl,
+        errorCode: error?.code ?? null,
+        errorMessage: error?.message ?? '',
+        networkState: media.networkState,
+        readyState: media.readyState,
+      });
+    }
+    setState('error');
+    setMessage(mediaErrorMessage(error));
+  }, [item]);
 
   const togglePlay = useCallback(() => {
     const media = activeMediaRef.current;
@@ -672,6 +740,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const currentCreatorKey = currentCreator?.key || '';
   const isCurrentSaved = Boolean(currentWorkKey && savedWorkKeys.has(currentWorkKey));
   const isCurrentFollowed = Boolean(currentCreatorKey && followedCreatorKeys.has(currentCreatorKey));
+  const showPrimaryAction = item?.commerceState === 'preview' || item?.commerceState === 'unavailable' || item?.playback.mode === 'preview' || item?.playback.mode === 'none';
   const primaryActionUrl = currentSourceItem
     ? buyUrlWithFanReturnUrl(item?.buyUrl, currentSourceItem)
     : item?.buyUrl || '#';
@@ -930,7 +999,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               }}
               onTimeUpdate={onTimeUpdate}
               onEnded={handleEnded}
-              onError={() => { setState('error'); setMessage('Playback error.'); }}
+              onError={handleMediaError}
             />
           ) : item?.artwork ? (
             <img
@@ -956,7 +1025,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               onLoadedMetadata={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
               onTimeUpdate={onTimeUpdate}
               onEnded={handleEnded}
-              onError={() => { setState('error'); setMessage('Playback error.'); }}
+              onError={handleMediaError}
             />
           ) : null}
         </div>
@@ -1016,11 +1085,13 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                 ))}
               </div>
             ) : null}
-            <div className="stage1a-rich-actions">
-              <a className="stage1a-rich-support" href={primaryActionUrl} target="_blank" rel="noreferrer">
-                {item?.supportLabel || 'Support Creator'}
-              </a>
-            </div>
+            {showPrimaryAction ? (
+              <div className="stage1a-rich-actions">
+                <a className="stage1a-rich-support" href={primaryActionUrl} target="_blank" rel="noreferrer">
+                  {item?.supportLabel || 'Support Creator'}
+                </a>
+              </div>
+            ) : null}
             <div className="stage1a-rich-overlay-actions" aria-label="Secondary work actions">
               <button type="button" onClick={toggleCurrentSaved} disabled={!currentSourceItem}>
                 {isCurrentSaved ? 'Saved' : 'Save Work'}

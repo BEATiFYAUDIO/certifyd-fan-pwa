@@ -80,23 +80,46 @@ function statusUrlsForProof(item: DiscoverableItem, proof: ReceiptProof): string
   return urls;
 }
 
-function accessStatusUrlsForItem(item: DiscoverableItem): string[] {
+function isNewsmaxItem(item: Pick<DiscoverableItem, 'contentId' | 'publicOrigin'>): boolean {
+  return clean(item.contentId) === 'cmp74z1ub00dtxw4eraqa75ea';
+}
+
+function debugNewsmaxAccess(...args: unknown[]) {
+  if (typeof window === 'undefined') return;
+  console.debug('[Certifyd Newsmax receipt proof]', ...args);
+}
+
+export function accessStatusUrlsForItem(item: DiscoverableItem): string[] {
   const origin = normalizeCanonicalOrigin(item.publicOrigin);
   const contentId = clean(item.contentId);
   if (!origin || !contentId) return [];
   const baseUrl = `${origin}/buy/content/${encodeURIComponent(contentId)}/access-status`;
   const urls = [baseUrl];
   for (const proof of receiptProofsForItem(item)) {
-    try {
-      const next = new URL(baseUrl);
-      if (proof.receiptId) next.searchParams.set('receiptId', proof.receiptId);
-      if (proof.receiptToken) next.searchParams.set('receiptToken', proof.receiptToken);
-      urls.unshift(next.toString());
-    } catch {
-      // Keep base URL.
+    const receiptId = clean(proof.receiptId);
+    const receiptToken = clean(proof.receiptToken);
+    const queryCandidates: Array<{ key: 'receiptId' | 'receiptToken'; value: string }> = [];
+    if (receiptId) queryCandidates.push({ key: 'receiptId', value: receiptId });
+    else if (receiptToken) queryCandidates.push({ key: 'receiptToken', value: receiptToken });
+    if (receiptToken.startsWith('rcpt_')) queryCandidates.push({ key: 'receiptId', value: receiptToken });
+
+    for (const candidate of queryCandidates) {
+      try {
+        const next = new URL(baseUrl);
+        next.searchParams.set(candidate.key, candidate.value);
+        urls.unshift(next.toString());
+      } catch {
+        // Keep base URL.
+      }
     }
   }
-  return [...new Set(urls)];
+  const uniqueUrls = [...new Set(urls)];
+  if (isNewsmaxItem(item)) debugNewsmaxAccess('access-status URL candidates', {
+    item: { contentId, publicOrigin: origin },
+    proofs: receiptProofsForItem(item),
+    urls: uniqueUrls,
+  });
+  return uniqueUrls;
 }
 
 async function fetchReceiptStatusUrl(url: string): Promise<ReceiptAccessStatus | null> {
@@ -142,6 +165,15 @@ async function hydrateNodeAccessStatusForItem(item: DiscoverableItem): Promise<R
         receiptId: status.receiptId,
         access: status.access,
         paymentStatus: status.paymentStatus,
+        unlocked: isReceiptStatusUnlocked(status),
+      });
+      if (isNewsmaxItem(item)) debugNewsmaxAccess('access-status response', {
+        url,
+        source: (status as ReceiptAccessStatus & { source?: string }).source,
+        access: status.access,
+        paymentStatus: status.paymentStatus,
+        receiptId: status.receiptId,
+        receiptToken: status.receiptToken,
         unlocked: isReceiptStatusUnlocked(status),
       });
       if (isReceiptStatusUnlocked(status)) return status;

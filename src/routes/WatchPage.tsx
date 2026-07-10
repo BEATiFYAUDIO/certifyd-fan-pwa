@@ -113,7 +113,15 @@ function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer, rece
       ? offer.profileTheme as DiscoverableItem['profileTheme']
       : item.profileTheme,
     coverUrl: resolveAbsoluteUrl(offer.coverUrl, origin) || item.coverUrl,
-    previewUrl: resolveAbsoluteUrl(offer.previewUrl, origin) || item.previewUrl,
+    previewUrl: access.playback.mode === 'preview'
+      ? resolveAbsoluteUrl(access.playback.streamUrl, origin) || resolveAbsoluteUrl(offer.previewUrl, origin) || item.previewUrl
+      : resolveAbsoluteUrl(offer.previewUrl, origin) || item.previewUrl,
+    fullMediaUrl: access.playback.mode === 'full'
+      ? resolveAbsoluteUrl(access.playback.streamUrl, origin) || resolveAbsoluteUrl(offer.fullMediaUrl, origin) || item.fullMediaUrl || null
+      : null,
+    fullContentUrl: access.playback.mode === 'full'
+      ? resolveAbsoluteUrl(access.playback.streamUrl, origin) || resolveAbsoluteUrl(offer.fullContentUrl, origin) || item.fullContentUrl || null
+      : null,
     buyUrl: resolveAbsoluteUrl(offer.buyUrl, origin) || item.buyUrl,
     offerUrl: resolveAbsoluteUrl(offer.offerUrl, origin) || item.offerUrl || resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, origin),
     priceSats: access.priceSats,

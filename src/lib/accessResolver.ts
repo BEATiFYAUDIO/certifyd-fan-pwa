@@ -76,7 +76,8 @@ function playbackRecord(offer: CanonicalOffer | null): Record<string, unknown> |
 
 export function resolveAccessFromOffer(item: DiscoverableItem, offer: CanonicalOffer | null, receiptStatus?: ReceiptAccessStatus | null): ResolvedAccess {
   const playback = playbackRecord(offer);
-  const accessMode = normalizedAccessMode(offer?.accessMode) || item.accessMode;
+  const offerAccessMode = normalizedAccessMode(offer?.accessMode);
+  const accessMode = offerAccessMode || item.accessMode;
   const priceSats = numberFrom([offer?.priceSats, offer?.price_sat, offer?.unlockPriceSats, offer?.amountSats, offer?.price, item.priceSats]);
   const isPaid = priceSats > 0;
   const isFree = explicitTrue(offer?.isFree) || (!isPaid && accessMode !== 'locked');
@@ -88,9 +89,10 @@ export function resolveAccessFromOffer(item: DiscoverableItem, offer: CanonicalO
   const hasViewerAccess = receiptUnlocked
     || explicitTrue(offer?.hasFullAccess)
     || explicitTrue(offer?.owned)
-    || accessMode === 'owned'
+    || offerAccessMode === 'owned'
     || hasPositiveEntitlement(offer?.paymentAccessProof);
-  const previewStreamUrl = firstText([playback?.previewUrl, offer?.previewUrl, item.previewUrl]);
+  const canonicalPreviewStreamUrl = requestedMode === 'preview' ? playback?.streamUrl : null;
+  const previewStreamUrl = firstText([playback?.previewUrl, canonicalPreviewStreamUrl, offer?.previewUrl, item.previewUrl]);
   const offerFullStreamUrl = firstText([(requestedMode === 'full' || canPlayFull) ? playback?.streamUrl : null, offer?.fullMediaUrl, offer?.fullContentUrl, offer?.mediaUrl, offer?.contentUrl]);
   const itemFullStreamUrl = receiptUnlocked || isFree ? firstText([item.fullMediaUrl, item.fullContentUrl, item.mediaUrl, item.contentUrl]) : null;
   const fullStreamUrl = offerFullStreamUrl || itemFullStreamUrl;

@@ -1,7 +1,7 @@
 import { resolveAccessFromOffer, type CanonicalOffer } from './accessResolver';
 import { normalizeCanonicalOrigin } from './origin';
 import { receiptProofsForItem, withReceiptProofs } from './receiptProofs';
-import { isReceiptStatusUnlocked, type ReceiptAccessStatus } from './receiptStatus';
+import { accessStatusUrlsForItem, isReceiptStatusUnlocked, type ReceiptAccessStatus } from './receiptStatus';
 import { parseRestoreAccessInput } from './restoreAccess';
 import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from './fanReturnUrl';
 import type { DiscoverableItem } from './types';
@@ -54,8 +54,8 @@ function paidOffer(overrides: CanonicalOffer = {}): CanonicalOffer {
 function receiptStatus(overrides: Partial<ReceiptAccessStatus> = {}): ReceiptAccessStatus {
   return {
     contentId: 'content-1',
-    receiptToken: 'receipt-token-1',
-    receiptId: 'receipt-1',
+    receiptToken: 'rcpt_status_1',
+    receiptId: 'rct_1',
     paymentIntentId: 'pi_1',
     paidAt: '2026-07-08T00:00:00.000Z',
     paymentMethod: null,
@@ -95,6 +95,40 @@ export function runAccessResolverRegressionChecks() {
   assert(noReceipt.isLocked, 'no receipt keeps paid offer locked');
   assert(noReceipt.playback.mode === 'preview', 'no receipt keeps paid offer in preview');
 
+  const canonicalPreviewOnly = resolveAccessFromOffer(
+    item,
+    paidOffer({
+      previewUrl: '',
+      fullMediaUrl: '/full.mp3',
+      fullContentUrl: '/full-content.mp3',
+      mediaUrl: '/media.mp3',
+      contentUrl: '/content.mp3',
+      playback: { mode: 'preview', streamUrl: '/canonical-preview.mp3', canPlayFull: false },
+    }),
+  );
+  assert(canonicalPreviewOnly.isLocked, 'paid locked canonical preview remains locked');
+  assert(canonicalPreviewOnly.playback.mode === 'preview', 'paid locked canonical playback.streamUrl is playable as preview');
+  assert(canonicalPreviewOnly.playback.streamUrl === '/canonical-preview.mp3', 'paid locked preview uses canonical preview stream');
+  assert(canonicalPreviewOnly.playback.canPlayFull === false, 'paid locked canonical preview cannot play full');
+
+  const receiptProtectedLocked = resolveAccessFromOffer(
+    fixtureItem({ hasLockedSplitSnapshot: true, previewUrl: '' }),
+    paidOffer({ previewUrl: '', playback: { mode: 'preview', streamUrl: '/receipt-protected-preview.mp3', canPlayFull: false } }),
+  );
+  assert(receiptProtectedLocked.isLocked && receiptProtectedLocked.playback.mode === 'preview', 'receipt-protected locked content plays preview');
+
+  const discoveryOwnedWithoutProof = resolveAccessFromOffer(
+    fixtureItem({ accessMode: 'owned', owned: true, hasFullAccess: true, fullMediaUrl: 'https://creator.test/discovery-full.mp3' }),
+    paidOffer({ accessMode: 'locked', playback: { mode: 'preview', streamUrl: '/preview.mp3', canPlayFull: false } }),
+  );
+  assert(discoveryOwnedWithoutProof.isLocked && discoveryOwnedWithoutProof.playback.mode === 'preview', 'paid content does not infer ownership from discovery metadata');
+
+  const canonicalOwned = resolveAccessFromOffer(
+    item,
+    paidOffer({ accessMode: 'owned', owned: true, hasFullAccess: true, playback: { mode: 'full', streamUrl: '/canonical-full.mp3', canPlayFull: true } }),
+  );
+  assert(canonicalOwned.owned && canonicalOwned.playback.mode === 'full' && canonicalOwned.playback.streamUrl === '/canonical-full.mp3', 'paid owned canonical offer plays full');
+
   const staleReceipt = receiptStatus({ access: 'locked', status: 'open', paymentStatus: 'requires_payment_method', canFulfill: false, unlocked: false });
   assert(!isReceiptStatusUnlocked(staleReceipt), 'receipt helper does not unlock stale/failed status');
   const staleLocked = resolveAccessFromOffer(item, lockedOffer, staleReceipt);
@@ -107,6 +141,13 @@ export function runAccessResolverRegressionChecks() {
   const paidFullFallback = resolveAccessFromOffer(item, paidOffer({ previewUrl: '', playback: null }));
   assert(paidFullFallback.playback.mode !== 'full', 'paid locked never plays full fallback URL');
 
+  const unavailableNoPreview = resolveAccessFromOffer(
+    fixtureItem({ previewUrl: '', fullMediaUrl: 'https://creator.test/full-from-discovery.mp3' }),
+    paidOffer({ previewUrl: '', playback: null }),
+  );
+  assert(unavailableNoPreview.isLocked && unavailableNoPreview.playback.mode === 'none', 'paid locked with no preview and no access is unavailable');
+  assert(unavailableNoPreview.playback.streamUrl === null, 'unavailable paid locked content exposes no stream URL');
+
   const canPlayFullOnly = resolveAccessFromOffer(item, paidOffer({ playback: { mode: 'full', streamUrl: '/full.mp3', canPlayFull: true } }));
   assert(canPlayFullOnly.isLocked && canPlayFullOnly.playback.mode !== 'full', 'paid content does not unlock from playback canPlayFull alone');
 
@@ -117,30 +158,73 @@ export function runAccessResolverRegressionChecks() {
   const refreshed = resolveAccessFromOffer(item, lockedOffer, paidReceipt);
   assert(refreshed.accessMode === receiptUnlocked.accessMode && refreshed.playback.mode === receiptUnlocked.playback.mode, 'refresh preserves same receipt access');
 
-  installMockWindow('?origin=https%3A%2F%2Fcreator.test&receiptId=receipt-1');
+  installMockWindow('?origin=https%3A%2F%2Fcreator.test&receiptId=rct_1');
   const originProofs = receiptProofsForItem(item);
   assert(originProofs[0]?.publicOrigin === 'https://creator.test', 'localhost handoff stores canonical contentbox origin');
-  assert(originProofs[0]?.receiptId === 'receipt-1' && !originProofs[0]?.receiptToken, 'receiptId durable fallback is stored without receiptToken');
+  assert(originProofs[0]?.receiptId === 'rct_1' && !originProofs[0]?.receiptToken, 'receiptId durable fallback is stored without receiptToken');
   const rewrittenOfferUrl = withReceiptProofs('http://localhost:5174/buy/content/content-1/offer', item)[0] || '';
   assert(rewrittenOfferUrl.startsWith('https://creator.test/buy/content/content-1/offer'), 'offer URL with proof uses contentbox origin, not localhost');
-  assert(rewrittenOfferUrl.includes('receiptId=receipt-1'), 'offer URL includes receiptId fallback');
+  assert(rewrittenOfferUrl.includes('receiptId=rct_1'), 'offer URL includes receiptId fallback');
 
   assert(normalizeCanonicalOrigin('javascript:alert(1)') === '', 'malformed origin is ignored');
-  installMockWindow('?origin=javascript%3Aalert(1)&receiptId=receipt-2');
+  installMockWindow('?origin=javascript%3Aalert(1)&receiptId=rct_2');
   const malformedOriginProofs = receiptProofsForItem(item);
   assert(malformedOriginProofs[0]?.publicOrigin === item.publicOrigin, 'malformed URL origin falls back to item origin');
 
-  const durableReceiptUrl = parseRestoreAccessInput('https://creator.test/buy/receipt/receipt-3', item.publicOrigin);
-  assert(durableReceiptUrl.publicOrigin === 'https://creator.test' && durableReceiptUrl.receiptId === 'receipt-3', 'restore parser reads receipt page URL');
+  const durableReceiptUrl = parseRestoreAccessInput('https://creator.test/buy/receipt/rct_3', item.publicOrigin);
+  assert(durableReceiptUrl.publicOrigin === 'https://creator.test' && durableReceiptUrl.receiptId === 'rct_3', 'restore parser reads receipt page URL');
 
-  const statusReceiptUrl = parseRestoreAccessInput('https://creator.test/buy/receipts/r/receipt-4/status', item.publicOrigin);
-  assert(statusReceiptUrl.publicOrigin === 'https://creator.test' && statusReceiptUrl.receiptId === 'receipt-4', 'restore parser reads durable status URL');
+  const statusReceiptUrl = parseRestoreAccessInput('https://creator.test/buy/receipts/r/rct_4/status', item.publicOrigin);
+  assert(statusReceiptUrl.publicOrigin === 'https://creator.test' && statusReceiptUrl.receiptId === 'rct_4', 'restore parser reads durable status URL');
 
-  const tokenStatusUrl = parseRestoreAccessInput('https://creator.test/buy/receipts/token-1/status', item.publicOrigin);
-  assert(tokenStatusUrl.publicOrigin === 'https://creator.test' && tokenStatusUrl.receiptToken === 'token-1', 'restore parser reads token status URL');
+  const tokenStatusUrl = parseRestoreAccessInput('https://creator.test/buy/receipts/rcpt_token_1/status', item.publicOrigin);
+  assert(tokenStatusUrl.publicOrigin === 'https://creator.test' && tokenStatusUrl.receiptToken === 'rcpt_token_1', 'restore parser reads token status URL');
 
-  const tokenPrefix = parseRestoreAccessInput('receiptToken: token-2', item.publicOrigin);
-  assert(tokenPrefix.receiptToken === 'token-2', 'restore parser respects receiptToken prefix');
+  const tokenPrefix = parseRestoreAccessInput('receiptToken: rcpt_token_2', item.publicOrigin);
+  assert(tokenPrefix.receiptToken === 'rcpt_token_2', 'restore parser respects receiptToken prefix');
+
+  installMockWindow('?origin=https%3A%2F%2Fcreator.test&receiptToken=rcpt_legacy');
+  const legacyReceiptProofs = receiptProofsForItem(item);
+  assert(legacyReceiptProofs[0]?.receiptToken === 'rcpt_legacy', 'rcpt_ proof remains available as receiptToken');
+  assert(legacyReceiptProofs[0]?.receiptId === 'rcpt_legacy', 'rcpt_ proof is also repaired as legacy receiptId');
+  const legacyAccessStatusUrl = accessStatusUrlsForItem(item)[0] || '';
+  assert(legacyAccessStatusUrl === 'https://creator.test/buy/content/content-1/access-status?receiptId=rcpt_legacy', 'legacy rcpt_ proof is sent as receiptId to access-status first');
+
+  installMockWindow('?origin=https%3A%2F%2Fcreator.test&receiptId=rct_durable');
+  const durableAccessStatusUrl = accessStatusUrlsForItem(item)[0] || '';
+  assert(durableAccessStatusUrl === 'https://creator.test/buy/content/content-1/access-status?receiptId=rct_durable', 'rct_ durable proof is sent as receiptId to access-status');
+
+  const wrongContentStore = installMockWindow('');
+  wrongContentStore.set('certifyd-player:receipt-proofs:v1', JSON.stringify([{
+    contentId: 'other-content',
+    publicOrigin: 'https://creator.test',
+    receiptId: 'rct_wrong',
+  }]));
+  const wrongContentAccessUrls = accessStatusUrlsForItem(item);
+  assert(!wrongContentAccessUrls.some((url) => url.includes('rct_wrong')), 'wrong contentId proof is not sent to access-status');
+
+  const stalePlusGoodStore = installMockWindow('');
+  stalePlusGoodStore.set('certifyd-player:receipt-proofs:v1', JSON.stringify([
+    {
+      contentId: 'content-1',
+      publicOrigin: 'https://creator.test',
+      receiptId: '_600e4c0f...8_454ff8',
+    },
+    {
+      contentId: 'content-1',
+      publicOrigin: 'https://creator.test',
+      receiptId: 'rcpt_good',
+      receiptToken: 'rcpt_good',
+      paymentIntentId: 'pi_good',
+      paidAt: '2026-07-04T05:32:00.000Z',
+    },
+  ]));
+  const repairedProofs = receiptProofsForItem(item);
+  assert(repairedProofs.length === 1, 'truncated placeholder proof is dropped during migration');
+  assert(repairedProofs[0]?.receiptId === 'rcpt_good', 'good rcpt_ proof remains after stale proof is dropped');
+  const stalePlusGoodAccessUrls = accessStatusUrlsForItem(item);
+  assert(stalePlusGoodAccessUrls[0] === 'https://creator.test/buy/content/content-1/access-status?receiptId=rcpt_good', 'good proof is tried before bare access-status when stale proof existed first');
+  assert(!stalePlusGoodAccessUrls.some((url) => url.includes('_600e4c0f')), 'invalid truncated proof is never sent to access-status');
 
   (globalThis as unknown as { window: { location: Record<string, string> } }).window.location = {
     hostname: 'localhost',
