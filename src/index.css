@@ -2222,6 +2222,10 @@ body.has-stage1a-player {
   font-size: 10px;
 }
 
+.stage1a-player-mobile-badge {
+  display: none;
+}
+
 .stage1a-player-controls {
   display: flex;
   align-items: center;
@@ -2350,8 +2354,8 @@ body.has-stage1a-player {
   .stage1a-rich-player-mobile-open .stage1a-rich-copy {
     position: absolute;
     left: 16px;
-    right: 92px;
-    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+    bottom: calc(190px + env(safe-area-inset-bottom, 0px));
     z-index: 4;
     text-shadow: 0 2px 12px rgba(0, 0, 0, 0.82);
   }
@@ -2362,26 +2366,38 @@ body.has-stage1a-player {
 
   .stage1a-rich-player-mobile-open .stage1a-rich-controls {
     position: absolute;
-    right: 14px;
-    bottom: calc(178px + env(safe-area-inset-bottom, 0px));
+    left: 18px;
+    right: 18px;
+    bottom: calc(118px + env(safe-area-inset-bottom, 0px));
     z-index: 5;
-    display: grid;
-    gap: 12px;
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    pointer-events: auto;
   }
 
   .stage1a-rich-player-mobile-open .stage1a-rich-play {
-    display: none;
+    display: grid;
+    width: 68px;
+    height: 68px;
   }
 
   .stage1a-rich-player-mobile-open .stage1a-rich-nav {
+    width: 52px;
+    height: 52px;
     background: rgba(20, 20, 24, 0.72);
     backdrop-filter: blur(14px);
   }
 
+  .stage1a-rich-player-mobile-open .stage1a-rich-nav-previous:disabled,
+  .stage1a-rich-player-mobile-open .stage1a-rich-nav-next:disabled {
+    visibility: hidden;
+  }
+
   .stage1a-rich-player-mobile-open .stage1a-rich-autoplay {
     position: absolute;
-    left: 16px;
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+    top: calc(56px + env(safe-area-inset-top, 0px));
     z-index: 4;
   }
 
@@ -2389,7 +2405,7 @@ body.has-stage1a-player {
     position: absolute;
     left: 14px;
     right: 14px;
-    bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
     z-index: 4;
   }
 
@@ -2400,45 +2416,96 @@ body.has-stage1a-player {
   }
 
   .stage1a-rich-player-mobile-open .stage1a-rich-overlay-actions {
-    position: absolute;
-    right: 14px;
-    bottom: calc(292px + env(safe-area-inset-bottom, 0px));
-    z-index: 5;
-    display: grid;
-    grid-template-columns: 1fr;
-    width: 82px;
+    display: none;
   }
 
-  .stage1a-rich-player-mobile-open .stage1a-rich-overlay-actions button,
-  .stage1a-rich-player-mobile-open .stage1a-rich-overlay-link {
-    min-height: 36px;
-    border-radius: 999px;
-    background: rgba(20, 20, 24, 0.68);
-    backdrop-filter: blur(14px);
-    font-size: 9px;
-    line-height: 1.1;
-  }
-
-  .stage1a-rich-player-mobile-open .stage1a-rich-actions,
   .stage1a-rich-player-mobile-open .stage1a-rich-links,
   .stage1a-rich-player-mobile-open .stage1a-rich-connected {
     display: none;
   }
 
+  .stage1a-rich-player-mobile-open .stage1a-rich-actions {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    z-index: 5;
+  }
+
+  .stage1a-rich-player-mobile-open .stage1a-rich-support {
+    min-height: 48px;
+    border-radius: 16px;
+  }
+
   .stage1a-player-dock {
     left: 8px;
     right: 8px;
-    bottom: 8px;
-    align-items: flex-start;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr) 54px;
+    align-items: center;
+    min-height: 64px;
+    padding: 8px;
+    border-radius: 18px;
   }
 
   .stage1a-player-art {
-    width: 38px;
-    height: 38px;
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
   }
 
   .stage1a-player-controls {
-    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .stage1a-player-controls .stage1a-player-progress,
+  .stage1a-player-controls .stage1a-player-time {
+    display: none;
+  }
+
+  .stage1a-player-button {
+    width: 48px;
+    height: 48px;
+    border-color: rgba(255, 255, 255, 0.78);
+    background: #ffffff;
+    color: #08070b;
+  }
+
+  .stage1a-player-button .stage1a-play-icon {
+    transform: scale(0.86);
+  }
+
+  .stage1a-player-clear {
+    display: none;
+  }
+
+  .stage1a-player-title {
+    font-size: 13px;
+    font-weight: 850;
+  }
+
+  .stage1a-player-meta {
+    font-size: 11px;
+  }
+
+  .stage1a-player-mobile-badge {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 3px;
+    overflow: hidden;
+    border: 1px solid rgba(34, 197, 94, 0.28);
+    border-radius: 999px;
+    background: rgba(34, 197, 94, 0.1);
+    padding: 2px 7px;
+    color: rgba(187, 247, 208, 0.92);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
   }
 
   .stage1a-rich-player-mobile-open .stage1a-rich-detail-panel {

@@ -1042,13 +1042,13 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
         {!isIdle ? (
           <>
             <div className="stage1a-rich-controls">
-              <button type="button" className="stage1a-rich-nav" onClick={playPreviousFreeDrop} disabled={!canPlayPreviousFreeDrop} aria-label="Previous Free Drop">
+              <button type="button" className="stage1a-rich-nav stage1a-rich-nav-previous" onClick={playPreviousFreeDrop} disabled={!canPlayPreviousFreeDrop} aria-label="Previous Free Drop">
                 <TransportIcon icon="previous" />
               </button>
               <button type="button" className="stage1a-rich-play" onClick={togglePlay} disabled={!canControl} aria-label="Play or pause">
                 <PlayIcon playing={isPlaying} />
               </button>
-              <button type="button" className="stage1a-rich-nav" onClick={playNextFreeDrop} disabled={!canPlayNextFreeDrop} aria-label="Next Free Drop">
+              <button type="button" className="stage1a-rich-nav stage1a-rich-nav-next" onClick={playNextFreeDrop} disabled={!canPlayNextFreeDrop} aria-label="Next Free Drop">
                 <TransportIcon icon="next" />
               </button>
               <button type="button" className="stage1a-rich-nav stage1a-rich-fullscreen" onClick={toggleFullscreen} disabled={!canControl} aria-label="Fullscreen">
@@ -1188,6 +1188,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
         <div className="stage1a-player-main">
           <div className="stage1a-player-title">{displayedTitle}</div>
           <div className="stage1a-player-meta">{displayedMeta}</div>
+          {!isIdle && item?.playbackLabel ? <div className="stage1a-player-mobile-badge">{item.playbackLabel}</div> : null}
           {!isIdle ? (
             <div className="stage1a-player-controls">
               <button type="button" className="stage1a-player-button" onClick={(event) => { event.stopPropagation(); togglePlay(); }} disabled={!canControl} aria-label="Play or pause">
