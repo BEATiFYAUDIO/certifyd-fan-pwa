@@ -1316,7 +1316,7 @@ function StandardWatch({
       dedupeDiscoveryItems([hydrated, ...current.filter((row) => row.contentId !== hydrated.contentId || row.publicOrigin !== hydrated.publicOrigin)]),
     );
     if (playerItem?.contentId === hydrated.contentId && playerItem.publicOrigin === hydrated.publicOrigin) {
-      void playItem(hydrated, { openPlayer: false });
+      void playItem(hydrated, { openPlayer: false, autoPlay: false });
     }
   }, [item, playItem, playerItem]);
 

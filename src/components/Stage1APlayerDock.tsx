@@ -8,7 +8,7 @@ import { displayStateFromItem, displayStateFromPlayback } from '../lib/playbackD
 import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
 import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
 import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
-import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerState } from './stage1APlayerContext';
+import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerOptions, type Stage1APlayerState } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
 type MediaAspect = Stage1APlayerMediaAspect;
@@ -365,7 +365,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const touchStartYRef = useRef<number | null>(null);
   const mediaAspectHintRef = useRef<MediaAspect | null>(null);
   const mutedAutoplayRef = useRef(false);
-  const autoplayAfterLoadRef = useRef(false);
+  const autoPlayAfterLoadRef = useRef(false);
   const endingRef = useRef(false);
 
   useEffect(() => {
@@ -411,7 +411,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     setMediaMuted(false);
   }, []);
 
-  const playItem = useCallback(async (nextItem: DiscoverableItem, options?: { muted?: boolean; openPlayer?: boolean; drawer?: Stage1APlayerDrawerPanel; mediaAspect?: MediaAspect }) => {
+  const playItem = useCallback(async (nextItem: DiscoverableItem, options?: Stage1APlayerOptions) => {
     setDetailPanel(options?.drawer ?? null);
     setDrawerContent({
       moreFromCreator: [],
@@ -422,7 +422,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       credits: creditLabelsFromItem(nextItem),
     });
     mutedAutoplayRef.current = options?.muted === true;
-    autoplayAfterLoadRef.current = options?.muted === true;
+    autoPlayAfterLoadRef.current = options?.autoPlay !== false;
     mediaAspectHintRef.current = options?.mediaAspect && options.mediaAspect !== 'unknown' ? options.mediaAspect : null;
     setMediaMuted(options?.muted === true);
     if (options?.openPlayer !== false) setMobileSheetOpen(true);
@@ -562,16 +562,18 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     media.muted = mutedAutoplayRef.current;
     setMediaMuted(media.muted);
     try { media.load(); } catch { /* ignore */ }
-    if (!autoplayAfterLoadRef.current) {
+    if (!autoPlayAfterLoadRef.current) {
       setState('paused');
       setMessage('Tap Play to start playback.');
       return;
     }
-    autoplayAfterLoadRef.current = false;
+    autoPlayAfterLoadRef.current = false;
     const promise = media.play();
     if (promise && typeof promise.catch === 'function') {
-      promise.catch(() => {
-        if (item.mediaKind === 'video' && !media.muted) {
+      promise.catch((error: unknown) => {
+        const errorName = error instanceof DOMException ? error.name : error instanceof Error ? error.name : '';
+        const blockedByGesture = errorName === 'NotAllowedError';
+        if (!blockedByGesture && item.mediaKind === 'video' && !media.muted && mutedAutoplayRef.current) {
           media.muted = true;
           setMediaMuted(true);
           const mutedPromise = media.play();
@@ -585,7 +587,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           return;
         }
         setState('paused');
-        setMessage('Tap play to start. Your browser blocked automatic playback.');
+        setMessage(blockedByGesture ? 'Tap Play to start playback.' : 'Tap play to start. Your browser blocked automatic playback.');
       });
     }
   }, [item, state]);
@@ -751,7 +753,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     if (!shouldRefresh) return undefined;
     const refresh = () => {
       if (document.visibilityState === 'hidden') return;
-      void playItem(currentSourceItem, { openPlayer: false, muted: mediaMuted, mediaAspect });
+      void playItem(currentSourceItem, { openPlayer: false, muted: mediaMuted, mediaAspect, autoPlay: false });
     };
     window.addEventListener('focus', refresh);
     window.addEventListener('pageshow', refresh);

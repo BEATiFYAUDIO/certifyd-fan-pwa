@@ -43,8 +43,16 @@ export type Stage1APlayerDrawerContent = {
   credits?: string[];
 };
 
+export type Stage1APlayerOptions = {
+  autoPlay?: boolean;
+  muted?: boolean;
+  openPlayer?: boolean;
+  drawer?: Stage1APlayerDrawerPanel;
+  mediaAspect?: Stage1APlayerMediaAspect;
+};
+
 export type Stage1APlayerContextValue = {
-  playItem: (item: DiscoverableItem, options?: { muted?: boolean; openPlayer?: boolean; drawer?: Stage1APlayerDrawerPanel; mediaAspect?: Stage1APlayerMediaAspect }) => Promise<void>;
+  playItem: (item: DiscoverableItem, options?: Stage1APlayerOptions) => Promise<void>;
   setMobilePlayerOpen: (open: boolean) => void;
   setFreeDropQueue: (items: DiscoverableItem[]) => void;
   setDrawerContent: (content: Stage1APlayerDrawerContent | null) => void;
