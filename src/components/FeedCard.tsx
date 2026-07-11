@@ -41,10 +41,6 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
   const mediaHref = watchHref;
   const mediaIsExternal = mediaHref === item.buyUrl;
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
-  const playFromCardOpen = () => {
-    if (shouldOpenMobilePlayerOnly()) return;
-    void playItem(item);
-  };
   const playExplicitly = (event: MouseEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -109,7 +105,7 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
         </div>
       ) : (
         <div className="relative">
-          <Link to={watchHref} state={{ item }} className="block" onClick={playFromCardOpen}>
+          <Link to={watchHref} state={{ item }} className="block">
             <div className="creator-themed-media relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5">
               <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
@@ -198,7 +194,7 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
           </div>
         )}
         <div className="min-w-0">
-          <Link to={watchHref} state={{ item }} className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100 hover:underline" onClick={playFromCardOpen}>
+          <Link to={watchHref} state={{ item }} className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100 hover:underline">
             {item.title || 'Untitled'}
           </Link>
           <p className="mt-0.5 text-xs text-zinc-400">@{creator}</p>

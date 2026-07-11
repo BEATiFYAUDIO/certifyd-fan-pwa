@@ -64,6 +64,7 @@ export type Stage1APlayerContextValue = {
   seek: (value: number) => void;
   resetIdle: () => void;
   recentItems: DiscoverableItem[];
+  playerQueue: DiscoverableItem[];
   state: Stage1APlayerState;
   item: Stage1APlayerItem | null;
   message: string;
@@ -89,6 +90,7 @@ export function useStage1APlayer() {
     seek: () => undefined,
     resetIdle: () => undefined,
     recentItems: [],
+    playerQueue: [],
     state: 'idle' as const,
     item: null,
     message: 'Tap Play to start listening',

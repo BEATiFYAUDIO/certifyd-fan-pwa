@@ -138,17 +138,12 @@ function creatorBadges(creator: CreatorSpotlight): string[] {
 }
 
 function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
-  const { playItem } = useStage1APlayer();
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const [lead, ...rest] = creator.works;
   const badges = creatorBadges(creator);
   const hasCompanionWorks = rest.length > 0;
   const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
-  const playWorkFromCard = (work: DiscoverableItem) => () => {
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) return;
-    void playItem(work, { queue: creator.works });
-  };
   return (
     <article className="creator-themed-card self-start overflow-hidden rounded-3xl border p-3 shadow-2xl shadow-black/30 sm:p-4 lg:col-span-2" style={themeVars}>
       <div className="flex items-start gap-3 sm:gap-4">
@@ -191,7 +186,6 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
             to={`/watch/${encodeURIComponent(lead.contentId)}?origin=${encodeURIComponent(lead.publicOrigin)}`}
             state={{ item: lead }}
             className="creator-themed-media group overflow-hidden rounded-2xl border bg-black/30 transition"
-            onClick={playWorkFromCard(lead)}
           >
             <div className="aspect-[16/9] max-h-[280px] bg-zinc-950">
               {lead.coverUrl ? (
@@ -214,7 +208,6 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
               to={`/watch/${encodeURIComponent(work.contentId)}?origin=${encodeURIComponent(work.publicOrigin)}`}
               state={{ item: work }}
               className="creator-themed-media group flex items-center gap-3 rounded-xl border bg-black/25 p-2 transition"
-              onClick={playWorkFromCard(work)}
             >
               <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
                 {work.coverUrl ? (
@@ -245,15 +238,10 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
 }
 
 function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; index: number }) {
-  const { playItem } = useStage1APlayer();
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const badges = creatorBadges(creator).slice(0, 3);
   const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
-  const playWorkFromCard = (work: DiscoverableItem) => () => {
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) return;
-    void playItem(work, { queue: creator.works });
-  };
   return (
     <article className={`creator-themed-card self-start rounded-2xl border p-3 shadow-xl shadow-black/20 ${index === 0 ? 'xl:col-span-2' : ''}`} style={themeVars}>
       <div className="flex gap-3">
@@ -294,7 +282,6 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
             state={{ item: work }}
             className="creator-themed-media group aspect-square overflow-hidden rounded-xl border bg-black/30 transition"
             title={work.title || 'Untitled'}
-            onClick={playWorkFromCard(work)}
           >
             {work.coverUrl ? (
               <img src={work.coverUrl} alt="" className="h-full w-full object-cover opacity-90 transition group-hover:scale-105" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
@@ -678,13 +665,6 @@ function RankingRow({
   const playbackDisplay = displayStateFromItem(item);
   const [imageFailed, setImageFailed] = useState(false);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
-  const playFromRow = () => {
-    const playOptions = queue ? { queue } : undefined;
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) {
-      return;
-    }
-    void playItem(item, playOptions);
-  };
   return (
     <article
       className="creator-themed-card signal-row group flex h-[84px] min-w-0 items-center gap-2 overflow-hidden rounded-xl border p-2 transition sm:gap-3"
@@ -694,7 +674,6 @@ function RankingRow({
         to={`/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`}
         state={{ item }}
         className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden sm:gap-3"
-        onClick={playFromRow}
       >
         <div className="creator-themed-rank flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold">
           {rank}

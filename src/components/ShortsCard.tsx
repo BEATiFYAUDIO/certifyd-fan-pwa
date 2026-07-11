@@ -54,10 +54,6 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
     return gradients[seed % gradients.length];
   }, [creator]);
 
-  const playShort = () => {
-    if (shouldOpenMobilePlayerOnly()) return;
-    void playItem(item, { muted: true, mediaAspect: 'portrait' });
-  };
   const playShortExplicitly = (event: MouseEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -71,7 +67,6 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
         to={watchHref}
         state={{ item }}
         className="absolute inset-0 block"
-        onClick={playShort}
       >
         <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
           <span className="creator-themed-badge-muted rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
@@ -147,8 +142,7 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
               to={watchHref}
               state={{ item }}
               className="line-clamp-2 text-base font-semibold leading-5 text-white hover:underline"
-              onClick={playShort}
-            >
+              >
               {item.title || 'Untitled'}
             </Link>
             <p className="mt-1 text-sm text-zinc-200">@{creator}</p>

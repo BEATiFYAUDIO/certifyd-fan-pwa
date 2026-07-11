@@ -320,11 +320,59 @@ function discoveryItemKey(item: Pick<DiscoverableItem, 'contentId' | 'publicOrig
 }
 
 type WatchDetailRow = { label: string; value: string; kind?: 'item' | 'heading' };
+type ConnectionGroup =
+  | {
+      key: string;
+      title: string;
+      reason: string;
+      score: string;
+      kind: 'works';
+      items: DiscoverableItem[];
+    }
+  | {
+      key: string;
+      title: string;
+      reason: string;
+      score: string;
+      kind: 'contextWorks';
+      items: ContentContextWork[];
+    }
+  | {
+      key: string;
+      title: string;
+      reason: string;
+      score: string;
+      kind: 'creators';
+      items: ContentContextCreator[];
+    }
+  | {
+      key: string;
+      title: string;
+      reason: string;
+      score: string;
+      kind: 'people';
+      items: ContentContextPerson[];
+    };
 
 function addWatchDetailRow(rows: WatchDetailRow[], label: string, value: unknown) {
   const text = String(value ?? '').trim();
   if (!text) return;
   rows.push({ label, value: text });
+}
+
+function watchGroupScore(count: number, label: string): string {
+  if (count <= 0) return '';
+  return `${count} ${count === 1 ? label : `${label}s`}`;
+}
+
+function displayConnectionLabel(value: string | null | undefined, fallback = 'work'): string {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return fallback;
+  return normalized.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function discoverableKey(item: DiscoverableItem): string {
+  return `${item.publicOrigin}::${item.contentId}`;
 }
 
 function WatchDiscoveryCard({
@@ -399,33 +447,47 @@ function WatchDiscoveryCard({
   );
 }
 
-function ExplorationRail({
-  rail,
+function ConnectionGroupSection({
+  group,
   onSelectItem,
   onPlayItem,
 }: {
-  rail: DiscoveryRail;
+  group: ConnectionGroup;
   onSelectItem: (item: DiscoverableItem) => void;
   onPlayItem: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
 }) {
-  if (rail.items.length === 0) return null;
+  const count = group.items.length;
+  if (!count) return null;
   return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-100">{rail.title}</h2>
-        <p className="mt-1 text-xs text-zinc-400">{rail.subtitle}</p>
+    <section className="watch-connection-group watch-panel rounded-3xl border p-4 sm:p-5">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="watch-accent-text text-[11px] font-black uppercase tracking-[0.22em]">Connection Group</div>
+          <h2 className="mt-1 text-xl font-black tracking-tight text-white">{group.title}</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-300">Recommended because: {group.reason}</p>
+        </div>
+        {group.score ? (
+          <span className="watch-pill shrink-0">{group.score}</span>
+        ) : null}
       </div>
-      <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
-        {rail.items.map((related) => (
-          <WatchDiscoveryCard
-            key={`${rail.key}:${related.publicOrigin}:${related.contentId}`}
-            item={related}
-            queue={rail.items}
-            onSelect={onSelectItem}
-            onPlay={onPlayItem}
-          />
-        ))}
-      </div>
+      {group.kind === 'works' ? (
+        <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
+          {group.items.map((related) => (
+            <WatchDiscoveryCard
+              key={`${group.key}:${related.publicOrigin}:${related.contentId}`}
+              item={related}
+              queue={group.items}
+              onSelect={onSelectItem}
+              onPlay={onPlayItem}
+            />
+          ))}
+        </div>
+      ) : null}
+      {group.kind === 'contextWorks' ? (
+        <WorksList works={group.items} onSelectWork={onSelectItem} onPlayWork={onPlayItem} />
+      ) : null}
+      {group.kind === 'creators' ? <ConnectedCreators creators={group.items} /> : null}
+      {group.kind === 'people' ? <PeopleList people={group.items} /> : null}
     </section>
   );
 }
@@ -689,6 +751,177 @@ function ConnectedCreators({ creators }: { creators: ContentContextCreator[] }) 
   );
 }
 
+function buildWatchConnectionGroups({
+  item,
+  relationshipContext,
+  explorationRails,
+  discoveryItems,
+}: {
+  item: DiscoverableItem;
+  relationshipContext: ContentRelationshipContext | null;
+  explorationRails: DiscoveryRail[];
+  discoveryItems: DiscoverableItem[];
+}): ConnectionGroup[] {
+  const groups: ConnectionGroup[] = [];
+  const currentKey = discoverableKey(item);
+  const usedDiscoverableKeys = new Set<string>([currentKey]);
+  const railByKey = new Map(explorationRails.map((rail) => [rail.key, rail]));
+  const pushDiscoverableGroup = (key: string, title: string, reason: string, rows: DiscoverableItem[], label = 'work') => {
+    const items: DiscoverableItem[] = [];
+    for (const row of dedupeDiscoveryItems(rows)) {
+      const keyForRow = discoverableKey(row);
+      if (!keyForRow || usedDiscoverableKeys.has(keyForRow)) continue;
+      items.push(row);
+      usedDiscoverableKeys.add(keyForRow);
+      if (items.length >= 9) break;
+    }
+    if (!items.length) return;
+    groups.push({
+      key,
+      title,
+      reason,
+      score: watchGroupScore(items.length, label),
+      kind: 'works',
+      items,
+    });
+  };
+  const pushContextWorkGroup = (key: string, title: string, reason: string, rows: ContentContextWork[]) => {
+    const items: ContentContextWork[] = [];
+    for (const work of dedupeWorks(rows)) {
+      const playable = workToDiscoverableItem(work);
+      const keyForWork = playable ? discoverableKey(playable) : workKey(work);
+      if (!keyForWork || usedDiscoverableKeys.has(keyForWork)) continue;
+      items.push(work);
+      usedDiscoverableKeys.add(keyForWork);
+      if (items.length >= 9) break;
+    }
+    if (!items.length) return;
+    groups.push({
+      key,
+      title,
+      reason,
+      score: watchGroupScore(items.length, 'work'),
+      kind: 'contextWorks',
+      items,
+    });
+  };
+  const pushCreatorGroup = (key: string, title: string, reason: string, rows: ContentContextCreator[]) => {
+    const items = filterDisplayCreators(dedupePeople(rows)).slice(0, 12);
+    if (!items.length) return;
+    groups.push({
+      key,
+      title,
+      reason,
+      score: watchGroupScore(items.length, 'creator'),
+      kind: 'creators',
+      items,
+    });
+  };
+  const pushPeopleGroup = (key: string, title: string, reason: string, rows: ContentContextPerson[]) => {
+    const items = filterDisplayPeople(dedupePeople(rows)).slice(0, 12);
+    if (!items.length) return;
+    groups.push({
+      key,
+      title,
+      reason,
+      score: watchGroupScore(items.length, 'person'),
+      kind: 'people',
+      items,
+    });
+  };
+
+  if (relationshipContext) {
+    pushContextWorkGroup(
+      'original-work',
+      'Original Work',
+      'This work publicly declares upstream source material or work it was built from.',
+      [...(relationshipContext.derivedFrom || []), ...(relationshipContext.builtFrom || [])],
+    );
+    pushContextWorkGroup(
+      'derivatives',
+      'Derivatives',
+      'These works publicly build on or derive from the current work.',
+      relationshipContext.worksThatBuiltOnThis || [],
+    );
+    pushPeopleGroup(
+      'collaborators',
+      'Collaborators',
+      'These people are credited, featured, or publicly connected to the work.',
+      [...(relationshipContext.peopleBehindThis || []), ...(relationshipContext.createdWith || []), ...(relationshipContext.featuring || [])],
+    );
+    pushContextWorkGroup(
+      'related-works',
+      'Related Works',
+      'Contentbox reports these works as directly related to the current work.',
+      relationshipContext.relatedWorks || [],
+    );
+    pushCreatorGroup(
+      'connected-creators',
+      'Connected Creators',
+      'These creator nodes are publicly connected through attribution, credits, or related work.',
+      relationshipContext.connectedCreators || [],
+    );
+    pushContextWorkGroup(
+      'more-they-worked-on',
+      'More They Worked On',
+      'The same public collaborators or connected creators also appear on these works.',
+      relationshipContext.moreTheyWorkedOn || [],
+    );
+  }
+
+  const sameCreator = railByKey.get('more-from-creator');
+  if (sameCreator) {
+    pushDiscoverableGroup(
+      'same-creator',
+      'Same Creator',
+      `More work published by @${item.creatorHandle || 'creator'}.`,
+      sameCreator.items,
+    );
+  }
+
+  const sameGenre = railByKey.get('more-like-this');
+  if (sameGenre) {
+    pushDiscoverableGroup(
+      'same-genre',
+      'Same Genre',
+      `More work in ${displayConnectionLabel(item.primaryTopic, 'this topic')}.`,
+      sameGenre.items,
+    );
+  }
+
+  const sameType = railByKey.get('same-format');
+  if (sameType) {
+    pushDiscoverableGroup(
+      'same-type',
+      'Same Type',
+      `More ${displayConnectionLabel(item.contentType, 'work')} content.`,
+      sameType.items,
+    );
+  }
+
+  const sameNode = railByKey.get('same-source');
+  if (sameNode) {
+    pushDiscoverableGroup(
+      'same-node',
+      'Same Node',
+      'Published from the same creator node origin.',
+      sameNode.items,
+    );
+  }
+
+  const recent = sortNewestFirst(discoveryItems)
+    .filter((row) => discoverableKey(row) !== currentKey)
+    .slice(0, 12);
+  pushDiscoverableGroup(
+    'trending-new',
+    'Trending / New',
+    'Recently published or recently indexed works from the Certifyd graph.',
+    recent,
+  );
+
+  return groups;
+}
+
 function HeroAttributionLineage({
   context,
   credits,
@@ -868,7 +1101,7 @@ function FreebiesWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
-  const { item: playerItem, playItem, setMobilePlayerOpen } = useStage1APlayer();
+  const { item: playerItem, state: playerState, playItem, togglePlay, setMobilePlayerOpen, playerQueue } = useStage1APlayer();
   const [items, setItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -878,6 +1111,39 @@ function FreebiesWatch({
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Array<HTMLElement | null>>([]);
   const canonicalHydrationKeys = useRef<Set<string>>(new Set());
+  const playItemRef = useRef(playItem);
+  const entryPlaybackSnapshot = useRef<{
+    item: DiscoverableItem;
+    queue: DiscoverableItem[];
+    wasPlaying: boolean;
+  } | null | undefined>(undefined);
+  const lastShortsPlaybackKey = useRef<string | null>(null);
+
+  if (entryPlaybackSnapshot.current === undefined) {
+    entryPlaybackSnapshot.current = playerItem?.sourceItem && isRenderableDiscoveryItem(playerItem.sourceItem)
+      ? {
+        item: playerItem.sourceItem,
+        queue: playerQueue.length ? playerQueue : [playerItem.sourceItem],
+        wasPlaying: playerState === 'playing' || playerState === 'loading',
+      }
+      : null;
+  }
+
+  useEffect(() => {
+    playItemRef.current = playItem;
+  }, [playItem]);
+
+  useEffect(() => {
+    return () => {
+      const snapshot = entryPlaybackSnapshot.current;
+      if (!snapshot) return;
+      void playItemRef.current(snapshot.item, {
+        queue: snapshot.queue.length ? snapshot.queue : [snapshot.item],
+        openPlayer: false,
+        autoPlay: snapshot.wasPlaying,
+      });
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -975,6 +1241,18 @@ function FreebiesWatch({
     };
   }, [visibleDiscoveryItem, visibleDiscoveryItemKey]);
 
+  useEffect(() => {
+    if (!visibleDiscoveryItem || !visibleDiscoveryItemKey || items.length === 0) return;
+    if (lastShortsPlaybackKey.current === visibleDiscoveryItemKey) return;
+    lastShortsPlaybackKey.current = visibleDiscoveryItemKey;
+    void playItem(visibleDiscoveryItem, {
+      mediaAspect: 'portrait',
+      muted: true,
+      openPlayer: false,
+      queue: items,
+    });
+  }, [items, playItem, visibleDiscoveryItem, visibleDiscoveryItemKey]);
+
   return (
     <main className="h-[100dvh] overflow-hidden bg-black text-white">
       <div className="fixed left-3 z-40" style={{ top: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
@@ -1002,13 +1280,29 @@ function FreebiesWatch({
                   sectionRefs.current[index] = el;
                 }}
               >
-                <div className="block h-full w-full bg-black text-left" aria-label={`Preview ${it.title || 'Free Drop'}`}>
+                <button
+                  type="button"
+                  className="block h-full w-full bg-black text-left"
+                  aria-label={`${isActivePlaybackItem && playerState === 'playing' ? 'Pause' : 'Play'} ${it.title || 'Free Drop'}`}
+                  onClick={() => {
+                    if (isActivePlaybackItem) {
+                      togglePlay();
+                      return;
+                    }
+                    void playItem(it, {
+                      mediaAspect: 'portrait',
+                      muted: true,
+                      openPlayer: false,
+                      queue: items,
+                    });
+                  }}
+                >
                   {visualSrc ? (
                     <img src={visualSrc} alt={it.title || 'content'} className="h-full w-full object-cover md:object-contain" loading="lazy" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="flex h-full items-center justify-center text-zinc-500">No media</div>
                   )}
-                </div>
+                </button>
 
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/90 via-black/55 to-transparent" />
                 <div
@@ -1024,11 +1318,15 @@ function FreebiesWatch({
                       type="button"
                       className={`rounded-xl px-4 py-2 text-sm font-bold ${isActivePlaybackItem ? 'bg-white/15 text-white' : 'watch-action-primary'}`}
                       onClick={() => {
+                        if (isActivePlaybackItem) {
+                          togglePlay();
+                          return;
+                        }
                         setMobilePlayerOpen(true);
-                        if (!isActivePlaybackItem) void playItem(it, { mediaAspect: 'portrait', queue: items });
+                        void playItem(it, { mediaAspect: 'portrait', queue: items });
                       }}
                     >
-                      {isActivePlaybackItem ? 'Playing' : 'Play'}
+                      {isActivePlaybackItem ? (playerState === 'playing' ? 'Pause' : 'Resume') : 'Play'}
                     </button>
                     {canOpenCreator(it) ? (
                       <a
@@ -1254,6 +1552,15 @@ function StandardWatch({
   const relationshipContext = item && relationshipContextState?.key === `${item.publicOrigin}::${item.contentId}`
     ? relationshipContextState.context
     : null;
+  const connectionGroups = useMemo(() => {
+    if (!item) return [];
+    return buildWatchConnectionGroups({
+      item,
+      relationshipContext,
+      explorationRails,
+      discoveryItems,
+    });
+  }, [discoveryItems, explorationRails, item, relationshipContext]);
   const themeVars = useMemo(() => getCardThemeVars(item?.profileTheme), [item?.profileTheme]);
   const creatorLabel = item?.creatorHandle ? item.creatorHandle.replace(/^@+/, '') : 'creator';
   const canRestoreAccess = Boolean(item && Number(item.priceSats || 0) > 0 && displayStateFromItem(item).state === 'preview');
@@ -1482,13 +1789,23 @@ function StandardWatch({
 
             </div>
 
-            {explorationRails.length > 0 ? (
-              <div className="watch-related-area space-y-6">
-                {explorationRails.map((rail) => (
-                  <ExplorationRail key={rail.key} rail={rail} onSelectItem={selectContentItem} onPlayItem={playContentItem} />
-                ))}
+            <section className="watch-graph-explorer space-y-6">
+              <div className="watch-panel rounded-3xl border p-4 sm:p-5">
+                <div className="watch-accent-text text-[11px] font-black uppercase tracking-[0.22em]">Graph Explorer</div>
+                <h2 className="mt-1 text-2xl font-black tracking-tight text-white">Why this work matters</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">
+                  Every group below names the public relationship behind the recommendation. The layout stays fixed; the graph data decides which groups appear.
+                </p>
               </div>
-            ) : null}
+              {connectionGroups.map((group) => (
+                <ConnectionGroupSection
+                  key={group.key}
+                  group={group}
+                  onSelectItem={selectContentItem}
+                  onPlayItem={playContentItem}
+                />
+              ))}
+            </section>
 
 
           </section>

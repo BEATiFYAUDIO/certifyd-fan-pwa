@@ -897,6 +897,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     seek,
     resetIdle,
     recentItems,
+    playerQueue: freeDropQueue,
     state,
     item,
     message,
@@ -904,7 +905,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     duration,
     canPlayNextFreeDrop,
     canPlayPreviousFreeDrop,
-  }), [canPlayNextFreeDrop, canPlayPreviousFreeDrop, duration, item, message, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, seek, setFreeDropQueue, state, togglePlay]);
+  }), [canPlayNextFreeDrop, canPlayPreviousFreeDrop, duration, freeDropQueue, item, message, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, seek, setFreeDropQueue, state, togglePlay]);
   const isIdle = state === 'idle';
   const isPlaying = state === 'playing';
   const canControl = Boolean(item?.playback.streamUrl);
