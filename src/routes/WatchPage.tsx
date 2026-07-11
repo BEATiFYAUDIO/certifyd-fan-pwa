@@ -326,7 +326,6 @@ type ConnectionGroup =
       key: string;
       title: string;
       reason: string;
-      score: string;
       kind: 'works';
       items: DiscoverableItem[];
     }
@@ -334,7 +333,6 @@ type ConnectionGroup =
       key: string;
       title: string;
       reason: string;
-      score: string;
       kind: 'contextWorks';
       items: ContentContextWork[];
     }
@@ -342,7 +340,6 @@ type ConnectionGroup =
       key: string;
       title: string;
       reason: string;
-      score: string;
       kind: 'creators';
       items: ContentContextCreator[];
     }
@@ -350,7 +347,6 @@ type ConnectionGroup =
       key: string;
       title: string;
       reason: string;
-      score: string;
       kind: 'people';
       items: ContentContextPerson[];
     };
@@ -361,15 +357,14 @@ function addWatchDetailRow(rows: WatchDetailRow[], label: string, value: unknown
   rows.push({ label, value: text });
 }
 
-function watchGroupScore(count: number, label: string): string {
-  if (count <= 0) return '';
-  return `${count} ${count === 1 ? label : `${label}s`}`;
-}
-
 function displayConnectionLabel(value: string | null | undefined, fallback = 'work'): string {
   const normalized = String(value || '').trim().toLowerCase();
   if (!normalized) return fallback;
   return normalized.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function groupTitleCase(value: string): string {
+  return value.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function discoverableKey(item: DiscoverableItem): string {
@@ -379,11 +374,13 @@ function discoverableKey(item: DiscoverableItem): string {
 function WatchDiscoveryCard({
   item,
   queue,
+  relationshipLabel,
   onSelect,
   onPlay,
 }: {
   item: DiscoverableItem;
   queue: DiscoverableItem[];
+  relationshipLabel?: string;
   onSelect: (item: DiscoverableItem) => void;
   onPlay: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
 }) {
@@ -409,6 +406,11 @@ function WatchDiscoveryCard({
           }`}>
             {playbackDisplay.label}
           </span>
+          {relationshipLabel ? (
+            <span className="creator-themed-badge-muted rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+              {relationshipLabel}
+            </span>
+          ) : null}
         </div>
         {item.coverUrl && !imageFailed ? (
           <img
@@ -464,10 +466,6 @@ function ConnectionGroupSection({
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="mt-1 text-xl font-black tracking-tight text-white">{group.title}</h2>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span className="watch-pill watch-pill-inline">{group.reason}</span>
-            {group.score ? <span className="watch-pill watch-pill-inline">{group.score}</span> : null}
-          </div>
         </div>
       </div>
       {group.kind === 'works' ? (
@@ -477,6 +475,7 @@ function ConnectionGroupSection({
               key={`${group.key}:${related.publicOrigin}:${related.contentId}`}
               item={related}
               queue={group.items}
+              relationshipLabel={group.reason}
               onSelect={onSelectItem}
               onPlay={onPlayItem}
             />
@@ -768,7 +767,7 @@ function buildWatchConnectionGroups({
   const currentKey = discoverableKey(item);
   const usedDiscoverableKeys = new Set<string>([currentKey]);
   const railByKey = new Map(explorationRails.map((rail) => [rail.key, rail]));
-  const pushDiscoverableGroup = (key: string, title: string, reason: string, rows: DiscoverableItem[], label = 'work') => {
+  const pushDiscoverableGroup = (key: string, title: string, reason: string, rows: DiscoverableItem[], minItems = 2) => {
     const items: DiscoverableItem[] = [];
     for (const row of dedupeDiscoveryItems(rows)) {
       const keyForRow = discoverableKey(row);
@@ -777,17 +776,16 @@ function buildWatchConnectionGroups({
       usedDiscoverableKeys.add(keyForRow);
       if (items.length >= 9) break;
     }
-    if (!items.length) return;
+    if (items.length < minItems) return;
     groups.push({
       key,
       title,
       reason,
-      score: watchGroupScore(items.length, label),
       kind: 'works',
       items,
     });
   };
-  const pushContextWorkGroup = (key: string, title: string, reason: string, rows: ContentContextWork[]) => {
+  const pushContextWorkGroup = (key: string, title: string, reason: string, rows: ContentContextWork[], minItems = 2) => {
     const items: ContentContextWork[] = [];
     for (const work of dedupeWorks(rows)) {
       const playable = workToDiscoverableItem(work);
@@ -797,36 +795,33 @@ function buildWatchConnectionGroups({
       usedDiscoverableKeys.add(keyForWork);
       if (items.length >= 9) break;
     }
-    if (!items.length) return;
+    if (items.length < minItems) return;
     groups.push({
       key,
       title,
       reason,
-      score: watchGroupScore(items.length, 'work'),
       kind: 'contextWorks',
       items,
     });
   };
-  const pushCreatorGroup = (key: string, title: string, reason: string, rows: ContentContextCreator[]) => {
+  const pushCreatorGroup = (key: string, title: string, reason: string, rows: ContentContextCreator[], minItems = 2) => {
     const items = filterDisplayCreators(dedupePeople(rows)).slice(0, 12);
-    if (!items.length) return;
+    if (items.length < minItems) return;
     groups.push({
       key,
       title,
       reason,
-      score: watchGroupScore(items.length, 'creator'),
       kind: 'creators',
       items,
     });
   };
-  const pushPeopleGroup = (key: string, title: string, reason: string, rows: ContentContextPerson[]) => {
+  const pushPeopleGroup = (key: string, title: string, reason: string, rows: ContentContextPerson[], minItems = 2) => {
     const items = filterDisplayPeople(dedupePeople(rows)).slice(0, 12);
-    if (!items.length) return;
+    if (items.length < minItems) return;
     groups.push({
       key,
       title,
       reason,
-      score: watchGroupScore(items.length, 'person'),
       kind: 'people',
       items,
     });
@@ -836,7 +831,7 @@ function buildWatchConnectionGroups({
   if (sameCreator) {
     pushDiscoverableGroup(
       'same-creator',
-      'Same Creator',
+      'More from this creator',
       'Same creator',
       sameCreator.items,
     );
@@ -845,14 +840,14 @@ function buildWatchConnectionGroups({
   if (relationshipContext) {
     pushContextWorkGroup(
       'related-works',
-      'Related Works',
-      'Directly related',
+      'Related works',
+      'Related work',
       relationshipContext.relatedWorks || [],
     );
     pushCreatorGroup(
       'connected-creators',
-      'Connected Creators',
-      'Creator network',
+      'Connected creators',
+      'Connected creator',
       relationshipContext.connectedCreators || [],
     );
     const primaryCreatorKey = relationshipContext.creator ? personKey(relationshipContext.creator) : '';
@@ -861,25 +856,26 @@ function buildWatchConnectionGroups({
     pushPeopleGroup(
       'collaborators',
       'Collaborators',
-      'Credited people',
+      'Collaborator',
       collaborators,
     );
     pushContextWorkGroup(
       'original-work',
-      'Original Work',
-      'Source material',
+      'Original work',
+      'Original work',
       [...(relationshipContext.derivedFrom || []), ...(relationshipContext.builtFrom || [])],
+      1,
     );
     pushContextWorkGroup(
       'derivatives',
       'Derivatives',
-      'Built from this',
+      'Derived work',
       relationshipContext.worksThatBuiltOnThis || [],
     );
     pushContextWorkGroup(
       'more-they-worked-on',
-      'More They Worked On',
-      'Shared collaborators',
+      'More they worked on',
+      'Collaborator',
       relationshipContext.moreTheyWorkedOn || [],
     );
   }
@@ -888,8 +884,8 @@ function buildWatchConnectionGroups({
   if (sameGenre) {
     pushDiscoverableGroup(
       'same-genre',
-      'Same Genre',
-      displayConnectionLabel(item.primaryTopic, 'Same topic'),
+      'From the same scene',
+      displayConnectionLabel(item.primaryTopic, 'Same scene'),
       sameGenre.items,
     );
   }
@@ -898,8 +894,8 @@ function buildWatchConnectionGroups({
   if (sameType) {
     pushDiscoverableGroup(
       'same-type',
-      'Same Type',
-      displayConnectionLabel(item.contentType, 'Same format'),
+      `More ${groupTitleCase(displayConnectionLabel(item.contentType, 'works'))}`,
+      displayConnectionLabel(item.contentType, 'Same type'),
       sameType.items,
     );
   }
@@ -920,7 +916,7 @@ function buildWatchConnectionGroups({
   pushDiscoverableGroup(
     'trending-new',
     'Trending / New',
-    'Recent graph activity',
+    'Trending / New',
     recent,
   );
 
