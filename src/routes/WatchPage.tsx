@@ -971,7 +971,7 @@ function FreebiesWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
-  const { item: playerItem, playItem, setFreeDropQueue, setMobilePlayerOpen, setDrawerContent } = useStage1APlayer();
+  const { item: playerItem, playItem, setMobilePlayerOpen } = useStage1APlayer();
   const [items, setItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1039,67 +1039,44 @@ function FreebiesWatch({
     return () => observer.disconnect();
   }, [items]);
 
-  const activeItem = items[activeIndex] || null;
-  const activeItemKey = activeItem ? `${activeItem.publicOrigin}::${activeItem.contentId}` : null;
+  const visibleDiscoveryItem = items[activeIndex] || null;
+  const visibleDiscoveryItemKey = visibleDiscoveryItem ? `${visibleDiscoveryItem.publicOrigin}::${visibleDiscoveryItem.contentId}` : null;
 
   useEffect(() => {
     let active = true;
-    if (!activeItem || !activeItemKey) return;
-    void fetchContentContext({ origin: activeItem.publicOrigin, contentId: activeItem.contentId })
+    if (!visibleDiscoveryItem || !visibleDiscoveryItemKey) return;
+    void fetchContentContext({ origin: visibleDiscoveryItem.publicOrigin, contentId: visibleDiscoveryItem.contentId })
       .then((context) => {
         if (!active) return;
-        setRelationshipContextState({ key: activeItemKey, context });
+        setRelationshipContextState({ key: visibleDiscoveryItemKey, context });
       })
       .catch(() => {
         if (!active) return;
-        setRelationshipContextState({ key: activeItemKey, context: null });
+        setRelationshipContextState({ key: visibleDiscoveryItemKey, context: null });
       });
     return () => {
       active = false;
     };
-  }, [activeItem, activeItemKey]);
-
-	  const activeRelationshipContext =
-	    activeItemKey && relationshipContextState?.key === activeItemKey ? relationshipContextState.context : null;
-
-  useEffect(() => {
-    setFreeDropQueue(items);
-  }, [items, setFreeDropQueue]);
-
-  useEffect(() => {
-    if (!activeItem) return;
-    setDrawerContent({
-      moreFromCreator: items.filter((row) => row.creatorHandle === activeItem.creatorHandle && row.contentId !== activeItem.contentId).slice(0, 12),
-      moreTheyWorkedOn: [],
-      relatedWorks: items.filter((row) => row.contentId !== activeItem.contentId).slice(0, 12),
-      connections: activeRelationshipContext ? ['Connected relationship data is available for this work.'] : [],
-      lineage: activeRelationshipContext ? ['Attribution and lineage context is available for this work.'] : [],
-    });
-    return () => setDrawerContent(null);
-  }, [activeItem, activeRelationshipContext, items, setDrawerContent]);
-
-  useEffect(() => {
-    if (!activeItem || !activeItemKey) return;
-    if (playerItem?.contentId === activeItem.contentId && playerItem.publicOrigin === activeItem.publicOrigin) return;
-    void playItem(activeItem, { muted: true, mediaAspect: 'portrait' });
-  }, [activeItem, activeItemKey, playItem, playerItem]);
+  }, [visibleDiscoveryItem, visibleDiscoveryItemKey]);
+  const visibleDiscoveryRelationshipContext =
+    visibleDiscoveryItemKey && relationshipContextState?.key === visibleDiscoveryItemKey ? relationshipContextState.context : null;
 
   useEffect(() => {
     let active = true;
-    if (!activeItem || !activeItemKey || canonicalHydrationKeys.current.has(activeItemKey)) return;
-    canonicalHydrationKeys.current.add(activeItemKey);
-    void hydrateCanonicalOffer(activeItem)
+    if (!visibleDiscoveryItem || !visibleDiscoveryItemKey || canonicalHydrationKeys.current.has(visibleDiscoveryItemKey)) return;
+    canonicalHydrationKeys.current.add(visibleDiscoveryItemKey);
+    void hydrateCanonicalOffer(visibleDiscoveryItem)
       .then((hydrated) => {
-        if (!active || hydrated === activeItem) return;
+        if (!active || hydrated === visibleDiscoveryItem) return;
         setItems((current) =>
-          current.map((row) => (`${row.publicOrigin}::${row.contentId}` === activeItemKey ? hydrated : row)),
+          current.map((row) => (`${row.publicOrigin}::${row.contentId}` === visibleDiscoveryItemKey ? hydrated : row)),
         );
       })
       .catch(() => undefined);
     return () => {
       active = false;
     };
-  }, [activeItem, activeItemKey]);
+  }, [visibleDiscoveryItem, visibleDiscoveryItemKey]);
 
   return (
     <main className="h-[100dvh] overflow-hidden bg-black text-white">
@@ -1117,6 +1094,7 @@ function FreebiesWatch({
           {items.map((it, index) => {
             const visualSrc = it.coverUrl || '';
             const themeVars = getCardThemeVars(it.profileTheme);
+            const isActivePlaybackItem = playerItem?.contentId === it.contentId && playerItem.publicOrigin === it.publicOrigin;
             return (
               <section
                 key={`${it.publicOrigin}:${it.contentId}:${index}`}
@@ -1127,21 +1105,13 @@ function FreebiesWatch({
                   sectionRefs.current[index] = el;
                 }}
               >
-	                <button
-	                  type="button"
-	                  className="block h-full w-full bg-black text-left"
-		                  onClick={() => {
-                        setMobilePlayerOpen(true);
-                        void playItem(it, { mediaAspect: 'portrait' });
-                      }}
-                  aria-label={`Play ${it.title || 'Free Drop'}`}
-                >
+                <div className="block h-full w-full bg-black text-left" aria-label={`Preview ${it.title || 'Free Drop'}`}>
                   {visualSrc ? (
                     <img src={visualSrc} alt={it.title || 'content'} className="h-full w-full object-cover md:object-contain" loading="lazy" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="flex h-full items-center justify-center text-zinc-500">No media</div>
                   )}
-                </button>
+                </div>
 
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/90 via-black/55 to-transparent" />
                 <div
@@ -1152,24 +1122,36 @@ function FreebiesWatch({
                     <h1 className="line-clamp-2 text-2xl font-bold">{it.title || 'Untitled'}</h1>
                     <p className="mt-1 text-sm text-zinc-200">@{it.creatorHandle || 'creator'} • {it.primaryTopic || 'topic'} • {it.contentType}</p>
                   </div>
-                  {canOpenCreator(it) ? (
-                    <a
-                      href={it.buyUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="watch-action-primary shrink-0 rounded-xl px-4 py-2 text-sm font-bold"
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <button
+                      type="button"
+                      className={`rounded-xl px-4 py-2 text-sm font-bold ${isActivePlaybackItem ? 'bg-white/15 text-white' : 'watch-action-primary'}`}
+                      onClick={() => {
+                        setMobilePlayerOpen(true);
+                        if (!isActivePlaybackItem) void playItem(it, { mediaAspect: 'portrait' });
+                      }}
                     >
-                      {ctaLabel(it)}
-                    </a>
-                  ) : null}
+                      {isActivePlaybackItem ? 'Playing' : 'Play'}
+                    </button>
+                    {canOpenCreator(it) ? (
+                      <a
+                        href={it.buyUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold"
+                      >
+                        {ctaLabel(it)}
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
 
                 {index === activeIndex ? (
                   <FreebiesRelationshipPanel
-                    context={activeRelationshipContext}
-                    open={relationshipOpenKey === activeItemKey}
+                    context={visibleDiscoveryRelationshipContext}
+                    open={relationshipOpenKey === visibleDiscoveryItemKey}
                     onToggle={() => {
-                      setRelationshipOpenKey((current) => (current === activeItemKey ? null : activeItemKey));
+                      setRelationshipOpenKey((current) => (current === visibleDiscoveryItemKey ? null : visibleDiscoveryItemKey));
                     }}
                   />
                 ) : null}
