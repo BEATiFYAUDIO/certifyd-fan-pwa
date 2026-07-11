@@ -749,16 +749,57 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     return freeDropQueue.findIndex((queueItem) => queueItem.contentId === item.contentId && queueItem.publicOrigin === item.publicOrigin);
   }, [freeDropQueue, item]);
 
-  const playNextFreeDrop = useCallback(() => {
-    playNextQueuedItem();
-  }, [playNextQueuedItem]);
-
-  const playPreviousFreeDrop = useCallback(() => {
-    playPreviousQueuedItem();
-  }, [playPreviousQueuedItem]);
-
   const canPlayNextFreeDrop = currentFreeDropIndex >= 0 && currentFreeDropIndex < freeDropQueue.length - 1;
   const canPlayPreviousFreeDrop = currentFreeDropIndex > 0;
+
+  const playNextFreeDrop = useCallback(() => {
+    if (import.meta.env.DEV) {
+      console.debug('[Certifyd transport debug]', 'next click fired', {
+        queueIds: freeDropQueue.map((queueItem) => `${queueItem.publicOrigin}::${queueItem.contentId}`),
+        activeId: item ? `${item.publicOrigin}::${item.contentId}` : null,
+        currentIndex: currentFreeDropIndex,
+        targetId: freeDropQueue[currentFreeDropIndex + 1]
+          ? `${freeDropQueue[currentFreeDropIndex + 1].publicOrigin}::${freeDropQueue[currentFreeDropIndex + 1].contentId}`
+          : null,
+        disabled: !canPlayNextFreeDrop,
+      });
+    }
+    playNextQueuedItem();
+  }, [canPlayNextFreeDrop, currentFreeDropIndex, freeDropQueue, item, playNextQueuedItem]);
+
+  const playPreviousFreeDrop = useCallback(() => {
+    if (import.meta.env.DEV) {
+      console.debug('[Certifyd transport debug]', 'previous click fired', {
+        queueIds: freeDropQueue.map((queueItem) => `${queueItem.publicOrigin}::${queueItem.contentId}`),
+        activeId: item ? `${item.publicOrigin}::${item.contentId}` : null,
+        currentIndex: currentFreeDropIndex,
+        targetId: freeDropQueue[currentFreeDropIndex - 1]
+          ? `${freeDropQueue[currentFreeDropIndex - 1].publicOrigin}::${freeDropQueue[currentFreeDropIndex - 1].contentId}`
+          : null,
+        disabled: !canPlayPreviousFreeDrop,
+      });
+    }
+    playPreviousQueuedItem();
+  }, [canPlayPreviousFreeDrop, currentFreeDropIndex, freeDropQueue, item, playPreviousQueuedItem]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !item) return;
+    console.debug('[Certifyd transport debug]', 'state', {
+      queueIds: freeDropQueue.map((queueItem) => `${queueItem.publicOrigin}::${queueItem.contentId}`),
+      queueLength: freeDropQueue.length,
+      activeId: `${item.publicOrigin}::${item.contentId}`,
+      activeTitle: item.title,
+      currentIndex: currentFreeDropIndex,
+      previousTargetId: freeDropQueue[currentFreeDropIndex - 1]
+        ? `${freeDropQueue[currentFreeDropIndex - 1].publicOrigin}::${freeDropQueue[currentFreeDropIndex - 1].contentId}`
+        : null,
+      nextTargetId: freeDropQueue[currentFreeDropIndex + 1]
+        ? `${freeDropQueue[currentFreeDropIndex + 1].publicOrigin}::${freeDropQueue[currentFreeDropIndex + 1].contentId}`
+        : null,
+      previousDisabled: !canPlayPreviousFreeDrop,
+      nextDisabled: !canPlayNextFreeDrop,
+    });
+  }, [canPlayNextFreeDrop, canPlayPreviousFreeDrop, currentFreeDropIndex, freeDropQueue, item]);
 
   const currentSourceItem = item?.sourceItem || null;
   const currentWorkKey = currentSourceItem ? `${currentSourceItem.publicOrigin}::${currentSourceItem.contentId}` : '';
