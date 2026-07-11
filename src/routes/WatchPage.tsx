@@ -681,11 +681,9 @@ function ConnectedCreators({ creators }: { creators: ContentContextCreator[] }) 
 }
 
 function HeroAttributionLineage({
-  item,
   context,
   credits,
 }: {
-  item: DiscoverableItem;
   context: ContentRelationshipContext | null;
   credits: CreditItem[];
 }) {
@@ -763,14 +761,6 @@ function HeroAttributionLineage({
             </div>
           </div>
         ) : null}
-        <div className="watch-hero-lineage-card">
-          <span>Details</span>
-          <div className="watch-hero-lineage-list">
-            {item.contentType ? <small>Type: {item.contentType}</small> : null}
-            {item.primaryTopic ? <small>Topic: {item.primaryTopic}</small> : null}
-            <small>Access: {priceLabel(item)}</small>
-          </div>
-        </div>
         {creditRows.length ? (
           <div className="watch-hero-lineage-card">
             <span>Credits</span>
@@ -1079,6 +1069,7 @@ function StandardWatch({
   const [credits, setCredits] = useState<CreditItem[]>([]);
   const [discoveryItems, setDiscoveryItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [relationshipContextState, setRelationshipContextState] = useState<{ key: string; context: ContentRelationshipContext | null } | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const canonicalHydrationKeys = useRef<Set<string>>(new Set());
   const lastPlaybackSelectionKey = useRef(discoveryItemKey(activePlaybackItem));
 
@@ -1365,11 +1356,17 @@ function StandardWatch({
                     <div className="mt-4 flex flex-wrap items-center gap-3 text-lg font-semibold text-zinc-100">
                       <span>{creatorLabel}</span>
                       <span className="watch-verified-dot" aria-hidden="true">●</span>
+                      <span className="watch-pill watch-pill-inline">{priceLabel(item)}</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button type="button" className="watch-pill watch-details-pill" onClick={() => setDetailsOpen(true)}>
+                        Details
+                      </button>
                     </div>
                     {item.description ? (
                       <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-zinc-100 sm:text-base">{item.description}</p>
                     ) : null}
-                    <HeroAttributionLineage item={item} context={relationshipContext} credits={credits} />
+                    <HeroAttributionLineage context={relationshipContext} credits={credits} />
                     {canRestoreAccess ? (
                       <div className="mt-5 flex flex-wrap items-center gap-3">
                         <a className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold" href={buyWithReturnUrl} target="_blank" rel="noreferrer">
@@ -1380,7 +1377,7 @@ function StandardWatch({
                   </div>
                 </div>
 
-                <div className="watch-preview-stack self-end">
+                <div className="watch-preview-stack self-start">
                   <button
                     type="button"
                     className="watch-preview-frame group overflow-hidden rounded-2xl border text-left"
@@ -1405,6 +1402,27 @@ function StandardWatch({
                 {explorationRails.map((rail) => (
                   <ExplorationRail key={rail.key} rail={rail} onSelectItem={selectContentItem} onPlayItem={playContentItem} />
                 ))}
+              </div>
+            ) : null}
+
+            {detailsOpen ? (
+              <div className="watch-details-modal" role="dialog" aria-modal="true" aria-label="Work details" onClick={() => setDetailsOpen(false)}>
+                <div className="watch-details-modal-panel" onClick={(event) => event.stopPropagation()}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="watch-hero-lineage-heading">Details</div>
+                      <h2 className="mt-1 text-xl font-black text-white">{item.title || 'Untitled'}</h2>
+                    </div>
+                    <button type="button" className="watch-details-close" onClick={() => setDetailsOpen(false)} aria-label="Close details">×</button>
+                  </div>
+                  <div className="watch-details-grid">
+                    <div><span>Status</span><strong>{priceLabel(item)}</strong></div>
+                    {item.contentType ? <div><span>Type</span><strong>{item.contentType}</strong></div> : null}
+                    {item.primaryTopic ? <div><span>Topic</span><strong>{item.primaryTopic}</strong></div> : null}
+                    <div><span>Creator</span><strong>{creatorLabel}</strong></div>
+                  </div>
+                  {item.description ? <p className="mt-4 text-sm leading-6 text-zinc-300">{item.description}</p> : null}
+                </div>
               </div>
             ) : null}
 

@@ -933,6 +933,7 @@ body::after {
 .watch-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.13);
   padding: 0.38rem 0.72rem;
@@ -940,6 +941,24 @@ body::after {
   font-size: 0.75rem;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.watch-pill-inline {
+  padding: 0.28rem 0.64rem;
+  font-size: 0.68rem;
+}
+
+.watch-details-pill {
+  min-height: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.74);
+  cursor: pointer;
+}
+
+.watch-details-pill:hover,
+.watch-details-pill:focus-visible {
+  border-color: rgba(250, 204, 21, 0.42);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .watch-topic {
@@ -1171,6 +1190,80 @@ body::after {
 
 .watch-preview-frame img {
   opacity: 0.88;
+}
+
+.watch-details-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.68);
+  padding: 1rem;
+  backdrop-filter: blur(10px);
+}
+
+.watch-details-modal-panel {
+  width: min(92vw, 34rem);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(180deg, rgba(12, 16, 28, 0.96), rgba(3, 7, 12, 0.98)),
+    radial-gradient(circle at 0 0, rgba(34, 197, 94, 0.14), transparent 42%);
+  padding: 1rem;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.52);
+}
+
+.watch-details-close {
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.watch-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.watch-details-grid div {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.9rem;
+  background: rgba(2, 6, 12, 0.58);
+  padding: 0.75rem;
+}
+
+.watch-details-grid span,
+.watch-details-grid strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watch-details-grid span {
+  color: rgba(161, 161, 170, 0.92);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.watch-details-grid strong {
+  margin-top: 0.28rem;
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 900;
 }
 
 .watch-support-strip {
