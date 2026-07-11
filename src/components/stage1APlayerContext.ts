@@ -55,6 +55,8 @@ export type Stage1APlayerOptions = {
 export type Stage1APlayerContextValue = {
   playItem: (item: DiscoverableItem, options?: Stage1APlayerOptions) => Promise<void>;
   setMobilePlayerOpen: (open: boolean) => void;
+  setPlayerChromeHidden: (hidden: boolean) => void;
+  pausePlayback: () => void;
   setFreeDropQueue: (items: DiscoverableItem[]) => void;
   setDrawerContent: (content: Stage1APlayerDrawerContent | null) => void;
   openDrawer: (panel: Stage1APlayerDrawerPanel) => void;
@@ -81,6 +83,8 @@ export function useStage1APlayer() {
   return value || {
     playItem: async () => undefined,
     setMobilePlayerOpen: () => undefined,
+    setPlayerChromeHidden: () => undefined,
+    pausePlayback: () => undefined,
     setFreeDropQueue: () => undefined,
     setDrawerContent: () => undefined,
     openDrawer: () => undefined,

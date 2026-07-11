@@ -359,6 +359,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const [detailPanel, setDetailPanel] = useState<DetailPanel>(null);
   const [drawerContent, setDrawerContent] = useState<Stage1APlayerDrawerContent | null>(null);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [playerChromeHidden, setPlayerChromeHidden] = useState(false);
   const [mediaMuted, setMediaMuted] = useState(false);
   const [autoplayNext, setAutoplayNext] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -696,6 +697,16 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [item]);
 
+  const pausePlayback = useCallback(() => {
+    const media = activeMediaRef.current;
+    if (!media) return;
+    try { media.pause(); } catch { /* ignore */ }
+    if (state === 'playing' || state === 'loading') {
+      setState('paused');
+      setMessage('Paused');
+    }
+  }, [state]);
+
   const toggleMute = useCallback(() => {
     const media = activeMediaRef.current;
     if (!media) return;
@@ -894,6 +905,8 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const contextValue = useMemo(() => ({
     playItem,
     setMobilePlayerOpen: setMobileSheetOpen,
+    setPlayerChromeHidden,
+    pausePlayback,
     setFreeDropQueue,
     setDrawerContent,
     openDrawer: setDetailPanel,
@@ -911,7 +924,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     duration,
     canPlayNextFreeDrop,
     canPlayPreviousFreeDrop,
-  }), [canPlayNextFreeDrop, canPlayPreviousFreeDrop, duration, freeDropQueue, item, message, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, seek, setFreeDropQueue, state, togglePlay]);
+  }), [canPlayNextFreeDrop, canPlayPreviousFreeDrop, duration, freeDropQueue, item, message, pausePlayback, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, seek, setFreeDropQueue, state, togglePlay]);
   const isIdle = state === 'idle';
   const isPlaying = state === 'playing';
   const canControl = Boolean(item?.playback.streamUrl);
@@ -968,7 +981,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   return (
     <Stage1APlayerContext.Provider value={contextValue}>
       {children}
-      <aside className={`stage1a-rich-player ${isIdle ? 'stage1a-rich-player-idle' : ''} ${mobileSheetOpen ? 'stage1a-rich-player-mobile-open' : ''}`} data-state={state} aria-label="Now Playing">
+      <aside className={`stage1a-rich-player ${isIdle ? 'stage1a-rich-player-idle' : ''} ${mobileSheetOpen ? 'stage1a-rich-player-mobile-open' : ''} ${playerChromeHidden ? 'stage1a-player-hidden-for-shorts' : ''}`} data-state={state} aria-label="Now Playing">
         <div className="stage1a-rich-mobile-handle" aria-hidden="true" />
         <div className="stage1a-rich-topline">
           <div className="stage1a-rich-kicker">Now Playing</div>
@@ -1175,7 +1188,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           </>
         ) : null}
       </aside>
-      <div className={`stage1a-player-dock ${isIdle ? 'stage1a-player-dock-idle' : ''}`} data-state={state} role="region" aria-label="Certifyd transport" onClick={() => { if (!isIdle) setMobileSheetOpen(true); }}>
+      <div className={`stage1a-player-dock ${isIdle ? 'stage1a-player-dock-idle' : ''} ${playerChromeHidden ? 'stage1a-player-hidden-for-shorts' : ''}`} data-state={state} role="region" aria-label="Certifyd transport" onClick={() => { if (!isIdle) setMobileSheetOpen(true); }}>
         {item?.artwork ? (
           <img src={item.artwork} alt="" className="stage1a-player-art" referrerPolicy="no-referrer" />
         ) : !isIdle ? (

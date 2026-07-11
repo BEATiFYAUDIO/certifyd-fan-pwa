@@ -567,10 +567,6 @@ function dedupeWorks(rows: ContentContextWork[], exclude = new Set<string>()): C
   return out;
 }
 
-function isUpstreamPerson(person: ContentContextPerson): boolean {
-  return /^upstream\b/i.test(person.relationshipLabel || '');
-}
-
 function isLowValueGenericPerson(person: ContentContextPerson | ContentContextCreator): boolean {
   const display = String(person.displayName || '').trim().toLowerCase();
   const handle = String(person.handle || '').trim().replace(/^@+/, '').toLowerCase();
@@ -1014,76 +1010,132 @@ function HeroAttributionLineage({
   );
 }
 
-function FreebiesRelationshipPanel({ context, open, onToggle }: { context: ContentRelationshipContext | null; open: boolean; onToggle: () => void }) {
-  if (!context) return null;
-  const peopleBehindThis = filterDisplayPeople(
-    dedupePeople(context.peopleBehindThis || []).filter((person) => !isUpstreamPerson(person)),
-  ).slice(0, 6);
-  const derivedFrom = dedupeWorks(context.derivedFrom || []).slice(0, 4);
-  const connectedCreators = filterDisplayCreators(dedupePeople(context.connectedCreators || [])).slice(0, 6);
-  const moreTheyWorkedOn = dedupeWorks(context.moreTheyWorkedOn || []).slice(0, 4);
-  const excludedRelated = new Set([...derivedFrom, ...moreTheyWorkedOn].map(workKey));
-  const relatedWorks = dedupeWorks(context.relatedWorks || [], excludedRelated).slice(0, 4);
-  const hasAny = derivedFrom.length || connectedCreators.length || peopleBehindThis.length || moreTheyWorkedOn.length || relatedWorks.length;
-  if (!hasAny) return null;
+function shortMediaUrl(item: DiscoverableItem): string {
+  const canUseFull = Boolean(item.isFree || item.owned || item.hasFullAccess || item.accessMode === 'unlocked');
+  const fullUrl = item.fullMediaUrl || item.fullContentUrl || item.mediaUrl || item.contentUrl || '';
+  if (canUseFull && fullUrl) return fullUrl;
+  return item.previewUrl || '';
+}
+
+function shortMediaIsVideo(item: DiscoverableItem, src: string): boolean {
+  const hints = `${item.contentType || ''} ${item.primaryFileMime || ''} ${src}`.toLowerCase();
+  return hints.includes('video') || /\.(mp4|webm|mov|m4v)(?:$|[?&#])/.test(hints);
+}
+
+function ShortsMedia({
+  item,
+  active,
+  onExplore,
+}: {
+  item: DiscoverableItem;
+  active: boolean;
+  onExplore: () => void;
+}) {
+  const mediaRef = useRef<HTMLMediaElement | null>(null);
+  const [paused, setPaused] = useState(false);
+  const streamUrl = shortMediaUrl(item);
+  const isVideo = shortMediaIsVideo(item, streamUrl);
+  const playbackDisplay = displayStateFromItem(item);
+
+  useEffect(() => {
+    const media = mediaRef.current;
+    if (!media) return undefined;
+    if (!active || !streamUrl) {
+      try { media.pause(); } catch { /* ignore */ }
+      try { media.currentTime = 0; } catch { /* ignore */ }
+      return undefined;
+    }
+    media.muted = true;
+    media.loop = false;
+    media.setAttribute('playsinline', 'true');
+    const playPromise = media.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => setPaused(true));
+    }
+    return () => {
+      try { media.pause(); } catch { /* ignore */ }
+    };
+  }, [active, streamUrl]);
+
+  const toggleShortPlayback = () => {
+    const media = mediaRef.current;
+    if (!media || !streamUrl) return;
+    if (media.paused) {
+      const playPromise = media.play();
+      setPaused(false);
+      if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => setPaused(true));
+      return;
+    }
+    media.pause();
+    setPaused(true);
+  };
 
   return (
-    <div
-      className="watch-panel absolute inset-x-3 z-30 rounded-2xl border p-3 shadow-2xl backdrop-blur-md md:left-auto md:right-4 md:w-[420px]"
-      style={{ bottom: 'calc(7.25rem + env(safe-area-inset-bottom, 0px))' }}
-    >
+    <div className="shorts-slide-surface">
       <button
         type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-3 text-left"
+        className="shorts-media-hit-area"
+        onClick={toggleShortPlayback}
+        aria-label={paused ? `Play ${item.title || 'Short'}` : `Pause ${item.title || 'Short'}`}
       >
-        <span>
-          <span className="watch-accent-text block text-xs font-semibold uppercase tracking-[0.18em]">Explore this work</span>
-          <span className="mt-1 block text-xs text-zinc-300">People and related works</span>
-        </span>
-        <span className="rounded-full border border-zinc-600 px-2 py-1 text-xs font-semibold text-zinc-200">
-          {open ? 'Hide' : 'Open'}
-        </span>
+        {isVideo && streamUrl ? (
+          <video
+            ref={(node) => { mediaRef.current = node; }}
+            className="shorts-media"
+            src={streamUrl}
+            poster={item.coverUrl || undefined}
+            muted
+            playsInline
+            preload={active ? 'auto' : 'metadata'}
+            onPlay={() => setPaused(false)}
+            onPause={() => setPaused(true)}
+            onEnded={() => setPaused(true)}
+          />
+        ) : (
+          <>
+            {streamUrl ? (
+              <audio
+                ref={(node) => { mediaRef.current = node; }}
+                src={streamUrl}
+                muted
+                preload={active ? 'auto' : 'metadata'}
+                onPlay={() => setPaused(false)}
+                onPause={() => setPaused(true)}
+                onEnded={() => setPaused(true)}
+              />
+            ) : null}
+            {item.coverUrl ? (
+              <img src={item.coverUrl} alt={item.title || 'Short'} className="shorts-media" loading={active ? 'eager' : 'lazy'} decoding="async" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="shorts-media shorts-media-empty">No preview</div>
+            )}
+          </>
+        )}
       </button>
-
-      {open ? (
-        <div className="mt-3 max-h-[48vh] space-y-4 overflow-y-auto pr-1">
-          {derivedFrom.length ? (
-            <div>
-              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-300">Derived From</div>
-              <WorksList works={derivedFrom} />
-            </div>
-          ) : null}
-
-          {connectedCreators.length ? (
-            <div>
-              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-300">Connected Creators</div>
-              <ConnectedCreators creators={connectedCreators} />
-            </div>
-          ) : null}
-
-          {peopleBehindThis.length ? (
-            <div>
-              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-300">People Behind This</div>
-              <PeopleList people={peopleBehindThis} />
-            </div>
-          ) : null}
-
-          {moreTheyWorkedOn.length ? (
-            <div>
-              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-300">More They Worked On</div>
-              <WorksList works={moreTheyWorkedOn} />
-            </div>
-          ) : null}
-
-          {relatedWorks.length ? (
-            <div>
-              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-300">Related Works</div>
-              <WorksList works={relatedWorks} />
-            </div>
-          ) : null}
+      <div className="shorts-gradient" aria-hidden="true" />
+      <div className="shorts-meta">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap gap-2">
+            <span className="watch-pill watch-pill-inline">{playbackDisplay.label}</span>
+            {paused ? <span className="watch-pill watch-pill-inline">Paused</span> : null}
+          </div>
+          <h1 className="line-clamp-2 text-2xl font-bold">{item.title || 'Untitled'}</h1>
+          <p className="mt-1 text-sm text-zinc-200">@{item.creatorHandle || 'creator'} • {item.primaryTopic || 'topic'} • {item.contentType}</p>
         </div>
-      ) : null}
+      </div>
+      <div className="shorts-actions" aria-label="Short actions">
+        <button type="button" onClick={(event) => { event.stopPropagation(); toggleShortPlayback(); }} aria-label={paused ? 'Play Short' : 'Pause Short'}>
+          {paused ? '▶' : 'Ⅱ'}
+        </button>
+        <Link to={watchHrefForItem(item)} state={{ item }} onClick={(event) => { event.stopPropagation(); onExplore(); }} aria-label="Explore this work">
+          ↗
+        </Link>
+        {canOpenCreator(item) ? (
+          <a href={item.buyUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} aria-label={ctaLabel(item)}>
+            $
+          </a>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -1099,49 +1151,24 @@ function FreebiesWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
-  const { item: playerItem, state: playerState, playItem, togglePlay, setMobilePlayerOpen, playerQueue } = useStage1APlayer();
+  const { pausePlayback, setPlayerChromeHidden } = useStage1APlayer();
   const [items, setItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [relationshipContextState, setRelationshipContextState] = useState<{ key: string; context: ContentRelationshipContext | null } | null>(null);
-  const [relationshipOpenKey, setRelationshipOpenKey] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Array<HTMLElement | null>>([]);
   const canonicalHydrationKeys = useRef<Set<string>>(new Set());
-  const playItemRef = useRef(playItem);
-  const entryPlaybackSnapshot = useRef<{
-    item: DiscoverableItem;
-    queue: DiscoverableItem[];
-    wasPlaying: boolean;
-  } | null | undefined>(undefined);
-  const lastShortsPlaybackKey = useRef<string | null>(null);
-
-  if (entryPlaybackSnapshot.current === undefined) {
-    entryPlaybackSnapshot.current = playerItem?.sourceItem && isRenderableDiscoveryItem(playerItem.sourceItem)
-      ? {
-        item: playerItem.sourceItem,
-        queue: playerQueue.length ? playerQueue : [playerItem.sourceItem],
-        wasPlaying: playerState === 'playing' || playerState === 'loading',
-      }
-      : null;
-  }
 
   useEffect(() => {
-    playItemRef.current = playItem;
-  }, [playItem]);
-
-  useEffect(() => {
+    setPlayerChromeHidden(true);
+    pausePlayback();
+    document.body.classList.add('has-shorts-mode');
     return () => {
-      const snapshot = entryPlaybackSnapshot.current;
-      if (!snapshot) return;
-      void playItemRef.current(snapshot.item, {
-        queue: snapshot.queue.length ? snapshot.queue : [snapshot.item],
-        openPlayer: false,
-        autoPlay: snapshot.wasPlaying,
-      });
+      setPlayerChromeHidden(false);
+      document.body.classList.remove('has-shorts-mode');
     };
-  }, []);
+  }, [pausePlayback, setPlayerChromeHidden]);
 
   useEffect(() => {
     let active = true;
@@ -1205,25 +1232,6 @@ function FreebiesWatch({
 
   useEffect(() => {
     let active = true;
-    if (!visibleDiscoveryItem || !visibleDiscoveryItemKey) return;
-    void fetchContentContext({ origin: visibleDiscoveryItem.publicOrigin, contentId: visibleDiscoveryItem.contentId })
-      .then((context) => {
-        if (!active) return;
-        setRelationshipContextState({ key: visibleDiscoveryItemKey, context });
-      })
-      .catch(() => {
-        if (!active) return;
-        setRelationshipContextState({ key: visibleDiscoveryItemKey, context: null });
-      });
-    return () => {
-      active = false;
-    };
-  }, [visibleDiscoveryItem, visibleDiscoveryItemKey]);
-  const visibleDiscoveryRelationshipContext =
-    visibleDiscoveryItemKey && relationshipContextState?.key === visibleDiscoveryItemKey ? relationshipContextState.context : null;
-
-  useEffect(() => {
-    let active = true;
     if (!visibleDiscoveryItem || !visibleDiscoveryItemKey || canonicalHydrationKeys.current.has(visibleDiscoveryItemKey)) return;
     canonicalHydrationKeys.current.add(visibleDiscoveryItemKey);
     void hydrateCanonicalOffer(visibleDiscoveryItem)
@@ -1239,21 +1247,9 @@ function FreebiesWatch({
     };
   }, [visibleDiscoveryItem, visibleDiscoveryItemKey]);
 
-  useEffect(() => {
-    if (!visibleDiscoveryItem || !visibleDiscoveryItemKey || items.length === 0) return;
-    if (lastShortsPlaybackKey.current === visibleDiscoveryItemKey) return;
-    lastShortsPlaybackKey.current = visibleDiscoveryItemKey;
-    void playItem(visibleDiscoveryItem, {
-      mediaAspect: 'portrait',
-      muted: true,
-      openPlayer: false,
-      queue: items,
-    });
-  }, [items, playItem, visibleDiscoveryItem, visibleDiscoveryItemKey]);
-
   return (
-    <main className="h-[100dvh] overflow-hidden bg-black text-white">
-      <div className="fixed left-3 z-40" style={{ top: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
+    <main className="shorts-page bg-black text-white">
+      <div className="fixed left-3 z-50" style={{ top: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
         <Link to="/" className="rounded-full bg-black/50 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-black/70">
           ← Back
         </Link>
@@ -1263,91 +1259,27 @@ function FreebiesWatch({
       {error ? <div className="flex h-screen items-center justify-center p-4 text-red-300">{error}</div> : null}
 
       {!loading && !error ? (
-        <div ref={scrollerRef} className="watch-reel-scroller h-[100dvh] snap-y snap-mandatory overflow-y-auto overscroll-y-contain">
+        <div ref={scrollerRef} className="watch-reel-scroller shorts-scroller">
           {items.map((it, index) => {
-            const visualSrc = it.coverUrl || '';
             const themeVars = getCardThemeVars(it.profileTheme);
-            const isActivePlaybackItem = playerItem?.contentId === it.contentId && playerItem.publicOrigin === it.publicOrigin;
             return (
               <section
                 key={`${it.publicOrigin}:${it.contentId}:${index}`}
-                className="watch-shell relative h-[100dvh] snap-start bg-black"
+                className="watch-shell shorts-slide"
                 style={themeVars}
                 data-index={index}
                 ref={(el) => {
                   sectionRefs.current[index] = el;
                 }}
               >
-                <button
-                  type="button"
-                  className="block h-full w-full bg-black text-left"
-                  aria-label={`${isActivePlaybackItem && playerState === 'playing' ? 'Pause' : 'Play'} ${it.title || 'Free Drop'}`}
-                  onClick={() => {
-                    if (isActivePlaybackItem) {
-                      togglePlay();
-                      return;
-                    }
-                    void playItem(it, {
-                      mediaAspect: 'portrait',
-                      muted: true,
-                      openPlayer: false,
-                      queue: items,
-                    });
+                <ShortsMedia
+                  item={it}
+                  active={index === activeIndex}
+                  onExplore={() => {
+                    setPlayerChromeHidden(false);
+                    document.body.classList.remove('has-shorts-mode');
                   }}
-                >
-                  {visualSrc ? (
-                    <img src={visualSrc} alt={it.title || 'content'} className="h-full w-full object-cover md:object-contain" loading="lazy" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-zinc-500">No media</div>
-                  )}
-                </button>
-
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/90 via-black/55 to-transparent" />
-                <div
-                  className="absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-4 p-4"
-                  style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}
-                >
-                  <div className="min-w-0">
-                    <h1 className="line-clamp-2 text-2xl font-bold">{it.title || 'Untitled'}</h1>
-                    <p className="mt-1 text-sm text-zinc-200">@{it.creatorHandle || 'creator'} • {it.primaryTopic || 'topic'} • {it.contentType}</p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <button
-                      type="button"
-                      className={`rounded-xl px-4 py-2 text-sm font-bold ${isActivePlaybackItem ? 'bg-white/15 text-white' : 'watch-action-primary'}`}
-                      onClick={() => {
-                        if (isActivePlaybackItem) {
-                          togglePlay();
-                          return;
-                        }
-                        setMobilePlayerOpen(true);
-                        void playItem(it, { mediaAspect: 'portrait', queue: items });
-                      }}
-                    >
-                      {isActivePlaybackItem ? (playerState === 'playing' ? 'Pause' : 'Resume') : 'Play'}
-                    </button>
-                    {canOpenCreator(it) ? (
-                      <a
-                        href={it.buyUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold"
-                      >
-                        {ctaLabel(it)}
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-
-                {index === activeIndex ? (
-                  <FreebiesRelationshipPanel
-                    context={visibleDiscoveryRelationshipContext}
-                    open={relationshipOpenKey === visibleDiscoveryItemKey}
-                    onToggle={() => {
-                      setRelationshipOpenKey((current) => (current === visibleDiscoveryItemKey ? null : visibleDiscoveryItemKey));
-                    }}
-                  />
-                ) : null}
+                />
               </section>
             );
           })}
