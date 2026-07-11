@@ -315,14 +315,20 @@ function watchHrefForItem(item: DiscoverableItem): string {
   return `/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`;
 }
 
+function discoveryItemKey(item: Pick<DiscoverableItem, 'contentId' | 'publicOrigin'> | null | undefined): string {
+  return item ? `${item.publicOrigin}::${item.contentId}` : '';
+}
+
 function WatchDiscoveryCard({
   item,
   queue,
   onSelect,
+  onPlay,
 }: {
   item: DiscoverableItem;
   queue: DiscoverableItem[];
-  onSelect: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
+  onSelect: (item: DiscoverableItem) => void;
+  onPlay: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const playbackDisplay = displayStateFromItem(item);
@@ -336,7 +342,7 @@ function WatchDiscoveryCard({
       style={themeVars}
       onClick={(event) => {
         event.preventDefault();
-        onSelect(item, queue);
+        onSelect(item);
       }}
     >
       <div className="creator-themed-media relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5">
@@ -364,6 +370,18 @@ function WatchDiscoveryCard({
           </div>
         )}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+        <button
+          type="button"
+          className="absolute bottom-2 right-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-black opacity-0 shadow-lg transition group-hover:opacity-100 focus:opacity-100"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onPlay(item, queue);
+          }}
+          aria-label={`Play ${item.title || 'work'}`}
+        >
+          Play
+        </button>
       </div>
       <div className="mt-2 min-w-0">
         <div className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100">{item.title || 'Untitled'}</div>
@@ -376,9 +394,11 @@ function WatchDiscoveryCard({
 function ExplorationRail({
   rail,
   onSelectItem,
+  onPlayItem,
 }: {
   rail: DiscoveryRail;
-  onSelectItem: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
+  onSelectItem: (item: DiscoverableItem) => void;
+  onPlayItem: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
 }) {
   if (rail.items.length === 0) return null;
   return (
@@ -394,6 +414,7 @@ function ExplorationRail({
             item={related}
             queue={rail.items}
             onSelect={onSelectItem}
+            onPlay={onPlayItem}
           />
         ))}
       </div>
@@ -554,9 +575,11 @@ function PeopleList({ people }: { people: ContentContextPerson[] }) {
 function WorksList({
   works,
   onSelectWork,
+  onPlayWork,
 }: {
   works: ContentContextWork[];
-  onSelectWork?: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
+  onSelectWork?: (item: DiscoverableItem) => void;
+  onPlayWork?: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
 }) {
   const { playItem } = useStage1APlayer();
   const playableWorks = useMemo(
@@ -571,7 +594,7 @@ function WorksList({
         const playableWork = workToDiscoverableItem(work);
         const card = (
           <div className="watch-card watch-card-hover overflow-hidden rounded-xl border text-left transition">
-            <div className="aspect-video bg-zinc-950">
+            <div className="relative aspect-video bg-zinc-950">
               {work.coverUrl ? (
                 <img src={work.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
               ) : (
@@ -579,6 +602,24 @@ function WorksList({
                   {work.contentType || 'Work'}
                 </div>
               )}
+              {playableWork ? (
+                <button
+                  type="button"
+                  className="absolute bottom-2 right-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-black shadow-lg"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (onPlayWork) {
+                      onPlayWork(playableWork, playableWorks);
+                      return;
+                    }
+                    void playItem(playableWork, { queue: playableWorks });
+                  }}
+                  aria-label={`Play ${work.title || 'work'}`}
+                >
+                  Play
+                </button>
+              ) : null}
             </div>
             <div className="space-y-1 p-3">
               <div className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100">{work.title || 'Untitled work'}</div>
@@ -594,7 +635,7 @@ function WorksList({
             className="block w-full text-left"
             onClick={() => {
               if (onSelectWork) {
-                onSelectWork(playableWork, playableWorks);
+                onSelectWork(playableWork);
                 return;
               }
               void playItem(playableWork, { queue: playableWorks });
@@ -852,9 +893,11 @@ function HeroAttributionLineage({
 function RelationshipContextSections({
   context,
   onSelectWork,
+  onPlayWork,
 }: {
   context: ContentRelationshipContext | null;
-  onSelectWork?: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
+  onSelectWork?: (item: DiscoverableItem) => void;
+  onPlayWork?: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
 }) {
   if (!context) return null;
 
@@ -918,7 +961,7 @@ function RelationshipContextSections({
 
       {moreTheyWorkedOn.length ? (
         <RelationshipSection title="More They Worked On">
-          <WorksList works={moreTheyWorkedOn} onSelectWork={onSelectWork} />
+          <WorksList works={moreTheyWorkedOn} onSelectWork={onSelectWork} onPlayWork={onPlayWork} />
         </RelationshipSection>
       ) : null}
 
@@ -931,13 +974,13 @@ function RelationshipContextSections({
 
       {derivedFromSecondary.length ? (
         <RelationshipSection title="Derived From" subtitle="Original or upstream works this publication is connected to.">
-          <WorksList works={derivedFromSecondary} onSelectWork={onSelectWork} />
+          <WorksList works={derivedFromSecondary} onSelectWork={onSelectWork} onPlayWork={onPlayWork} />
         </RelationshipSection>
       ) : null}
 
       {builtFromSecondary.length ? (
         <RelationshipSection title="Built From" subtitle="Additional source material connected to this work.">
-          <WorksList works={builtFromSecondary} onSelectWork={onSelectWork} />
+          <WorksList works={builtFromSecondary} onSelectWork={onSelectWork} onPlayWork={onPlayWork} />
         </RelationshipSection>
       ) : null}
 
@@ -949,13 +992,13 @@ function RelationshipContextSections({
 
       {worksThatBuiltOnThis.length ? (
         <RelationshipSection title="Works That Built On This">
-          <WorksList works={worksThatBuiltOnThis} onSelectWork={onSelectWork} />
+          <WorksList works={worksThatBuiltOnThis} onSelectWork={onSelectWork} onPlayWork={onPlayWork} />
         </RelationshipSection>
       ) : null}
 
       {relatedWorks.length ? (
         <RelationshipSection title="Related Works">
-          <WorksList works={relatedWorks} onSelectWork={onSelectWork} />
+          <WorksList works={relatedWorks} onSelectWork={onSelectWork} onPlayWork={onPlayWork} />
         </RelationshipSection>
       ) : null}
 
@@ -1267,7 +1310,7 @@ function StandardWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
-  const { playItem, setDrawerContent } = useStage1APlayer();
+  const { item: activePlaybackItem, playItem, setDrawerContent } = useStage1APlayer();
   const navigate = useNavigate();
   const [item, setItem] = useState<DiscoverableItem | null>(stateItem && isRenderableDiscoveryItem(stateItem) ? stateItem : null);
   const [loading, setLoading] = useState(!(stateItem && isRenderableDiscoveryItem(stateItem)));
@@ -1276,6 +1319,7 @@ function StandardWatch({
   const [discoveryItems, setDiscoveryItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [relationshipContextState, setRelationshipContextState] = useState<{ key: string; context: ContentRelationshipContext | null } | null>(null);
   const canonicalHydrationKeys = useRef<Set<string>>(new Set());
+  const lastPlaybackSelectionKey = useRef(discoveryItemKey(activePlaybackItem));
 
   useEffect(() => {
     let active = true;
@@ -1414,13 +1458,38 @@ function StandardWatch({
     if (!item) return [];
     return buildWatchDiscoveryRails(item, discoveryItems);
   }, [item, discoveryItems]);
-  const selectContentItem = useCallback((nextItem: DiscoverableItem, queue: DiscoverableItem[]) => {
-    const nextQueue = queue.length ? queue : [nextItem];
+  const activePlaybackSourceItem = activePlaybackItem?.sourceItem && isRenderableDiscoveryItem(activePlaybackItem.sourceItem)
+    ? activePlaybackItem.sourceItem
+    : null;
+  const activePlaybackKey = discoveryItemKey(activePlaybackItem);
+  const selectedContentKey = discoveryItemKey(item);
+  const selectionIsDetachedFromPlayback = Boolean(item && activePlaybackItem && selectedContentKey !== activePlaybackKey);
+  const returnToNowPlaying = useCallback(() => {
+    if (!activePlaybackSourceItem) return;
+    setItem(activePlaybackSourceItem);
+    setDiscoveryItems((current) => dedupeDiscoveryItems([activePlaybackSourceItem, ...current]));
+    navigate(watchHrefForItem(activePlaybackSourceItem), { state: { item: activePlaybackSourceItem } });
+  }, [activePlaybackSourceItem, navigate]);
+  const selectContentItem = useCallback((nextItem: DiscoverableItem) => {
     setItem(nextItem);
     setDiscoveryItems((current) => dedupeDiscoveryItems([nextItem, ...current]));
     navigate(watchHrefForItem(nextItem), { state: { item: nextItem } });
+  }, [navigate]);
+  const playContentItem = useCallback((nextItem: DiscoverableItem, queue: DiscoverableItem[]) => {
+    const nextQueue = queue.length ? queue : [nextItem];
+    selectContentItem(nextItem);
     void playItem(nextItem, { queue: nextQueue });
-  }, [navigate, playItem]);
+  }, [playItem, selectContentItem]);
+
+  useEffect(() => {
+    if (!activePlaybackSourceItem) return;
+    const nextPlaybackKey = discoveryItemKey(activePlaybackSourceItem);
+    if (!nextPlaybackKey || lastPlaybackSelectionKey.current === nextPlaybackKey) return;
+    lastPlaybackSelectionKey.current = nextPlaybackKey;
+    setItem(activePlaybackSourceItem);
+    setDiscoveryItems((current) => dedupeDiscoveryItems([activePlaybackSourceItem, ...current]));
+    navigate(watchHrefForItem(activePlaybackSourceItem), { state: { item: activePlaybackSourceItem } });
+  }, [activePlaybackSourceItem, navigate]);
   const relationshipContext = item && relationshipContextState?.key === `${item.publicOrigin}::${item.contentId}`
     ? relationshipContextState.context
     : null;
@@ -1506,6 +1575,19 @@ function StandardWatch({
 
         {item ? (
           <section className="watch-detail-space mt-4 space-y-5">
+            {selectionIsDetachedFromPlayback ? (
+              <div className="watch-panel flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Now playing</div>
+                  <div className="truncate text-sm font-bold text-zinc-100">{activePlaybackItem?.title || 'Current work'}</div>
+                </div>
+                {activePlaybackSourceItem ? (
+                  <button type="button" className="watch-action-secondary rounded-xl px-3 py-2 text-sm font-bold" onClick={returnToNowPlaying}>
+                    Return to Now Playing
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             <div className="watch-hero-card relative overflow-hidden rounded-[28px] border" style={heroStyle}>
               {item.coverUrl ? (
                 <img src={item.coverUrl} alt="" className="watch-hero-backdrop" loading="eager" decoding="async" referrerPolicy="no-referrer" />
@@ -1560,12 +1642,12 @@ function StandardWatch({
             {explorationRails.length > 0 ? (
               <div className="watch-related-area space-y-6">
                 {explorationRails.map((rail) => (
-                  <ExplorationRail key={rail.key} rail={rail} onSelectItem={selectContentItem} />
+                  <ExplorationRail key={rail.key} rail={rail} onSelectItem={selectContentItem} onPlayItem={playContentItem} />
                 ))}
               </div>
             ) : null}
 
-            <RelationshipContextSections context={relationshipContext} onSelectWork={selectContentItem} />
+            <RelationshipContextSections context={relationshipContext} onSelectWork={selectContentItem} onPlayWork={playContentItem} />
 
             <section className="watch-context-block">
               <div>
