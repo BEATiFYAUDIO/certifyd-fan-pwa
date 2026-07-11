@@ -9,6 +9,7 @@ import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptPr
 import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
 import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
 import { canonicalCreatorProfileUrl, canonicalCreatorProfileUrlForItem } from '../lib/destinations';
+import { normalizeCanonicalOrigin } from '../lib/origin';
 import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerOptions, type Stage1APlayerState } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
@@ -287,6 +288,15 @@ function writeRecentItemsToStorage(items: DiscoverableItem[]) {
   }
 }
 
+function queueItemKey(item: Pick<DiscoverableItem, 'contentId' | 'publicOrigin'> | Pick<Stage1APlayerItem, 'contentId' | 'publicOrigin'>): string {
+  return `${normalizeCanonicalOrigin(item.publicOrigin) || item.publicOrigin}::${item.contentId}`;
+}
+
+function queueContainsItem(queue: DiscoverableItem[], item: DiscoverableItem | Stage1APlayerItem): boolean {
+  const activeKey = queueItemKey(item);
+  return queue.some((queueItem) => queueItemKey(queueItem) === activeKey);
+}
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return '0:00';
   const whole = Math.floor(seconds);
@@ -435,10 +445,13 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     if (options?.openPlayer !== false) setMobileSheetOpen(true);
     if (options?.queue) {
       const requestedQueue = dedupeDrawerItems(options.queue);
-      const itemIsInQueue = requestedQueue.some((queueItem) =>
-        queueItem.contentId === nextItem.contentId && queueItem.publicOrigin === nextItem.publicOrigin
-      );
-      setFreeDropQueueState(itemIsInQueue ? requestedQueue : dedupeDrawerItems([nextItem, ...requestedQueue]));
+      const itemIsInQueue = queueContainsItem(requestedQueue, nextItem);
+      setFreeDropQueueState(itemIsInQueue ? requestedQueue : dedupeDrawerItems([...requestedQueue, nextItem]));
+    } else {
+      setFreeDropQueueState((currentQueue) => {
+        if (queueContainsItem(currentQueue, nextItem)) return currentQueue;
+        return currentQueue.length ? dedupeDrawerItems([...currentQueue, nextItem]) : [nextItem];
+      });
     }
     setRecentItems((current) => {
       const next = [nextItem, ...current.filter((row) => row.contentId !== nextItem.contentId || row.publicOrigin !== nextItem.publicOrigin)].slice(0, MAX_RECENT_ITEMS);
@@ -566,6 +579,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     setFreeDropQueueState(nextQueue);
   }, []);
 
+  const activePlayerQueue = useMemo(() => {
+    if (!item?.sourceItem) return freeDropQueue;
+    if (queueContainsItem(freeDropQueue, item)) return freeDropQueue;
+    return freeDropQueue.length ? dedupeDrawerItems([...freeDropQueue, item.sourceItem]) : [item.sourceItem];
+  }, [freeDropQueue, item]);
+
   useLayoutEffect(() => {
     if (!item?.playback.streamUrl || state !== 'loading') return;
     const media = item.mediaKind === 'video' ? videoRef.current : audioRef.current;
@@ -608,23 +627,21 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
   const playNextQueuedItem = useCallback((fromItem: Stage1APlayerItem | null = item) => {
     if (!fromItem) return false;
-    const currentIndex = freeDropQueue.findIndex((queueItem) =>
-      queueItem.contentId === fromItem.contentId && queueItem.publicOrigin === fromItem.publicOrigin
-    );
-    if (currentIndex < 0 || currentIndex >= freeDropQueue.length - 1) return false;
-    void playItem(freeDropQueue[currentIndex + 1], { queue: freeDropQueue });
+    const activeKey = queueItemKey(fromItem);
+    const currentIndex = activePlayerQueue.findIndex((queueItem) => queueItemKey(queueItem) === activeKey);
+    if (currentIndex < 0 || currentIndex >= activePlayerQueue.length - 1) return false;
+    void playItem(activePlayerQueue[currentIndex + 1], { queue: activePlayerQueue });
     return true;
-  }, [freeDropQueue, item, playItem]);
+  }, [activePlayerQueue, item, playItem]);
 
   const playPreviousQueuedItem = useCallback((fromItem: Stage1APlayerItem | null = item) => {
     if (!fromItem) return false;
-    const currentIndex = freeDropQueue.findIndex((queueItem) =>
-      queueItem.contentId === fromItem.contentId && queueItem.publicOrigin === fromItem.publicOrigin
-    );
+    const activeKey = queueItemKey(fromItem);
+    const currentIndex = activePlayerQueue.findIndex((queueItem) => queueItemKey(queueItem) === activeKey);
     if (currentIndex <= 0) return false;
-    void playItem(freeDropQueue[currentIndex - 1], { queue: freeDropQueue });
+    void playItem(activePlayerQueue[currentIndex - 1], { queue: activePlayerQueue });
     return true;
-  }, [freeDropQueue, item, playItem]);
+  }, [activePlayerQueue, item, playItem]);
 
   const onTimeUpdate = useCallback((event: SyntheticEvent<HTMLMediaElement>) => {
     const media = event.currentTarget;
@@ -746,60 +763,20 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
   const currentFreeDropIndex = useMemo(() => {
     if (!item) return -1;
-    return freeDropQueue.findIndex((queueItem) => queueItem.contentId === item.contentId && queueItem.publicOrigin === item.publicOrigin);
-  }, [freeDropQueue, item]);
+    const activeKey = queueItemKey(item);
+    return activePlayerQueue.findIndex((queueItem) => queueItemKey(queueItem) === activeKey);
+  }, [activePlayerQueue, item]);
 
-  const canPlayNextFreeDrop = currentFreeDropIndex >= 0 && currentFreeDropIndex < freeDropQueue.length - 1;
+  const canPlayNextFreeDrop = currentFreeDropIndex >= 0 && currentFreeDropIndex < activePlayerQueue.length - 1;
   const canPlayPreviousFreeDrop = currentFreeDropIndex > 0;
 
   const playNextFreeDrop = useCallback(() => {
-    if (import.meta.env.DEV) {
-      console.debug('[Certifyd transport debug]', 'next click fired', {
-        queueIds: freeDropQueue.map((queueItem) => `${queueItem.publicOrigin}::${queueItem.contentId}`),
-        activeId: item ? `${item.publicOrigin}::${item.contentId}` : null,
-        currentIndex: currentFreeDropIndex,
-        targetId: freeDropQueue[currentFreeDropIndex + 1]
-          ? `${freeDropQueue[currentFreeDropIndex + 1].publicOrigin}::${freeDropQueue[currentFreeDropIndex + 1].contentId}`
-          : null,
-        disabled: !canPlayNextFreeDrop,
-      });
-    }
     playNextQueuedItem();
-  }, [canPlayNextFreeDrop, currentFreeDropIndex, freeDropQueue, item, playNextQueuedItem]);
+  }, [playNextQueuedItem]);
 
   const playPreviousFreeDrop = useCallback(() => {
-    if (import.meta.env.DEV) {
-      console.debug('[Certifyd transport debug]', 'previous click fired', {
-        queueIds: freeDropQueue.map((queueItem) => `${queueItem.publicOrigin}::${queueItem.contentId}`),
-        activeId: item ? `${item.publicOrigin}::${item.contentId}` : null,
-        currentIndex: currentFreeDropIndex,
-        targetId: freeDropQueue[currentFreeDropIndex - 1]
-          ? `${freeDropQueue[currentFreeDropIndex - 1].publicOrigin}::${freeDropQueue[currentFreeDropIndex - 1].contentId}`
-          : null,
-        disabled: !canPlayPreviousFreeDrop,
-      });
-    }
     playPreviousQueuedItem();
-  }, [canPlayPreviousFreeDrop, currentFreeDropIndex, freeDropQueue, item, playPreviousQueuedItem]);
-
-  useEffect(() => {
-    if (!import.meta.env.DEV || !item) return;
-    console.debug('[Certifyd transport debug]', 'state', {
-      queueIds: freeDropQueue.map((queueItem) => `${queueItem.publicOrigin}::${queueItem.contentId}`),
-      queueLength: freeDropQueue.length,
-      activeId: `${item.publicOrigin}::${item.contentId}`,
-      activeTitle: item.title,
-      currentIndex: currentFreeDropIndex,
-      previousTargetId: freeDropQueue[currentFreeDropIndex - 1]
-        ? `${freeDropQueue[currentFreeDropIndex - 1].publicOrigin}::${freeDropQueue[currentFreeDropIndex - 1].contentId}`
-        : null,
-      nextTargetId: freeDropQueue[currentFreeDropIndex + 1]
-        ? `${freeDropQueue[currentFreeDropIndex + 1].publicOrigin}::${freeDropQueue[currentFreeDropIndex + 1].contentId}`
-        : null,
-      previousDisabled: !canPlayPreviousFreeDrop,
-      nextDisabled: !canPlayNextFreeDrop,
-    });
-  }, [canPlayNextFreeDrop, canPlayPreviousFreeDrop, currentFreeDropIndex, freeDropQueue, item]);
+  }, [playPreviousQueuedItem]);
 
   const currentSourceItem = item?.sourceItem || null;
   const currentWorkKey = currentSourceItem ? `${currentSourceItem.publicOrigin}::${currentSourceItem.contentId}` : '';
@@ -957,7 +934,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     seek,
     resetIdle,
     recentItems,
-    playerQueue: freeDropQueue,
+    playerQueue: activePlayerQueue,
     state,
     item,
     message,
@@ -965,7 +942,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     duration,
     canPlayNextFreeDrop,
     canPlayPreviousFreeDrop,
-  }), [canPlayNextFreeDrop, canPlayPreviousFreeDrop, duration, freeDropQueue, item, message, pausePlayback, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, seek, setFreeDropQueue, state, togglePlay]);
+  }), [activePlayerQueue, canPlayNextFreeDrop, canPlayPreviousFreeDrop, duration, item, message, pausePlayback, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, seek, setFreeDropQueue, state, togglePlay]);
   const isIdle = state === 'idle';
   const isPlaying = state === 'playing';
   const canControl = Boolean(item?.playback.streamUrl);

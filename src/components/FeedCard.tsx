@@ -18,7 +18,7 @@ function shouldOpenMobilePlayerOnly(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches;
 }
 
-export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableItem }) {
+export const FeedCard = memo(function FeedCard({ item, queue }: { item: DiscoverableItem; queue?: DiscoverableItem[] }) {
   const { playItem, setMobilePlayerOpen } = useStage1APlayer();
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
@@ -43,7 +43,7 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
     event.preventDefault();
     event.stopPropagation();
     if (shouldOpenMobilePlayerOnly()) setMobilePlayerOpen(true);
-    void playItem(item);
+    void playItem(item, queue?.length ? { queue } : undefined);
   };
   const avatarGradient = useMemo(() => {
     const seed = creator.toLowerCase().charCodeAt(0) || 0;

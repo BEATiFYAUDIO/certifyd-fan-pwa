@@ -18,7 +18,7 @@ function shouldOpenMobilePlayerOnly(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches;
 }
 
-export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watchParams?: string }) {
+export const ShortsCard = memo(function ShortsCard({ item, watchParams, queue }: { item: DiscoverableItem; watchParams?: string; queue?: DiscoverableItem[] }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const { playItem, setMobilePlayerOpen } = useStage1APlayer();
   const [imageFailed, setImageFailed] = useState(false);
@@ -56,7 +56,7 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
     event.preventDefault();
     event.stopPropagation();
     if (shouldOpenMobilePlayerOnly()) setMobilePlayerOpen(true);
-    void playItem(item, { muted: true, mediaAspect: 'portrait' });
+    void playItem(item, { muted: true, mediaAspect: 'portrait', ...(queue?.length ? { queue } : {}) });
   };
 
   return (

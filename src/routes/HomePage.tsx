@@ -1827,13 +1827,14 @@ export function HomePage() {
               <RailHeader title="Free Drops" subtitle="Open works fans can play while exploring creators" badge="Open" />
               <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
                 {freeItems.slice(0, 12).map((item) => {
+                  const shortsQueue = freeItems.slice(0, 12);
                   const watchParams = new URLSearchParams({
                     origin: item.publicOrigin,
                     mode: 'freebies',
                     topic,
                   }).toString();
                   return (
-                    <ShortsCard key={`shorts:${item.publicOrigin}:${item.contentId}`} item={item} watchParams={watchParams} />
+                    <ShortsCard key={`shorts:${item.publicOrigin}:${item.contentId}`} item={item} watchParams={watchParams} queue={shortsQueue} />
                   );
                 })}
               </div>

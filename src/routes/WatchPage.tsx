@@ -1551,6 +1551,11 @@ function StandardWatch({
       '--watch-cover-url': `url("${item.coverUrl.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}")`,
     } as CSSProperties
     : themeVars;
+  const watchContextQueue = useMemo(() => {
+    if (!item) return [];
+    const related = dedupeDiscoveryItems(explorationRails.flatMap((rail) => rail.items || []));
+    return dedupeDiscoveryItems([item, ...related]);
+  }, [explorationRails, item]);
 
   useEffect(() => {
     if (!item) return;
@@ -1696,7 +1701,7 @@ function StandardWatch({
                     <button
                       type="button"
                       className="absolute bottom-3 right-3 rounded-full bg-white/90 px-4 py-2 text-sm font-black text-black shadow-lg"
-                      onClick={() => void playItem(item, { queue: [item] })}
+                      onClick={() => void playContentItem(item, watchContextQueue)}
                       aria-label={`Play ${item.title || 'work'}`}
                     >
                       Play
