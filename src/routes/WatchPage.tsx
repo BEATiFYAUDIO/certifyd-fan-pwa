@@ -1173,7 +1173,7 @@ function StandardWatch({
   originHint: string | null;
   stateItem: DiscoverableItem | null;
 }) {
-  const { item: playerItem, playItem, setDrawerContent } = useStage1APlayer();
+  const { playItem, setDrawerContent } = useStage1APlayer();
   const [item, setItem] = useState<DiscoverableItem | null>(stateItem && isRenderableDiscoveryItem(stateItem) ? stateItem : null);
   const [loading, setLoading] = useState(!(stateItem && isRenderableDiscoveryItem(stateItem)));
   const [error, setError] = useState<string | null>(null);
@@ -1297,10 +1297,7 @@ function StandardWatch({
     setDiscoveryItems((current) =>
       dedupeDiscoveryItems([hydrated, ...current.filter((row) => row.contentId !== hydrated.contentId || row.publicOrigin !== hydrated.publicOrigin)]),
     );
-    if (playerItem?.contentId === hydrated.contentId && playerItem.publicOrigin === hydrated.publicOrigin) {
-      void playItem(hydrated, { openPlayer: false, autoPlay: false });
-    }
-  }, [item, playItem, playerItem]);
+  }, [item]);
 
   useEffect(() => {
     if (!item) return undefined;

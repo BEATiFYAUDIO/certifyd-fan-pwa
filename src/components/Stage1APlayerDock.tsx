@@ -747,24 +747,6 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     ? buyUrlWithFanReturnUrl(item?.buyUrl, currentSourceItem)
     : item?.buyUrl || '#';
 
-  useEffect(() => {
-    if (!currentSourceItem || !item) return undefined;
-    const shouldRefresh = item.commerceState === 'preview' || item.playback.mode === 'preview' || item.playback.mode === 'none';
-    if (!shouldRefresh) return undefined;
-    const refresh = () => {
-      if (document.visibilityState === 'hidden') return;
-      void playItem(currentSourceItem, { openPlayer: false, muted: mediaMuted, mediaAspect, autoPlay: false });
-    };
-    window.addEventListener('focus', refresh);
-    window.addEventListener('pageshow', refresh);
-    document.addEventListener('visibilitychange', refresh);
-    return () => {
-      window.removeEventListener('focus', refresh);
-      window.removeEventListener('pageshow', refresh);
-      document.removeEventListener('visibilitychange', refresh);
-    };
-  }, [currentSourceItem, item, mediaAspect, mediaMuted, playItem]);
-
   const toggleCurrentSaved = useCallback(() => {
     if (!currentSourceItem) return;
     toggleSavedWork(currentSourceItem);
