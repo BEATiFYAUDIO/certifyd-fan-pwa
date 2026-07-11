@@ -3,6 +3,7 @@ import { memo, useMemo, useState, type MouseEvent } from 'react';
 import type { DiscoverableItem } from '../lib/types';
 import { displayStateFromItem } from '../lib/playbackDisplay';
 import { getCardThemeVars } from '../lib/profileTheme';
+import { canonicalCreatorProfileUrlForItem } from '../lib/destinations';
 import { useStage1APlayer } from './stage1APlayerContext';
 
 function avatarInitials(handle: string | null): string {
@@ -24,10 +25,7 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
   const watchHref = `/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`;
   const creator = item.creatorHandle || 'creator';
   const creatorHandleClean = String(item.creatorHandle || '').trim().replace(/^@+/, '');
-  const creatorProfileUrl =
-    creatorHandleClean && item.publicOrigin
-      ? `${String(item.publicOrigin).replace(/\/+$/, '')}/u/${encodeURIComponent(creatorHandleClean)}`
-      : null;
+  const creatorProfileUrl = canonicalCreatorProfileUrlForItem(item);
   const playbackDisplay = displayStateFromItem(item);
   const canShowImage = Boolean(item.coverUrl) && !imageFailed;
   const hasMedia = canShowImage;

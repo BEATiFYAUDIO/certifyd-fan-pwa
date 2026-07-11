@@ -19,6 +19,7 @@ import {
 import { creatorKey, useLocalLibrary, type LocalCreator } from '../lib/localLibrary';
 import { getCardThemeVars } from '../lib/profileTheme';
 import { contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
+import { canonicalCreatorProfileUrl, canonicalCreatorProfileUrlForItem } from '../lib/destinations';
 
 const INITIAL_PAGE_LIMIT = 8;
 const NEXT_PAGE_LIMIT = 18;
@@ -571,7 +572,12 @@ function signalCreatorToSpotlight(creator: DiscoverySignalCreator): CreatorSpotl
     publicOrigin,
     avatarUrl: creator.avatarUrl || '',
     profileTheme: creatorTheme || works[0]?.profileTheme || null,
-    profileUrl: creator.profileUrl || `${publicOrigin.replace(/\/+$/, '')}/u/${encodeURIComponent(handle)}`,
+    profileUrl: canonicalCreatorProfileUrl({
+      publicOrigin,
+      creatorHandle: handle,
+      profileUrl: creator.profileUrl,
+      value: creator,
+    }),
     itemCount: Number(creator.workCount || works.length || 0),
     freeCount: works.filter((item) => !isLockedOrPremium(item)).length,
     premiumCount: Number(creator.unlockableWorkCount || works.filter((item) => isLockedOrPremium(item)).length || 0),
@@ -819,7 +825,12 @@ function creatorSpotlightToLocalCreator(creator: CreatorSpotlight): LocalCreator
     handle,
     displayName: displayCreatorName(handle),
     avatarUrl: creator.avatarUrl || '',
-    profileUrl: creator.profileUrl || `${publicOrigin}/u/${encodeURIComponent(handle)}`,
+    profileUrl: canonicalCreatorProfileUrl({
+      publicOrigin,
+      creatorHandle: handle,
+      profileUrl: creator.profileUrl,
+      value: creator,
+    }),
     publicOrigin,
     profileTheme: creator.profileTheme || null,
     itemCount: creator.itemCount,
@@ -840,7 +851,7 @@ function itemCreatorToLocalCreator(item: DiscoverableItem): LocalCreator | null 
     handle,
     displayName: displayCreatorName(handle),
     avatarUrl: item.creatorAvatarUrl || item.creatorProfileImageUrl || item.profileImageUrl || item.avatarUrl || '',
-    profileUrl: `${publicOrigin}/u/${encodeURIComponent(handle)}`,
+    profileUrl: canonicalCreatorProfileUrlForItem(item),
     publicOrigin,
     profileTheme: item.profileTheme || null,
     itemCount: 1,
@@ -891,6 +902,12 @@ function hydrateLocalCreators(creators: LocalCreator[], creatorSources: CreatorS
 function LocalCreatorCard({ creator }: { creator: LocalCreator }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
+  const profileUrl = canonicalCreatorProfileUrl({
+    publicOrigin: creator.publicOrigin,
+    creatorHandle: creator.handle,
+    profileUrl: creator.profileUrl,
+    value: creator,
+  });
   const chips = [
     creator.itemCount ? `${creator.itemCount} ${creator.itemCount === 1 ? 'work' : 'works'}` : '',
     creator.premiumCount ? `${creator.premiumCount} premium` : '',
@@ -907,7 +924,7 @@ function LocalCreatorCard({ creator }: { creator: LocalCreator }) {
   })();
   return (
     <a
-      href={creator.profileUrl}
+      href={profileUrl}
       target="_blank"
       rel="noreferrer"
       className="creator-themed-card group flex min-w-0 items-center gap-3 rounded-2xl border p-3 transition"
@@ -988,9 +1005,15 @@ function CompactCreatorRow({ creator, rank }: { creator: CreatorSpotlight; rank:
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const chips = creatorBadges(creator).slice(0, 2);
   const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
+  const profileUrl = canonicalCreatorProfileUrl({
+    publicOrigin: creator.publicOrigin,
+    creatorHandle: creator.handle,
+    profileUrl: creator.profileUrl,
+    value: creator,
+  });
   return (
     <a
-      href={creator.profileUrl}
+      href={profileUrl}
       target="_blank"
       rel="noreferrer"
       className="creator-themed-card creator-row group flex min-w-0 items-center gap-2 rounded-xl border p-2 transition sm:gap-3"

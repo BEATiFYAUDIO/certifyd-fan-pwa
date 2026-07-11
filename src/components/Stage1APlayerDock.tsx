@@ -8,6 +8,7 @@ import { displayStateFromItem, displayStateFromPlayback } from '../lib/playbackD
 import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
 import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
 import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
+import { canonicalCreatorProfileUrl, canonicalCreatorProfileUrlForItem } from '../lib/destinations';
 import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerOptions, type Stage1APlayerState } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
@@ -42,11 +43,16 @@ function canonicalOfferUrl(item: DiscoverableItem): string {
 }
 
 function creatorProfileUrl(item: DiscoverableItem, offer: CanonicalOffer | null): string {
-  const explicit = resolveAbsoluteUrl(offer?.creatorUrl || offer?.profileUrl, item.publicOrigin);
-  if (explicit) return explicit;
-  const handle = String(offer?.creatorHandle || item.creatorHandle || '').trim().replace(/^@+/, '');
-  if (!handle || !item.publicOrigin) return '';
-  return `${String(item.publicOrigin).replace(/\/+$/, '')}/u/${encodeURIComponent(handle)}`;
+  const offerCreatorHandle = typeof offer?.creatorHandle === 'string' ? offer.creatorHandle : null;
+  const offerProfileUrl = typeof offer?.profileUrl === 'string' ? offer.profileUrl : null;
+  const offerCreatorUrl = typeof offer?.creatorUrl === 'string' ? offer.creatorUrl : null;
+  return canonicalCreatorProfileUrl({
+    publicOrigin: item.publicOrigin,
+    creatorHandle: offerCreatorHandle || item.creatorHandle,
+    profileUrl: offerProfileUrl,
+    creatorUrl: offerCreatorUrl,
+    value: offer || item,
+  }) || canonicalCreatorProfileUrlForItem(item);
 }
 
 type CanonicalOfferResult = {

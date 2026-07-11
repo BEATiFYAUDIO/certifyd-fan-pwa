@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DiscoverableItem, ProfileTheme } from './types';
+import { canonicalCreatorProfileUrlForItem } from './destinations';
 
 export const SAVED_WORKS_STORAGE_KEY = 'certifyd-player:saved-works:v1';
 export const SAVED_CREATORS_STORAGE_KEY = 'certifyd-player:saved-creators:v1';
@@ -44,7 +45,7 @@ export function creatorFromItem(item: DiscoverableItem): LocalCreator | null {
     handle,
     displayName: handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
     avatarUrl: item.creatorAvatarUrl || item.creatorProfileImageUrl || item.profileImageUrl || item.avatarUrl || '',
-    profileUrl: `${publicOrigin}/u/${encodeURIComponent(handle)}`,
+    profileUrl: canonicalCreatorProfileUrlForItem(item),
     publicOrigin,
     profileTheme: item.profileTheme || null,
     itemCount: 1,

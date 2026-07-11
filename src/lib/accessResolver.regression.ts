@@ -4,6 +4,7 @@ import { receiptProofsForItem, withReceiptProofs } from './receiptProofs';
 import { accessStatusUrlsForItem, isReceiptStatusUnlocked, type ReceiptAccessStatus } from './receiptStatus';
 import { parseRestoreAccessInput } from './restoreAccess';
 import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from './fanReturnUrl';
+import { canonicalCreatorProfileUrlForItem, canonicalWorkBuyUrlForItem } from './destinations';
 import type { DiscoverableItem } from './types';
 
 function fixtureItem(overrides: Partial<DiscoverableItem> = {}): DiscoverableItem {
@@ -240,6 +241,12 @@ export function runAccessResolverRegressionChecks() {
 
   const repairedProfileUrl = buyUrlWithFanReturnUrl('https://creator.test/u/creator', item);
   assert(repairedProfileUrl.startsWith('https://creator.test/buy/content-1?'), 'creator profile URL is repaired to contentbox buy URL');
+
+  assert(canonicalCreatorProfileUrlForItem(item) === 'https://creator.test/u/creator', 'creator profile URL uses contentbox /u/:handle');
+  assert(canonicalCreatorProfileUrlForItem({ ...item, creatorHandle: 'creator', creatorUrl: 'javascript:alert(1)' } as DiscoverableItem) === 'https://creator.test/u/creator', 'malformed creator URL is rejected');
+  assert(canonicalCreatorProfileUrlForItem({ ...item, creatorHandle: 'creator', creatorUrl: 'https://evil.test/u/creator' } as DiscoverableItem) === 'https://creator.test/u/creator', 'cross-origin creator URL is rejected');
+  assert(canonicalWorkBuyUrlForItem({ ...item, buyUrl: 'https://creator.test/buy/content/content-1' }) === 'https://creator.test/buy/content-1', 'offer endpoint URL is not treated as the public buy page');
+  assert(canonicalWorkBuyUrlForItem({ ...item, buyUrl: 'https://evil.test/buy/content-1' }) === 'https://creator.test/buy/content-1', 'cross-origin buy URL is rejected');
 }
 
 runAccessResolverRegressionChecks();

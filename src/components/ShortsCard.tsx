@@ -3,6 +3,7 @@ import { memo, useMemo, useState, type MouseEvent } from 'react';
 import type { DiscoverableItem } from '../lib/types';
 import { displayStateFromItem } from '../lib/playbackDisplay';
 import { getCardThemeVars } from '../lib/profileTheme';
+import { canonicalCreatorProfileUrlForItem } from '../lib/destinations';
 import { useStage1APlayer } from './stage1APlayerContext';
 
 function avatarInitials(handle: string | null): string {
@@ -27,10 +28,7 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
   const watchHref = `/watch/${encodeURIComponent(item.contentId)}?${query}`;
   const creator = item.creatorHandle || 'creator';
   const creatorHandleClean = String(item.creatorHandle || '').trim().replace(/^@+/, '');
-  const creatorProfileUrl =
-    creatorHandleClean && item.publicOrigin
-      ? `${String(item.publicOrigin).replace(/\/+$/, '')}/u/${encodeURIComponent(creatorHandleClean)}`
-      : null;
+  const creatorProfileUrl = canonicalCreatorProfileUrlForItem(item);
 
   const avatarUrl =
     item.creatorAvatarUrl ||

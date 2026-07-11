@@ -1,5 +1,6 @@
 import type { DiscoverableItem, ProfileTheme } from './types';
 import { isLockedOrPremium, isRenderableDiscoveryItem } from './discoveryGuard';
+import { canonicalCreatorProfileUrl } from './destinations';
 
 export type DiscoveryRail = {
   key: string;
@@ -339,7 +340,11 @@ export function buildCreatorSpotlights(items: DiscoverableItem[], limit = 6): Cr
       handle,
       publicOrigin: first.publicOrigin,
       avatarUrl,
-      profileUrl: `${first.publicOrigin.replace(/\/+$/, '')}/u/${encodeURIComponent(handle)}`,
+      profileUrl: canonicalCreatorProfileUrl({
+        publicOrigin: first.publicOrigin,
+        creatorHandle: handle,
+        value: first,
+      }),
       itemCount: rows.length,
       freeCount: rows.filter((item) => !isLockedOrPremium(item) && (item.accessMode === 'unlocked' || item.accessMode === 'owned')).length,
       premiumCount: rows.filter((item) => isLockedOrPremium(item)).length,

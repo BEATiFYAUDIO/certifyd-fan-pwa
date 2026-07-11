@@ -1,5 +1,5 @@
 import type { DiscoverableItem } from './types';
-import { normalizeCanonicalOrigin } from './origin';
+import { canonicalWorkBuyUrlForItem } from './destinations';
 
 function clean(value: unknown): string {
   return String(value || '').trim();
@@ -13,10 +13,7 @@ export function fanWatchReturnUrl(item: Pick<DiscoverableItem, 'contentId'>): st
 }
 
 export function contentboxBuyUrlForItem(item: Pick<DiscoverableItem, 'contentId' | 'publicOrigin'>): string {
-  const contentId = clean(item.contentId);
-  const publicOrigin = normalizeCanonicalOrigin(item.publicOrigin);
-  if (!contentId || !publicOrigin) return '';
-  return `${publicOrigin}/buy/${encodeURIComponent(contentId)}`;
+  return canonicalWorkBuyUrlForItem(item);
 }
 
 function isFanWatchUrl(url: URL): boolean {

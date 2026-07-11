@@ -9,6 +9,7 @@ import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptPr
 import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
 import { normalizeCanonicalOrigin } from '../lib/origin';
 import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
+import { canonicalCreatorProfileUrlForItem, canonicalCreatorProfileUrlForPerson } from '../lib/destinations';
 import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem, Topic } from '../lib/types';
 import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
@@ -597,6 +598,7 @@ function PeopleList({ people }: { people: ContentContextPerson[] }) {
       {people.map((person) => {
         const label = person.displayName || person.handle || 'Contributor';
         const handle = person.handle ? `@${String(person.handle).replace(/^@+/, '')}` : null;
+        const profileUrl = canonicalCreatorProfileUrlForPerson(person);
         const body = (
           <div className="watch-card watch-card-hover flex min-w-0 items-center gap-3 rounded-xl border p-3 transition">
             {person.avatarUrl ? (
@@ -614,8 +616,8 @@ function PeopleList({ people }: { people: ContentContextPerson[] }) {
             </div>
           </div>
         );
-        return person.profileUrl ? (
-          <a key={personKey(person)} href={person.profileUrl} target="_blank" rel="noreferrer" className="block">
+        return profileUrl ? (
+          <a key={personKey(person)} href={profileUrl} target="_blank" rel="noreferrer" className="block">
             {body}
           </a>
         ) : (
@@ -733,14 +735,15 @@ function ConnectedCreators({ creators }: { creators: ContentContextCreator[] }) 
     <div className="flex flex-wrap gap-2">
       {rows.map((creator) => {
         const label = creator.displayName || creator.handle || 'Creator';
+        const profileUrl = canonicalCreatorProfileUrlForPerson(creator);
         const chip = (
           <span className="watch-card watch-card-hover inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm text-zinc-200">
             {creator.avatarUrl ? <img src={creator.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : null}
             <span>{label}</span>
           </span>
         );
-        return creator.profileUrl ? (
-          <a key={personKey(creator)} href={creator.profileUrl} target="_blank" rel="noreferrer">
+        return profileUrl ? (
+          <a key={personKey(creator)} href={profileUrl} target="_blank" rel="noreferrer">
             {chip}
           </a>
         ) : (
@@ -930,6 +933,7 @@ function HeroAttributionLineage({
   credits: CreditItem[];
 }) {
   const creator = context?.creator || null;
+  const creatorProfileUrl = canonicalCreatorProfileUrlForPerson(creator);
   const source = dedupeWorks([...(context?.derivedFrom || []), ...(context?.builtFrom || [])])[0] || null;
   const people = filterDisplayPeople(
     dedupePeople([...(context?.peopleBehindThis || []), ...(context?.createdWith || [])]),
@@ -951,19 +955,14 @@ function HeroAttributionLineage({
           <div className="watch-hero-lineage-heading">Attribution & Lineage</div>
           <p>Where this work comes from and who is publicly connected to it.</p>
         </div>
-        {creator?.profileUrl ? (
-          <a className="watch-hero-lineage-open" href={creator.profileUrl} target="_blank" rel="noreferrer">
-            Open Creator
-          </a>
-        ) : null}
       </div>
       <div className="watch-hero-lineage-grid">
         {creator ? (
           <a
             className="watch-hero-lineage-card watch-hero-lineage-person"
-            href={creator.profileUrl || undefined}
-            target={creator.profileUrl ? '_blank' : undefined}
-            rel={creator.profileUrl ? 'noreferrer' : undefined}
+            href={creatorProfileUrl || undefined}
+            target={creatorProfileUrl ? '_blank' : undefined}
+            rel={creatorProfileUrl ? 'noreferrer' : undefined}
           >
             <span>Created by</span>
             <div>
@@ -985,6 +984,7 @@ function HeroAttributionLineage({
             <span>People involved</span>
             <div className="watch-hero-lineage-chips">
               {people.map((person) => {
+                const profileUrl = canonicalCreatorProfileUrlForPerson(person);
                 const chip = (
                   <small>
                     {person.avatarUrl ? <img src={person.avatarUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
@@ -992,8 +992,8 @@ function HeroAttributionLineage({
                     {person.handle ? <em>@{String(person.handle).replace(/^@+/, '')}</em> : null}
                   </small>
                 );
-                return person.profileUrl ? (
-                  <a key={personKey(person)} href={person.profileUrl} target="_blank" rel="noreferrer">
+                return profileUrl ? (
+                  <a key={personKey(person)} href={profileUrl} target="_blank" rel="noreferrer">
                     {chip}
                   </a>
                 ) : (
@@ -1563,6 +1563,7 @@ function StandardWatch({
   }, [discoveryItems, explorationRails, item, relationshipContext]);
   const themeVars = useMemo(() => getCardThemeVars(item?.profileTheme), [item?.profileTheme]);
   const creatorLabel = item?.creatorHandle ? item.creatorHandle.replace(/^@+/, '') : 'creator';
+  const selectedCreatorProfileUrl = item ? canonicalCreatorProfileUrlForItem(item) : '';
   const canRestoreAccess = Boolean(item && Number(item.priceSats || 0) > 0 && displayStateFromItem(item).state === 'preview');
   const buyWithReturnUrl = item ? buyUrlWithFanReturnUrl(item.buyUrl, item) : '#';
   const detailRows = useMemo(() => {
@@ -1719,7 +1720,13 @@ function StandardWatch({
                     </div>
                     <h1 className="watch-title text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">{item.title || 'Untitled'}</h1>
                     <div className="mt-4 flex flex-wrap items-center gap-3 text-lg font-semibold text-zinc-100">
-                      <span>{creatorLabel}</span>
+                      {selectedCreatorProfileUrl ? (
+                        <a href={selectedCreatorProfileUrl} target="_blank" rel="noreferrer" className="hover:underline">
+                          {creatorLabel}
+                        </a>
+                      ) : (
+                        <span>{creatorLabel}</span>
+                      )}
                       <span className="watch-verified-dot" aria-hidden="true">●</span>
                       <span className="watch-pill watch-pill-inline">{priceLabel(item)}</span>
                     </div>
@@ -1727,6 +1734,11 @@ function StandardWatch({
                       <button type="button" className="watch-pill watch-details-pill" onClick={() => setDetailsOpen(true)}>
                         Details
                       </button>
+                      {selectedCreatorProfileUrl ? (
+                        <a className="watch-pill watch-details-pill" href={selectedCreatorProfileUrl} target="_blank" rel="noreferrer">
+                          Visit Creator
+                        </a>
+                      ) : null}
                     </div>
                     {item.description ? (
                       <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-zinc-100 sm:text-base">{item.description}</p>
