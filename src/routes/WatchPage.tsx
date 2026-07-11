@@ -463,13 +463,12 @@ function ConnectionGroupSection({
     <section className="watch-connection-group watch-panel rounded-3xl border p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="watch-accent-text text-[11px] font-black uppercase tracking-[0.22em]">Connection Group</div>
           <h2 className="mt-1 text-xl font-black tracking-tight text-white">{group.title}</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-300">Recommended because: {group.reason}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="watch-pill watch-pill-inline">{group.reason}</span>
+            {group.score ? <span className="watch-pill watch-pill-inline">{group.score}</span> : null}
+          </div>
         </div>
-        {group.score ? (
-          <span className="watch-pill shrink-0">{group.score}</span>
-        ) : null}
       </div>
       {group.kind === 'works' ? (
         <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -833,52 +832,55 @@ function buildWatchConnectionGroups({
     });
   };
 
-  if (relationshipContext) {
-    pushContextWorkGroup(
-      'original-work',
-      'Original Work',
-      'This work publicly declares upstream source material or work it was built from.',
-      [...(relationshipContext.derivedFrom || []), ...(relationshipContext.builtFrom || [])],
-    );
-    pushContextWorkGroup(
-      'derivatives',
-      'Derivatives',
-      'These works publicly build on or derive from the current work.',
-      relationshipContext.worksThatBuiltOnThis || [],
-    );
-    pushPeopleGroup(
-      'collaborators',
-      'Collaborators',
-      'These people are credited, featured, or publicly connected to the work.',
-      [...(relationshipContext.peopleBehindThis || []), ...(relationshipContext.createdWith || []), ...(relationshipContext.featuring || [])],
-    );
-    pushContextWorkGroup(
-      'related-works',
-      'Related Works',
-      'Contentbox reports these works as directly related to the current work.',
-      relationshipContext.relatedWorks || [],
-    );
-    pushCreatorGroup(
-      'connected-creators',
-      'Connected Creators',
-      'These creator nodes are publicly connected through attribution, credits, or related work.',
-      relationshipContext.connectedCreators || [],
-    );
-    pushContextWorkGroup(
-      'more-they-worked-on',
-      'More They Worked On',
-      'The same public collaborators or connected creators also appear on these works.',
-      relationshipContext.moreTheyWorkedOn || [],
-    );
-  }
-
   const sameCreator = railByKey.get('more-from-creator');
   if (sameCreator) {
     pushDiscoverableGroup(
       'same-creator',
       'Same Creator',
-      `More work published by @${item.creatorHandle || 'creator'}.`,
+      'Same creator',
       sameCreator.items,
+    );
+  }
+
+  if (relationshipContext) {
+    pushContextWorkGroup(
+      'related-works',
+      'Related Works',
+      'Directly related',
+      relationshipContext.relatedWorks || [],
+    );
+    pushCreatorGroup(
+      'connected-creators',
+      'Connected Creators',
+      'Creator network',
+      relationshipContext.connectedCreators || [],
+    );
+    const primaryCreatorKey = relationshipContext.creator ? personKey(relationshipContext.creator) : '';
+    const collaborators = [...(relationshipContext.peopleBehindThis || []), ...(relationshipContext.createdWith || []), ...(relationshipContext.featuring || [])]
+      .filter((person) => personKey(person) !== primaryCreatorKey);
+    pushPeopleGroup(
+      'collaborators',
+      'Collaborators',
+      'Credited people',
+      collaborators,
+    );
+    pushContextWorkGroup(
+      'original-work',
+      'Original Work',
+      'Source material',
+      [...(relationshipContext.derivedFrom || []), ...(relationshipContext.builtFrom || [])],
+    );
+    pushContextWorkGroup(
+      'derivatives',
+      'Derivatives',
+      'Built from this',
+      relationshipContext.worksThatBuiltOnThis || [],
+    );
+    pushContextWorkGroup(
+      'more-they-worked-on',
+      'More They Worked On',
+      'Shared collaborators',
+      relationshipContext.moreTheyWorkedOn || [],
     );
   }
 
@@ -887,7 +889,7 @@ function buildWatchConnectionGroups({
     pushDiscoverableGroup(
       'same-genre',
       'Same Genre',
-      `More work in ${displayConnectionLabel(item.primaryTopic, 'this topic')}.`,
+      displayConnectionLabel(item.primaryTopic, 'Same topic'),
       sameGenre.items,
     );
   }
@@ -897,7 +899,7 @@ function buildWatchConnectionGroups({
     pushDiscoverableGroup(
       'same-type',
       'Same Type',
-      `More ${displayConnectionLabel(item.contentType, 'work')} content.`,
+      displayConnectionLabel(item.contentType, 'Same format'),
       sameType.items,
     );
   }
@@ -907,7 +909,7 @@ function buildWatchConnectionGroups({
     pushDiscoverableGroup(
       'same-node',
       'Same Node',
-      'Published from the same creator node origin.',
+      'Same node',
       sameNode.items,
     );
   }
@@ -918,7 +920,7 @@ function buildWatchConnectionGroups({
   pushDiscoverableGroup(
     'trending-new',
     'Trending / New',
-    'Recently published or recently indexed works from the Certifyd graph.',
+    'Recent graph activity',
     recent,
   );
 
@@ -1802,13 +1804,6 @@ function StandardWatch({
             </div>
 
             <section className="watch-graph-explorer space-y-6">
-              <div className="watch-panel rounded-3xl border p-4 sm:p-5">
-                <div className="watch-accent-text text-[11px] font-black uppercase tracking-[0.22em]">Graph Explorer</div>
-                <h2 className="mt-1 text-2xl font-black tracking-tight text-white">Why this work matters</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">
-                  Every group below names the public relationship behind the recommendation. The layout stays fixed; the graph data decides which groups appear.
-                </p>
-              </div>
               {connectionGroups.map((group) => (
                 <ConnectionGroupSection
                   key={group.key}
