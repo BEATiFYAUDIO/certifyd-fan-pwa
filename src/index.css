@@ -1193,18 +1193,21 @@ body::after {
 }
 
 .watch-details-modal {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 80;
+  z-index: 30;
   display: grid;
-  place-items: center;
-  background: rgba(0, 0, 0, 0.68);
-  padding: 1rem;
-  backdrop-filter: blur(10px);
+  align-items: start;
+  justify-items: start;
+  background: rgba(0, 0, 0, 0.42);
+  padding: clamp(0.75rem, 2vw, 1.25rem);
+  backdrop-filter: blur(8px);
 }
 
 .watch-details-modal-panel {
-  width: min(92vw, 34rem);
+  width: min(100%, 42rem);
+  max-height: min(78vh, 34rem);
+  overflow: auto;
   border: 1px solid rgba(34, 197, 94, 0.3);
   border-radius: 1.25rem;
   background:
@@ -1228,30 +1231,39 @@ body::after {
   font-weight: 900;
 }
 
-.watch-details-grid {
+.watch-details-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem;
+  gap: 0.45rem;
   margin-top: 1rem;
 }
 
-.watch-details-grid div {
+.watch-details-heading {
+  margin-top: 0.45rem;
+  color: rgba(134, 239, 172, 0.98);
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.watch-details-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.34fr) minmax(0, 1fr);
+  gap: 0.75rem;
   min-width: 0;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.9rem;
+  border-radius: 0.75rem;
   background: rgba(2, 6, 12, 0.58);
-  padding: 0.75rem;
+  padding: 0.62rem 0.75rem;
 }
 
-.watch-details-grid span,
-.watch-details-grid strong {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.watch-details-row span,
+.watch-details-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.watch-details-grid span {
+.watch-details-row span {
   color: rgba(161, 161, 170, 0.92);
   font-size: 0.64rem;
   font-weight: 900;
@@ -1259,11 +1271,10 @@ body::after {
   text-transform: uppercase;
 }
 
-.watch-details-grid strong {
-  margin-top: 0.28rem;
+.watch-details-row strong {
   color: #ffffff;
-  font-size: 0.9rem;
-  font-weight: 900;
+  font-size: 0.84rem;
+  font-weight: 800;
 }
 
 .watch-support-strip {

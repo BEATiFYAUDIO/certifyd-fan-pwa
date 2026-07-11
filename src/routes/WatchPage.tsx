@@ -319,6 +319,14 @@ function discoveryItemKey(item: Pick<DiscoverableItem, 'contentId' | 'publicOrig
   return item ? `${item.publicOrigin}::${item.contentId}` : '';
 }
 
+type WatchDetailRow = { label: string; value: string; kind?: 'item' | 'heading' };
+
+function addWatchDetailRow(rows: WatchDetailRow[], label: string, value: unknown) {
+  const text = String(value ?? '').trim();
+  if (!text) return;
+  rows.push({ label, value: text });
+}
+
 function WatchDiscoveryCard({
   item,
   queue,
@@ -1249,6 +1257,55 @@ function StandardWatch({
   const creatorLabel = item?.creatorHandle ? item.creatorHandle.replace(/^@+/, '') : 'creator';
   const canRestoreAccess = Boolean(item && Number(item.priceSats || 0) > 0 && displayStateFromItem(item).state === 'preview');
   const buyWithReturnUrl = item ? buyUrlWithFanReturnUrl(item.buyUrl, item) : '#';
+  const detailRows = useMemo(() => {
+    if (!item) return [];
+    const rows: WatchDetailRow[] = [];
+    addWatchDetailRow(rows, 'Title', item.title || 'Untitled');
+    addWatchDetailRow(rows, 'Creator', creatorLabel ? `@${creatorLabel}` : null);
+    addWatchDetailRow(rows, 'Media', item.contentType);
+    addWatchDetailRow(rows, 'State', priceLabel(item));
+    addWatchDetailRow(rows, 'Type', item.contentType);
+    addWatchDetailRow(rows, 'Topic', item.primaryTopic);
+    if (Number(item.priceSats || 0) > 0) addWatchDetailRow(rows, 'Price', `${Number(item.priceSats || 0).toLocaleString()} sats`);
+    addWatchDetailRow(rows, 'Access', item.accessMode);
+    if (item.owned) addWatchDetailRow(rows, 'Ownership', 'owned');
+    if (item.hasFullAccess) addWatchDetailRow(rows, 'Playback access', 'full access');
+    if (item.isLocked) addWatchDetailRow(rows, 'Lock state', 'locked');
+    if (Array.isArray(item.relationshipBadges)) item.relationshipBadges.forEach((badge) => addWatchDetailRow(rows, 'Signal', badge));
+
+    if (relationshipContext) {
+      rows.push({ label: 'Connections', value: '', kind: 'heading' });
+      addWatchDetailRow(rows, 'Connected creators', relationshipContext.connectedCreators.length ? `${relationshipContext.connectedCreators.length} connected creators` : null);
+      addWatchDetailRow(rows, 'Collaborators', credits.length ? `${credits.length} collaborators` : null);
+      addWatchDetailRow(rows, 'Attribution', item.attributionLabel || item.relationshipSummary?.attributionLabel);
+      addWatchDetailRow(rows, 'Lineage', item.lineageLabel || item.relationshipSummary?.lineageLabel);
+      rows.push({ label: 'Attribution & lineage', value: '', kind: 'heading' });
+      addWatchDetailRow(rows, 'Created by', relationshipContext.creator ? `${compactPersonLabel(relationshipContext.creator)}${relationshipContext.creator.handle ? ` @${String(relationshipContext.creator.handle).replace(/^@+/, '')}` : ''}` : null);
+      filterDisplayPeople(dedupePeople([...(relationshipContext.peopleBehindThis || []), ...(relationshipContext.createdWith || [])]))
+        .slice(0, 6)
+        .forEach((person) => {
+          const handle = person.handle ? ` @${String(person.handle).replace(/^@+/, '')}` : '';
+          const role = person.relationshipLabel || person.role || '';
+          addWatchDetailRow(rows, 'Person', `${compactPersonLabel(person)}${handle}${role ? ` · ${role}` : ''}`);
+        });
+    }
+
+    rows.push({ label: 'Proofs & credits', value: '', kind: 'heading' });
+    credits.slice(0, 8).forEach((credit) => {
+      const name = credit.displayName || credit.participantName || credit.handle || 'Contributor';
+      const handle = credit.handle ? ` @${String(credit.handle).replace(/^@+/, '')}` : '';
+      const role = credit.role ? ` · ${credit.role}` : '';
+      const percent = credit.sharePercent ?? credit.percent;
+      addWatchDetailRow(rows, 'Credit', `${name}${handle}${role}${percent != null ? ` · ${percent}%` : ''}`);
+    });
+    addWatchDetailRow(rows, 'Payment state', item.paymentAccessProof?.paymentState);
+    addWatchDetailRow(rows, 'Entitlement', item.paymentAccessProof?.entitlementState);
+    addWatchDetailRow(rows, 'Payment receipt', item.paymentAccessProof?.paymentReceiptId);
+    addWatchDetailRow(rows, 'Content ID', item.contentId);
+    addWatchDetailRow(rows, 'Origin', item.publicOrigin);
+    addWatchDetailRow(rows, 'Offer', item.offerUrl || `${item.publicOrigin}/buy/content/${encodeURIComponent(item.contentId)}/offer`);
+    return rows;
+  }, [credits, creatorLabel, item, relationshipContext]);
   const heroStyle = item?.coverUrl
     ? {
       ...themeVars,
@@ -1394,6 +1451,30 @@ function StandardWatch({
                   </button>
                 </div>
               </div>
+              {detailsOpen ? (
+                <div className="watch-details-modal" role="dialog" aria-modal="true" aria-label="Work details" onClick={() => setDetailsOpen(false)}>
+                  <div className="watch-details-modal-panel" onClick={(event) => event.stopPropagation()}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="watch-hero-lineage-heading">Details</div>
+                      <h2 className="mt-1 text-xl font-black text-white">{item.title || 'Untitled'}</h2>
+                    </div>
+                    <button type="button" className="watch-details-close" onClick={() => setDetailsOpen(false)} aria-label="Close details">×</button>
+                  </div>
+                  <div className="watch-details-list">
+                    {detailRows.map((row, index) => row.kind === 'heading' ? (
+                      <div key={`${row.label}:${index}`} className="watch-details-heading">{row.label}</div>
+                    ) : (
+                      <div key={`${row.label}:${row.value}:${index}`} className="watch-details-row">
+                        <span>{row.label}</span>
+                        <strong>{row.value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  {item.description ? <p className="mt-4 text-sm leading-6 text-zinc-300">{item.description}</p> : null}
+                  </div>
+                </div>
+              ) : null}
 
             </div>
 
@@ -1405,26 +1486,6 @@ function StandardWatch({
               </div>
             ) : null}
 
-            {detailsOpen ? (
-              <div className="watch-details-modal" role="dialog" aria-modal="true" aria-label="Work details" onClick={() => setDetailsOpen(false)}>
-                <div className="watch-details-modal-panel" onClick={(event) => event.stopPropagation()}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="watch-hero-lineage-heading">Details</div>
-                      <h2 className="mt-1 text-xl font-black text-white">{item.title || 'Untitled'}</h2>
-                    </div>
-                    <button type="button" className="watch-details-close" onClick={() => setDetailsOpen(false)} aria-label="Close details">×</button>
-                  </div>
-                  <div className="watch-details-grid">
-                    <div><span>Status</span><strong>{priceLabel(item)}</strong></div>
-                    {item.contentType ? <div><span>Type</span><strong>{item.contentType}</strong></div> : null}
-                    {item.primaryTopic ? <div><span>Topic</span><strong>{item.primaryTopic}</strong></div> : null}
-                    <div><span>Creator</span><strong>{creatorLabel}</strong></div>
-                  </div>
-                  {item.description ? <p className="mt-4 text-sm leading-6 text-zinc-300">{item.description}</p> : null}
-                </div>
-              </div>
-            ) : null}
 
           </section>
         ) : null}
