@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStage1APlayer } from '../components/stage1APlayerContext';
 import { fetchContentContext, fetchDiscoverablePage } from '../lib/api';
@@ -520,22 +520,6 @@ function filterDisplayCreators(rows: ContentContextCreator[]): ContentContextCre
   return rows.filter((creator) => !isLowValueGenericPerson(creator));
 }
 
-function excludePeople<T extends ContentContextPerson | ContentContextCreator>(rows: T[], exclude: Set<string>): T[] {
-  return rows.filter((row) => !exclude.has(personKey(row)));
-}
-
-function RelationshipSection({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
-  return (
-    <section className="watch-panel rounded-2xl border p-4">
-      <div>
-        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-100">{title}</h2>
-        {subtitle ? <p className="mt-1 text-xs text-zinc-400">{subtitle}</p> : null}
-      </div>
-      <div className="mt-4">{children}</div>
-    </section>
-  );
-}
-
 function PeopleList({ people }: { people: ContentContextPerson[] }) {
   if (!people.length) return null;
   return (
@@ -593,7 +577,7 @@ function WorksList({
         const creator = work.creator?.displayName || work.creator?.handle || 'Creator';
         const playableWork = workToDiscoverableItem(work);
         const card = (
-          <div className="watch-card watch-card-hover overflow-hidden rounded-xl border text-left transition">
+          <div className="watch-card watch-card-hover group overflow-hidden rounded-xl border text-left transition">
             <div className="relative aspect-video bg-zinc-950">
               {work.coverUrl ? (
                 <img src={work.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
@@ -605,7 +589,7 @@ function WorksList({
               {playableWork ? (
                 <button
                   type="button"
-                  className="absolute bottom-2 right-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-black shadow-lg"
+                  className="absolute bottom-2 right-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-black opacity-0 shadow-lg transition group-hover:opacity-100 focus:opacity-100"
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -629,9 +613,10 @@ function WorksList({
           </div>
         );
         return playableWork ? (
-          <button
+          <div
             key={workKey(work)}
-            type="button"
+            role="button"
+            tabIndex={0}
             className="block w-full text-left"
             onClick={() => {
               if (onSelectWork) {
@@ -640,9 +625,18 @@ function WorksList({
               }
               void playItem(playableWork, { queue: playableWorks });
             }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              if (onSelectWork) {
+                onSelectWork(playableWork);
+                return;
+              }
+              void playItem(playableWork, { queue: playableWorks });
+            }}
           >
             {card}
-          </button>
+          </div>
         ) : work.contentId ? (
           <Link
             key={workKey(work)}
@@ -686,120 +680,12 @@ function ConnectedCreators({ creators }: { creators: ContentContextCreator[] }) 
   );
 }
 
-function AttributionLineageSummary({
-  creator,
-  sourceWorks,
-  upstreamCreators,
-  contributors,
-}: {
-  creator: ContentContextCreator | null;
-  sourceWorks: ContentContextWork[];
-  upstreamCreators: ContentContextCreator[];
-  contributors: ContentContextPerson[];
-}) {
-  const hasSource = sourceWorks.length > 0;
-  const people = dedupePeople([...contributors, ...upstreamCreators]).slice(0, 5);
-  if (!creator && !hasSource && people.length === 0) return null;
-
-  const source = sourceWorks[0] || null;
-  const creatorLabel = compactPersonLabel(creator);
-  const sourceCreatorLabel = compactPersonLabel(source?.creator);
-
-  return (
-    <section className="watch-panel rounded-2xl border p-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <h2 className="watch-accent-text text-sm font-semibold uppercase tracking-[0.18em]">Attribution & lineage</h2>
-          <p className="mt-1 text-sm text-zinc-400">Where this work comes from and who is publicly connected to it.</p>
-        </div>
-        {creator?.profileUrl ? (
-          <a
-            href={creator.profileUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="watch-action-secondary inline-flex shrink-0 items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
-          >
-            Open creator
-          </a>
-        ) : null}
-      </div>
-
-      <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        {creator ? (
-          <div className="watch-card rounded-xl border p-3">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Created by</div>
-            <div className="mt-2 flex min-w-0 items-center gap-3">
-              {creator.avatarUrl ? (
-                <img src={creator.avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full border border-zinc-700 object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
-              ) : null}
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-zinc-100">{creatorLabel}</div>
-                {creator.handle ? <div className="truncate text-xs text-zinc-500">@{String(creator.handle).replace(/^@+/, '')}</div> : null}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {source ? (
-          <a
-            href={source.publicUrl || undefined}
-            target={source.publicUrl ? '_blank' : undefined}
-            rel={source.publicUrl ? 'noreferrer' : undefined}
-            className="watch-card watch-card-hover rounded-xl border p-3 transition"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
-              {source.relationshipLabel || 'Built from'}
-            </div>
-            <div className="mt-2 flex min-w-0 gap-3">
-              <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-950">
-                {source.coverUrl ? (
-                  <img src={source.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-[9px] uppercase tracking-wide text-zinc-500">{source.contentType || 'Work'}</div>
-                )}
-              </div>
-              <div className="min-w-0">
-                <div className="line-clamp-1 text-sm font-semibold text-zinc-100">{source.title || 'Untitled work'}</div>
-                <div className="truncate text-xs text-zinc-500">{sourceCreatorLabel}</div>
-              </div>
-            </div>
-          </a>
-        ) : null}
-
-        {people.length ? (
-          <div className="watch-card rounded-xl border p-3">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">People involved</div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {people.map((person) => {
-                const label = compactPersonLabel(person);
-                const handle = person.handle ? `@${String(person.handle).replace(/^@+/, '')}` : '';
-                const chip = (
-                  <span className="watch-card inline-flex max-w-full items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs text-zinc-200">
-                    {person.avatarUrl ? <img src={person.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
-                    <span className="truncate">{label}</span>
-                    {handle ? <span className="hidden text-zinc-500 sm:inline">{handle}</span> : null}
-                  </span>
-                );
-                return person.profileUrl ? (
-                  <a key={`summary:${personKey(person)}`} href={person.profileUrl} target="_blank" rel="noreferrer">
-                    {chip}
-                  </a>
-                ) : (
-                  <span key={`summary:${personKey(person)}`}>{chip}</span>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
 function HeroAttributionLineage({
+  item,
   context,
   credits,
 }: {
+  item: DiscoverableItem;
   context: ContentRelationshipContext | null;
   credits: CreditItem[];
 }) {
@@ -877,6 +763,14 @@ function HeroAttributionLineage({
             </div>
           </div>
         ) : null}
+        <div className="watch-hero-lineage-card">
+          <span>Details</span>
+          <div className="watch-hero-lineage-list">
+            {item.contentType ? <small>Type: {item.contentType}</small> : null}
+            {item.primaryTopic ? <small>Topic: {item.primaryTopic}</small> : null}
+            <small>Access: {priceLabel(item)}</small>
+          </div>
+        </div>
         {creditRows.length ? (
           <div className="watch-hero-lineage-card">
             <span>Credits</span>
@@ -886,139 +780,6 @@ function HeroAttributionLineage({
           </div>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-function RelationshipContextSections({
-  context,
-  onSelectWork,
-  onPlayWork,
-}: {
-  context: ContentRelationshipContext | null;
-  onSelectWork?: (item: DiscoverableItem) => void;
-  onPlayWork?: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
-}) {
-  if (!context) return null;
-
-  const allPeopleBehindThis = filterDisplayPeople(
-    dedupePeople(context.peopleBehindThis || []).filter((person) => !isUpstreamPerson(person)),
-  );
-  const featuring = filterDisplayPeople(dedupePeople(context.featuring || [])).slice(0, 8);
-  const allCreatedWith = filterDisplayPeople(
-    dedupePeople(context.createdWith || []).filter((person) => !isUpstreamPerson(person) && person.relationshipLabel !== 'Creator'),
-  );
-  const derivedFrom = dedupeWorks(context.derivedFrom || []).slice(0, 12);
-  const derivedFromKeys = new Set(derivedFrom.map(workKey));
-  const builtFrom = dedupeWorks(context.builtFrom || [], derivedFromKeys).slice(0, 12);
-  const worksThatBuiltOnThis = dedupeWorks(context.worksThatBuiltOnThis || []).slice(0, 12);
-  const moreTheyWorkedOn = dedupeWorks(context.moreTheyWorkedOn || []).slice(0, 8);
-  const excludedRelated = new Set([...derivedFrom, ...builtFrom, ...worksThatBuiltOnThis, ...moreTheyWorkedOn].map(workKey));
-  const relatedWorks = dedupeWorks(context.relatedWorks || [], excludedRelated).slice(0, 8);
-  const connectedCreators = filterDisplayCreators(dedupePeople(context.connectedCreators || [])).slice(0, 8);
-  const summarySourceWorks = dedupeWorks([...derivedFrom, ...builtFrom]).slice(0, 3);
-  const summaryPeople = dedupePeople([...allPeopleBehindThis, ...allCreatedWith]).slice(0, 6);
-  const summaryPersonKeys = new Set(summaryPeople.map(personKey));
-  const sourceWorkKeys = new Set(summarySourceWorks.map(workKey));
-  const sourceCreatorKeys = new Set(
-    summarySourceWorks
-      .map((work) => work.creator)
-      .filter((creator): creator is ContentContextCreator => Boolean(creator))
-      .map(personKey),
-  );
-  const upstreamCreators = connectedCreators.filter((creator) => sourceCreatorKeys.has(personKey(creator))).slice(0, 4);
-  const peopleBehindThis = excludePeople(allPeopleBehindThis, summaryPersonKeys).slice(0, 12);
-  const peopleBehindKeys = new Set(allPeopleBehindThis.map(personKey));
-  const createdWith = excludePeople(allCreatedWith, new Set([...summaryPersonKeys, ...peopleBehindThis.map(personKey)]))
-    .filter((person) => !peopleBehindKeys.has(personKey(person)))
-    .slice(0, 10);
-  const repeatedConnectedCreators = connectedCreators
-    .filter((creator) => !summaryPersonKeys.has(personKey(creator)) && !sourceCreatorKeys.has(personKey(creator)))
-    .slice(0, 8);
-  const derivedFromSecondary = derivedFrom.filter((work) => !sourceWorkKeys.has(workKey(work)));
-  const builtFromSecondary = builtFrom.filter((work) => !sourceWorkKeys.has(workKey(work)));
-
-  const hasAny =
-    context.creator ||
-    peopleBehindThis.length ||
-    featuring.length ||
-    createdWith.length ||
-    builtFrom.length ||
-    derivedFrom.length ||
-    worksThatBuiltOnThis.length ||
-    moreTheyWorkedOn.length ||
-    relatedWorks.length ||
-    connectedCreators.length;
-
-  if (!hasAny) return null;
-
-  return (
-    <div className="watch-relationship-flow space-y-5">
-      <div>
-        <h2 className="text-base font-semibold text-zinc-100">Explore the connections</h2>
-        <p className="mt-1 text-sm text-zinc-400">Creators, collaborators, and related works around this publication.</p>
-      </div>
-
-      {moreTheyWorkedOn.length ? (
-        <RelationshipSection title="More They Worked On">
-          <WorksList works={moreTheyWorkedOn} onSelectWork={onSelectWork} onPlayWork={onPlayWork} />
-        </RelationshipSection>
-      ) : null}
-
-      <AttributionLineageSummary
-        creator={context.creator}
-        sourceWorks={summarySourceWorks}
-        upstreamCreators={upstreamCreators}
-        contributors={summaryPeople}
-      />
-
-      {derivedFromSecondary.length ? (
-        <RelationshipSection title="Derived From" subtitle="Original or upstream works this publication is connected to.">
-          <WorksList works={derivedFromSecondary} onSelectWork={onSelectWork} onPlayWork={onPlayWork} />
-        </RelationshipSection>
-      ) : null}
-
-      {builtFromSecondary.length ? (
-        <RelationshipSection title="Built From" subtitle="Additional source material connected to this work.">
-          <WorksList works={builtFromSecondary} onSelectWork={onSelectWork} onPlayWork={onPlayWork} />
-        </RelationshipSection>
-      ) : null}
-
-      {repeatedConnectedCreators.length ? (
-        <RelationshipSection title="Connected Creators">
-          <ConnectedCreators creators={repeatedConnectedCreators} />
-        </RelationshipSection>
-      ) : null}
-
-      {worksThatBuiltOnThis.length ? (
-        <RelationshipSection title="Works That Built On This">
-          <WorksList works={worksThatBuiltOnThis} onSelectWork={onSelectWork} onPlayWork={onPlayWork} />
-        </RelationshipSection>
-      ) : null}
-
-      {relatedWorks.length ? (
-        <RelationshipSection title="Related Works">
-          <WorksList works={relatedWorks} onSelectWork={onSelectWork} onPlayWork={onPlayWork} />
-        </RelationshipSection>
-      ) : null}
-
-      {peopleBehindThis.length ? (
-        <RelationshipSection title="People Behind This">
-          <PeopleList people={peopleBehindThis} />
-        </RelationshipSection>
-      ) : null}
-
-      {featuring.length ? (
-        <RelationshipSection title="Featuring">
-          <PeopleList people={featuring} />
-        </RelationshipSection>
-      ) : null}
-
-      {createdWith.length ? (
-        <RelationshipSection title="Created With">
-          <PeopleList people={createdWith} />
-        </RelationshipSection>
-      ) : null}
     </div>
   );
 }
@@ -1608,7 +1369,7 @@ function StandardWatch({
                     {item.description ? (
                       <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-zinc-100 sm:text-base">{item.description}</p>
                     ) : null}
-                    <HeroAttributionLineage context={relationshipContext} credits={credits} />
+                    <HeroAttributionLineage item={item} context={relationshipContext} credits={credits} />
                     {canRestoreAccess ? (
                       <div className="mt-5 flex flex-wrap items-center gap-3">
                         <a className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold" href={buyWithReturnUrl} target="_blank" rel="noreferrer">
@@ -1646,29 +1407,6 @@ function StandardWatch({
                 ))}
               </div>
             ) : null}
-
-            <RelationshipContextSections context={relationshipContext} onSelectWork={selectContentItem} onPlayWork={playContentItem} />
-
-            <section className="watch-context-block">
-              <div>
-                <h2 className="watch-section-title">Credits</h2>
-                <div className="mt-3 space-y-1">
-                  {credits.length ? credits.map((credit, idx) => {
-                    const name = credit.displayName || credit.participantName || 'Contributor';
-                    const handle = credit.handle ? `@${String(credit.handle).replace(/^@+/, '')}` : null;
-                    const role = credit.role || null;
-                    const pct = credit.sharePercent ?? credit.percent ?? null;
-                    return (
-                      <p key={`${name}-${idx}`} className="text-sm text-zinc-300">
-                        {name}{handle ? ` (${handle})` : ''}{role ? ` • ${role}` : ''}{pct != null ? ` • ${pct}%` : ''}
-                      </p>
-                    );
-                  }) : (
-                    <p className="text-sm text-zinc-400">Credits and contributor details appear here when the creator publishes them.</p>
-                  )}
-                </div>
-              </div>
-            </section>
 
           </section>
         ) : null}
