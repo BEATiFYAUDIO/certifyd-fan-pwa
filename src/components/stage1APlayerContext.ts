@@ -49,6 +49,7 @@ export type Stage1APlayerOptions = {
   openPlayer?: boolean;
   drawer?: Stage1APlayerDrawerPanel;
   mediaAspect?: Stage1APlayerMediaAspect;
+  queue?: DiscoverableItem[];
 };
 
 export type Stage1APlayerContextValue = {

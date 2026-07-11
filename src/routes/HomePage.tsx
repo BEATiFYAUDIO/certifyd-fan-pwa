@@ -147,7 +147,7 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
   const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
   const playWorkFromCard = (work: DiscoverableItem) => (event?: MouseEvent<HTMLElement>) => {
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) event?.preventDefault();
-    void playItem(work);
+    void playItem(work, { queue: creator.works });
   };
   return (
     <article className="creator-themed-card self-start overflow-hidden rounded-3xl border p-3 shadow-2xl shadow-black/30 sm:p-4 lg:col-span-2" style={themeVars}>
@@ -252,7 +252,7 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
   const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
   const playWorkFromCard = (work: DiscoverableItem) => (event?: MouseEvent<HTMLElement>) => {
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) event?.preventDefault();
-    void playItem(work);
+    void playItem(work, { queue: creator.works });
   };
   return (
     <article className={`creator-themed-card self-start rounded-2xl border p-3 shadow-xl shadow-black/20 ${index === 0 ? 'xl:col-span-2' : ''}`} style={themeVars}>
@@ -661,12 +661,14 @@ function RankingRow({
   score,
   scoreLabel,
   showPrice = false,
+  queue,
 }: {
   item: DiscoverableItem;
   rank: number;
   score?: number;
   scoreLabel?: string;
   showPrice?: boolean;
+  queue?: DiscoverableItem[];
 }) {
   const { playItem, setMobilePlayerOpen } = useStage1APlayer();
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
@@ -677,13 +679,14 @@ function RankingRow({
   const [imageFailed, setImageFailed] = useState(false);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
   const playFromRow = (event?: MouseEvent<HTMLElement>) => {
+    const playOptions = queue ? { queue } : undefined;
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) {
       event?.preventDefault();
       setMobilePlayerOpen(true);
-      void playItem(item);
+      void playItem(item, playOptions);
       return;
     }
-    void playItem(item);
+    void playItem(item, playOptions);
   };
   return (
     <article
@@ -722,7 +725,7 @@ function RankingRow({
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              void playItem(item);
+              void playItem(item, queue ? { queue } : undefined);
             }}
             aria-label={`Play ${item.title || 'work'} in Certifyd`}
           >
@@ -779,6 +782,7 @@ function RankedSurfaceCard({ surface, id }: { surface: RankedSurface; id?: strin
             score={surface.scoreFor?.(item)}
             scoreLabel={surface.scoreLabel}
             showPrice={showPrice}
+            queue={surface.items}
           />
         ))}
       </div>
@@ -809,6 +813,7 @@ function ExpandedRankedSurface({ surface, id }: { surface: RankedSurface; id: st
             score={surface.scoreFor?.(item)}
             scoreLabel={surface.scoreLabel}
             showPrice={showPrice}
+            queue={surface.items}
           />
         ))}
       </div>

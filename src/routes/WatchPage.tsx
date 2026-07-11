@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
-import { FeedCard } from '../components/FeedCard';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStage1APlayer } from '../components/stage1APlayerContext';
 import { fetchContentContext, fetchDiscoverablePage } from '../lib/api';
 import { loadConfiguredOrigins } from '../lib/config';
@@ -312,7 +311,75 @@ async function loadDiscoveryItems(topic: Topic): Promise<DiscoverableItem[]> {
   return sortNewestFirst(dedupeDiscoveryItems(rowsByOrigin.flat()));
 }
 
-function ExplorationRail({ rail }: { rail: DiscoveryRail }) {
+function watchHrefForItem(item: DiscoverableItem): string {
+  return `/watch/${encodeURIComponent(item.contentId)}?origin=${encodeURIComponent(item.publicOrigin)}`;
+}
+
+function WatchDiscoveryCard({
+  item,
+  queue,
+  onSelect,
+}: {
+  item: DiscoverableItem;
+  queue: DiscoverableItem[];
+  onSelect: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const playbackDisplay = displayStateFromItem(item);
+  const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
+  const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
+  return (
+    <Link
+      to={watchHrefForItem(item)}
+      state={{ item }}
+      className="creator-themed-card group block overflow-hidden rounded-2xl border p-2"
+      style={themeVars}
+      onClick={(event) => {
+        event.preventDefault();
+        onSelect(item, queue);
+      }}
+    >
+      <div className="creator-themed-media relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5">
+        <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+            playbackDisplay.state === 'preview' ? 'creator-themed-badge border' : 'creator-themed-badge-muted border'
+          }`}>
+            {playbackDisplay.label}
+          </span>
+        </div>
+        {item.coverUrl && !imageFailed ? (
+          <img
+            src={item.coverUrl}
+            alt={item.title || 'Content cover'}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => setImageFailed(true)}
+          />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
+            <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
+            <p className="mt-1 text-xs text-zinc-400">{(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}</p>
+          </div>
+        )}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+      </div>
+      <div className="mt-2 min-w-0">
+        <div className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100">{item.title || 'Untitled'}</div>
+        <div className="mt-1 truncate text-xs text-zinc-400">@{creator} • {item.contentType || 'work'}</div>
+      </div>
+    </Link>
+  );
+}
+
+function ExplorationRail({
+  rail,
+  onSelectItem,
+}: {
+  rail: DiscoveryRail;
+  onSelectItem: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
+}) {
   if (rail.items.length === 0) return null;
   return (
     <section className="space-y-3">
@@ -322,7 +389,12 @@ function ExplorationRail({ rail }: { rail: DiscoveryRail }) {
       </div>
       <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
         {rail.items.map((related) => (
-          <FeedCard key={`${rail.key}:${related.publicOrigin}:${related.contentId}`} item={related} />
+          <WatchDiscoveryCard
+            key={`${rail.key}:${related.publicOrigin}:${related.contentId}`}
+            item={related}
+            queue={rail.items}
+            onSelect={onSelectItem}
+          />
         ))}
       </div>
     </section>
@@ -479,8 +551,18 @@ function PeopleList({ people }: { people: ContentContextPerson[] }) {
   );
 }
 
-function WorksList({ works }: { works: ContentContextWork[] }) {
+function WorksList({
+  works,
+  onSelectWork,
+}: {
+  works: ContentContextWork[];
+  onSelectWork?: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
+}) {
   const { playItem } = useStage1APlayer();
+  const playableWorks = useMemo(
+    () => works.map((work) => workToDiscoverableItem(work)).filter((work): work is DiscoverableItem => Boolean(work)),
+    [works]
+  );
   if (!works.length) return null;
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -510,7 +592,13 @@ function WorksList({ works }: { works: ContentContextWork[] }) {
             key={workKey(work)}
             type="button"
             className="block w-full text-left"
-            onClick={() => void playItem(playableWork)}
+            onClick={() => {
+              if (onSelectWork) {
+                onSelectWork(playableWork, playableWorks);
+                return;
+              }
+              void playItem(playableWork, { queue: playableWorks });
+            }}
           >
             {card}
           </button>
@@ -761,7 +849,13 @@ function HeroAttributionLineage({
   );
 }
 
-function RelationshipContextSections({ context }: { context: ContentRelationshipContext | null }) {
+function RelationshipContextSections({
+  context,
+  onSelectWork,
+}: {
+  context: ContentRelationshipContext | null;
+  onSelectWork?: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
+}) {
   if (!context) return null;
 
   const allPeopleBehindThis = filterDisplayPeople(
@@ -824,7 +918,7 @@ function RelationshipContextSections({ context }: { context: ContentRelationship
 
       {moreTheyWorkedOn.length ? (
         <RelationshipSection title="More They Worked On">
-          <WorksList works={moreTheyWorkedOn} />
+          <WorksList works={moreTheyWorkedOn} onSelectWork={onSelectWork} />
         </RelationshipSection>
       ) : null}
 
@@ -837,13 +931,13 @@ function RelationshipContextSections({ context }: { context: ContentRelationship
 
       {derivedFromSecondary.length ? (
         <RelationshipSection title="Derived From" subtitle="Original or upstream works this publication is connected to.">
-          <WorksList works={derivedFromSecondary} />
+          <WorksList works={derivedFromSecondary} onSelectWork={onSelectWork} />
         </RelationshipSection>
       ) : null}
 
       {builtFromSecondary.length ? (
         <RelationshipSection title="Built From" subtitle="Additional source material connected to this work.">
-          <WorksList works={builtFromSecondary} />
+          <WorksList works={builtFromSecondary} onSelectWork={onSelectWork} />
         </RelationshipSection>
       ) : null}
 
@@ -855,13 +949,13 @@ function RelationshipContextSections({ context }: { context: ContentRelationship
 
       {worksThatBuiltOnThis.length ? (
         <RelationshipSection title="Works That Built On This">
-          <WorksList works={worksThatBuiltOnThis} />
+          <WorksList works={worksThatBuiltOnThis} onSelectWork={onSelectWork} />
         </RelationshipSection>
       ) : null}
 
       {relatedWorks.length ? (
         <RelationshipSection title="Related Works">
-          <WorksList works={relatedWorks} />
+          <WorksList works={relatedWorks} onSelectWork={onSelectWork} />
         </RelationshipSection>
       ) : null}
 
@@ -1090,7 +1184,7 @@ function FreebiesWatch({
       {error ? <div className="flex h-screen items-center justify-center p-4 text-red-300">{error}</div> : null}
 
       {!loading && !error ? (
-        <div ref={scrollerRef} className="h-[100dvh] snap-y snap-mandatory overflow-y-auto overscroll-y-contain">
+        <div ref={scrollerRef} className="watch-reel-scroller h-[100dvh] snap-y snap-mandatory overflow-y-auto overscroll-y-contain">
           {items.map((it, index) => {
             const visualSrc = it.coverUrl || '';
             const themeVars = getCardThemeVars(it.profileTheme);
@@ -1128,7 +1222,7 @@ function FreebiesWatch({
                       className={`rounded-xl px-4 py-2 text-sm font-bold ${isActivePlaybackItem ? 'bg-white/15 text-white' : 'watch-action-primary'}`}
                       onClick={() => {
                         setMobilePlayerOpen(true);
-                        if (!isActivePlaybackItem) void playItem(it, { mediaAspect: 'portrait' });
+                        if (!isActivePlaybackItem) void playItem(it, { mediaAspect: 'portrait', queue: items });
                       }}
                     >
                       {isActivePlaybackItem ? 'Playing' : 'Play'}
@@ -1174,6 +1268,7 @@ function StandardWatch({
   stateItem: DiscoverableItem | null;
 }) {
   const { playItem, setDrawerContent } = useStage1APlayer();
+  const navigate = useNavigate();
   const [item, setItem] = useState<DiscoverableItem | null>(stateItem && isRenderableDiscoveryItem(stateItem) ? stateItem : null);
   const [loading, setLoading] = useState(!(stateItem && isRenderableDiscoveryItem(stateItem)));
   const [error, setError] = useState<string | null>(null);
@@ -1184,7 +1279,7 @@ function StandardWatch({
 
   useEffect(() => {
     let active = true;
-    if (!contentId || item) return;
+    if (!contentId) return undefined;
 
     const run = async () => {
       setLoading(true);
@@ -1214,7 +1309,7 @@ function StandardWatch({
     return () => {
       active = false;
     };
-  }, [contentId, item, originHint]);
+  }, [contentId, originHint, stateItem]);
 
   useEffect(() => {
     let active = true;
@@ -1319,6 +1414,13 @@ function StandardWatch({
     if (!item) return [];
     return buildWatchDiscoveryRails(item, discoveryItems);
   }, [item, discoveryItems]);
+  const selectContentItem = useCallback((nextItem: DiscoverableItem, queue: DiscoverableItem[]) => {
+    const nextQueue = queue.length ? queue : [nextItem];
+    setItem(nextItem);
+    setDiscoveryItems((current) => dedupeDiscoveryItems([nextItem, ...current]));
+    navigate(watchHrefForItem(nextItem), { state: { item: nextItem } });
+    void playItem(nextItem, { queue: nextQueue });
+  }, [navigate, playItem]);
   const relationshipContext = item && relationshipContextState?.key === `${item.publicOrigin}::${item.contentId}`
     ? relationshipContextState.context
     : null;
@@ -1439,7 +1541,7 @@ function StandardWatch({
                   <button
                     type="button"
                     className="watch-preview-frame group overflow-hidden rounded-2xl border text-left"
-                    onClick={() => void playItem(item)}
+                    onClick={() => void playItem(item, { queue: [item] })}
                     aria-label={`Play ${item.title || 'work'}`}
                   >
                     {item.coverUrl ? (
@@ -1458,12 +1560,12 @@ function StandardWatch({
             {explorationRails.length > 0 ? (
               <div className="watch-related-area space-y-6">
                 {explorationRails.map((rail) => (
-                  <ExplorationRail key={rail.key} rail={rail} />
+                  <ExplorationRail key={rail.key} rail={rail} onSelectItem={selectContentItem} />
                 ))}
               </div>
             ) : null}
 
-            <RelationshipContextSections context={relationshipContext} />
+            <RelationshipContextSections context={relationshipContext} onSelectWork={selectContentItem} />
 
             <section className="watch-context-block">
               <div>

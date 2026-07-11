@@ -426,6 +426,13 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     mediaAspectHintRef.current = options?.mediaAspect && options.mediaAspect !== 'unknown' ? options.mediaAspect : null;
     setMediaMuted(options?.muted === true);
     if (options?.openPlayer !== false) setMobileSheetOpen(true);
+    if (options?.queue) {
+      const requestedQueue = dedupeDrawerItems(options.queue);
+      const itemIsInQueue = requestedQueue.some((queueItem) =>
+        queueItem.contentId === nextItem.contentId && queueItem.publicOrigin === nextItem.publicOrigin
+      );
+      setFreeDropQueueState(itemIsInQueue ? requestedQueue : dedupeDrawerItems([nextItem, ...requestedQueue]));
+    }
     setRecentItems((current) => {
       const next = [nextItem, ...current.filter((row) => row.contentId !== nextItem.contentId || row.publicOrigin !== nextItem.publicOrigin)].slice(0, MAX_RECENT_ITEMS);
       writeRecentItemsToStorage(next);
@@ -598,7 +605,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       queueItem.contentId === fromItem.contentId && queueItem.publicOrigin === fromItem.publicOrigin
     );
     if (currentIndex < 0 || currentIndex >= freeDropQueue.length - 1) return false;
-    void playItem(freeDropQueue[currentIndex + 1]);
+    void playItem(freeDropQueue[currentIndex + 1], { queue: freeDropQueue });
     return true;
   }, [freeDropQueue, item, playItem]);
 
@@ -608,7 +615,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       queueItem.contentId === fromItem.contentId && queueItem.publicOrigin === fromItem.publicOrigin
     );
     if (currentIndex <= 0) return false;
-    void playItem(freeDropQueue[currentIndex - 1]);
+    void playItem(freeDropQueue[currentIndex - 1], { queue: freeDropQueue });
     return true;
   }, [freeDropQueue, item, playItem]);
 
@@ -1136,7 +1143,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                         type="button"
                         key={`${drawerItem.publicOrigin}:${drawerItem.contentId}`}
                         className="stage1a-rich-drawer-card"
-                        onClick={() => void playItem(drawerItem)}
+                        onClick={() => void playItem(drawerItem, { queue: detailPanelItems })}
                       >
                         {drawerItem.coverUrl ? <img src={drawerItem.coverUrl} alt="" referrerPolicy="no-referrer" /> : <span aria-hidden="true">♪</span>}
                         <span>
