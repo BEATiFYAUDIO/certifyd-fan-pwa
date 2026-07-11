@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ShortsCard } from '../components/ShortsCard';
 import { TopicRail, type ExtraScope } from '../components/TopicRail';
@@ -145,8 +145,8 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
   const badges = creatorBadges(creator);
   const hasCompanionWorks = rest.length > 0;
   const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
-  const playWorkFromCard = (work: DiscoverableItem) => (event?: MouseEvent<HTMLElement>) => {
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) event?.preventDefault();
+  const playWorkFromCard = (work: DiscoverableItem) => () => {
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) return;
     void playItem(work, { queue: creator.works });
   };
   return (
@@ -250,8 +250,8 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const badges = creatorBadges(creator).slice(0, 3);
   const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
-  const playWorkFromCard = (work: DiscoverableItem) => (event?: MouseEvent<HTMLElement>) => {
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) event?.preventDefault();
+  const playWorkFromCard = (work: DiscoverableItem) => () => {
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) return;
     void playItem(work, { queue: creator.works });
   };
   return (
@@ -670,7 +670,7 @@ function RankingRow({
   showPrice?: boolean;
   queue?: DiscoverableItem[];
 }) {
-  const { playItem, setMobilePlayerOpen } = useStage1APlayer();
+  const { playItem } = useStage1APlayer();
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
   const contributors = visibleOtherContributors(item);
   const relationshipBadges = Array.isArray(item.relationshipBadges) ? item.relationshipBadges.slice(0, contributors.length ? 2 : 3) : [];
@@ -678,12 +678,9 @@ function RankingRow({
   const playbackDisplay = displayStateFromItem(item);
   const [imageFailed, setImageFailed] = useState(false);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
-  const playFromRow = (event?: MouseEvent<HTMLElement>) => {
+  const playFromRow = () => {
     const playOptions = queue ? { queue } : undefined;
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) {
-      event?.preventDefault();
-      setMobilePlayerOpen(true);
-      void playItem(item, playOptions);
       return;
     }
     void playItem(item, playOptions);

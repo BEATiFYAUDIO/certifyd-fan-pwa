@@ -41,13 +41,14 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
   const mediaHref = watchHref;
   const mediaIsExternal = mediaHref === item.buyUrl;
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
-  const playFromCardOpen = (event?: MouseEvent<HTMLElement>) => {
-    if (shouldOpenMobilePlayerOnly()) {
-      event?.preventDefault();
-      setMobilePlayerOpen(true);
-      void playItem(item);
-      return;
-    }
+  const playFromCardOpen = () => {
+    if (shouldOpenMobilePlayerOnly()) return;
+    void playItem(item);
+  };
+  const playExplicitly = (event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (shouldOpenMobilePlayerOnly()) setMobilePlayerOpen(true);
     void playItem(item);
   };
   const avatarGradient = useMemo(() => {
@@ -64,71 +65,91 @@ export const FeedCard = memo(function FeedCard({ item }: { item: DiscoverableIte
   return (
     <article className="creator-themed-card group overflow-hidden rounded-2xl border p-2" style={themeVars}>
       {mediaIsExternal ? (
-        <a href={mediaHref} target="_blank" rel="noreferrer" className="block">
-          <div className="creator-themed-media relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5">
-            <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                playbackDisplay.state === 'preview'
-                  ? 'creator-themed-badge border'
-                  : 'creator-themed-badge-muted border'
-              }`}>
-                {playbackDisplay.label}
-              </span>
-            </div>
-            {hasMedia ? (
-              <img
-                src={item.coverUrl}
-                alt={item.title || 'Content cover'}
-                className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                loading="lazy"
-                decoding="async"
-                referrerPolicy="no-referrer"
-                onError={() => setImageFailed(true)}
-              />
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
-                <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
-                <p className="mt-1 text-xs text-zinc-400">
-                  {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
-                </p>
+        <div className="relative">
+          <a href={mediaHref} target="_blank" rel="noreferrer" className="block">
+            <div className="creator-themed-media relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5">
+              <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                  playbackDisplay.state === 'preview'
+                    ? 'creator-themed-badge border'
+                    : 'creator-themed-badge-muted border'
+                }`}>
+                  {playbackDisplay.label}
+                </span>
               </div>
-            )}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-          </div>
-        </a>
-      ) : (
-      <Link to={watchHref} state={{ item }} className="block" onClick={playFromCardOpen}>
-        <div className="creator-themed-media relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5">
-          <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-              playbackDisplay.state === 'preview'
-                ? 'creator-themed-badge border'
-                : 'creator-themed-badge-muted border'
-            }`}>
-              {playbackDisplay.label}
-            </span>
-          </div>
-          {hasMedia ? (
-            <img
-              src={item.coverUrl}
-              alt={item.title || 'Content cover'}
-              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-              loading="lazy"
-              decoding="async"
-              referrerPolicy="no-referrer"
-              onError={() => setImageFailed(true)}
-            />
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
-              <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
-              <p className="mt-1 text-xs text-zinc-400">
-                {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
-              </p>
+              {hasMedia ? (
+                <img
+                  src={item.coverUrl}
+                  alt={item.title || 'Content cover'}
+                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                  loading="lazy"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  onError={() => setImageFailed(true)}
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
+                  <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
+                  <p className="mt-1 text-xs text-zinc-400">
+                    {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
+                  </p>
+                </div>
+              )}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
             </div>
-          )}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+          </a>
+          <button
+            type="button"
+            className="absolute bottom-2 right-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-black opacity-0 shadow-lg transition group-hover:opacity-100 focus:opacity-100"
+            onClick={playExplicitly}
+            aria-label={`Play ${item.title || 'work'}`}
+          >
+            Play
+          </button>
         </div>
-      </Link>
+      ) : (
+        <div className="relative">
+          <Link to={watchHref} state={{ item }} className="block" onClick={playFromCardOpen}>
+            <div className="creator-themed-media relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800/90 transition duration-300 group-hover:-translate-y-0.5">
+              <div className="pointer-events-none absolute left-2 top-2 z-10 flex gap-1.5">
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                  playbackDisplay.state === 'preview'
+                    ? 'creator-themed-badge border'
+                    : 'creator-themed-badge-muted border'
+                }`}>
+                  {playbackDisplay.label}
+                </span>
+              </div>
+              {hasMedia ? (
+                <img
+                  src={item.coverUrl}
+                  alt={item.title || 'Content cover'}
+                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                  loading="lazy"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  onError={() => setImageFailed(true)}
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 px-4 text-center">
+                  <p className="line-clamp-2 text-sm font-semibold text-zinc-200">{item.title || 'Untitled'}</p>
+                  <p className="mt-1 text-xs text-zinc-400">
+                    {(item.primaryTopic || 'topic').toUpperCase()} · {item.contentType.toUpperCase()}
+                  </p>
+                </div>
+              )}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+            </div>
+          </Link>
+          <button
+            type="button"
+            className="absolute bottom-2 right-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-black opacity-0 shadow-lg transition group-hover:opacity-100 focus:opacity-100"
+            onClick={playExplicitly}
+            aria-label={`Play ${item.title || 'work'}`}
+          >
+            Play
+          </button>
+        </div>
       )}
       <div className="mt-2 flex gap-2.5">
         {creatorProfileUrl ? (

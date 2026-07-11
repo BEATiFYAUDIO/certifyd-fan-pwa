@@ -54,13 +54,14 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
     return gradients[seed % gradients.length];
   }, [creator]);
 
-  const playShort = (event?: MouseEvent<HTMLElement>) => {
-    if (shouldOpenMobilePlayerOnly()) {
-      event?.preventDefault();
-      setMobilePlayerOpen(true);
-      void playItem(item, { muted: true, mediaAspect: 'portrait' });
-      return;
-    }
+  const playShort = () => {
+    if (shouldOpenMobilePlayerOnly()) return;
+    void playItem(item, { muted: true, mediaAspect: 'portrait' });
+  };
+  const playShortExplicitly = (event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (shouldOpenMobilePlayerOnly()) setMobilePlayerOpen(true);
     void playItem(item, { muted: true, mediaAspect: 'portrait' });
   };
 
@@ -95,6 +96,14 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item
         )}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/95 via-black/55 to-transparent" />
       </Link>
+      <button
+        type="button"
+        className="absolute bottom-4 right-4 z-20 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-black opacity-0 shadow-lg transition group-hover:opacity-100 focus:opacity-100"
+        onClick={playShortExplicitly}
+        aria-label={`Play ${item.title || 'short'}`}
+      >
+        Play
+      </button>
 
       <div className="absolute inset-x-0 bottom-0 z-10 p-4">
         <div className="flex items-end gap-3">

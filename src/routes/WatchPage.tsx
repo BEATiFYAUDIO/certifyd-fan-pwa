@@ -621,30 +621,31 @@ function WorksList({
           </div>
         );
         return playableWork ? (
-          <div
-            key={workKey(work)}
-            role="button"
-            tabIndex={0}
-            className="block w-full text-left"
-            onClick={() => {
-              if (onSelectWork) {
+          onSelectWork ? (
+            <div
+              key={workKey(work)}
+              role="button"
+              tabIndex={0}
+              className="block w-full text-left"
+              onClick={() => onSelectWork(playableWork)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
                 onSelectWork(playableWork);
-                return;
-              }
-              void playItem(playableWork, { queue: playableWorks });
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter' && event.key !== ' ') return;
-              event.preventDefault();
-              if (onSelectWork) {
-                onSelectWork(playableWork);
-                return;
-              }
-              void playItem(playableWork, { queue: playableWorks });
-            }}
-          >
-            {card}
-          </div>
+              }}
+            >
+              {card}
+            </div>
+          ) : (
+            <Link
+              key={workKey(work)}
+              to={watchHrefForItem(playableWork)}
+              state={{ item: playableWork }}
+              className="block"
+            >
+              {card}
+            </Link>
+          )
         ) : work.contentId ? (
           <Link
             key={workKey(work)}
@@ -1435,12 +1436,7 @@ function StandardWatch({
                 </div>
 
                 <div className="watch-preview-stack self-start">
-                  <button
-                    type="button"
-                    className="watch-preview-frame group overflow-hidden rounded-2xl border text-left"
-                    onClick={() => void playItem(item, { queue: [item] })}
-                    aria-label={`Play ${item.title || 'work'}`}
-                  >
+                  <div className="watch-preview-frame group overflow-hidden rounded-2xl border text-left">
                     {item.coverUrl ? (
                       <img src={item.coverUrl} alt={item.title} className="h-full w-full object-cover" loading="eager" decoding="async" referrerPolicy="no-referrer" />
                     ) : (
@@ -1448,7 +1444,15 @@ function StandardWatch({
                         {item.contentType || 'Work'}
                       </div>
                     )}
-                  </button>
+                    <button
+                      type="button"
+                      className="absolute bottom-3 right-3 rounded-full bg-white/90 px-4 py-2 text-sm font-black text-black shadow-lg"
+                      onClick={() => void playItem(item, { queue: [item] })}
+                      aria-label={`Play ${item.title || 'work'}`}
+                    >
+                      Play
+                    </button>
+                  </div>
                 </div>
               </div>
               {detailsOpen ? (
