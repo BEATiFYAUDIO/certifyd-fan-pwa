@@ -42,11 +42,11 @@ function ShortsSlide({
   muted,
   onMutedChange,
   onExplore,
+  onBack,
   onPrevious,
   onNext,
   canPrevious,
   canNext,
-  fullscreenFit = false,
   slideRef,
   index,
 }: {
@@ -57,11 +57,11 @@ function ShortsSlide({
   muted: boolean;
   onMutedChange: (muted: boolean) => void;
   onExplore: (item: DiscoverableItem) => void;
+  onBack: () => void;
   onPrevious: () => void;
   onNext: () => void;
   canPrevious: boolean;
   canNext: boolean;
-  fullscreenFit?: boolean;
   slideRef: (node: HTMLElement | null) => void;
   index: number;
 }) {
@@ -73,11 +73,32 @@ function ShortsSlide({
   const [ended, setEnded] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [mediaAspectState, setMediaAspectState] = useState<{
+    sourceKey: string;
+    aspect: 'portrait' | 'landscape' | 'square' | 'unknown';
+  }>({ sourceKey: '', aspect: 'unknown' });
   const playbackState = useMemo(() => resolveRuntimePlayback(item), [item]);
+  const mediaSourceKey = playbackState.streamUrl || item.coverUrl || '';
+  const mediaAspect = mediaAspectState.sourceKey === mediaSourceKey ? mediaAspectState.aspect : 'unknown';
   const creatorProfileUrl = canonicalCreatorProfileUrlForItem(item);
   const buyUrl = buyUrlWithFanReturnUrl(item.buyUrl, item);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
   const isMediaPlayable = Boolean(playbackState.streamUrl && (playbackState.renderKind === 'video' || playbackState.renderKind === 'audio'));
+
+  const classifyAspect = (width: number, height: number): 'portrait' | 'landscape' | 'square' | 'unknown' => {
+    if (!width || !height) return 'unknown';
+    const ratio = width / height;
+    if (ratio < 0.8) return 'portrait';
+    if (ratio > 1.2) return 'landscape';
+    return 'square';
+  };
+
+  const setIntrinsicAspect = (width: number, height: number) => {
+    setMediaAspectState({
+      sourceKey: mediaSourceKey,
+      aspect: classifyAspect(width, height),
+    });
+  };
 
   const isCurrentGeneration = useCallback(() => activeRef.current && generationRef.current === activeGeneration, [activeGeneration]);
 
@@ -100,7 +121,6 @@ function ShortsSlide({
     media.volume = 1;
     if (!active || !playbackState.streamUrl) {
       try { media.pause(); } catch { /* ignore */ }
-      try { media.removeAttribute('src'); media.load(); } catch { /* ignore */ }
       queueMicrotask(() => {
         if (!activeRef.current) {
           setPaused(true);
@@ -143,7 +163,6 @@ function ShortsSlide({
     return () => {
       if (generationRef.current === generation) playAttemptRef.current += 1;
       try { media.pause(); } catch { /* ignore */ }
-      try { media.removeAttribute('src'); media.load(); } catch { /* ignore */ }
     };
   }, [active, activeGeneration, muted, onMutedChange, playbackState.streamUrl]);
 
@@ -222,14 +241,18 @@ function ShortsSlide({
       return (
         <video
           ref={(node) => { mediaRef.current = node; }}
-          className={`shorts-media ${fullscreenFit ? 'shorts-media-fill' : 'shorts-media-contain'}`}
+          className={`shorts-media shorts-media-${mediaAspect}`}
           src={active ? playbackState.streamUrl : undefined}
           poster={item.coverUrl || undefined}
           muted={muted}
           autoPlay={active}
           playsInline
           preload={active ? 'auto' : 'metadata'}
-          onLoadedMetadata={(event) => onLoadedMetadata(event.currentTarget)}
+          onLoadedMetadata={(event) => {
+            const video = event.currentTarget;
+            onLoadedMetadata(video);
+            setIntrinsicAspect(video.videoWidth, video.videoHeight);
+          }}
           onPlay={() => { if (isCurrentGeneration()) { setPaused(false); setEnded(false); } }}
           onPause={() => { if (isCurrentGeneration()) setPaused(true); }}
           onEnded={() => { if (isCurrentGeneration()) { setPaused(true); setEnded(true); } }}
@@ -257,7 +280,17 @@ function ShortsSlide({
       );
     }
     if (item.coverUrl) {
-      return <img className={`shorts-media ${fullscreenFit ? 'shorts-media-fill' : 'shorts-media-contain'}`} src={item.coverUrl} alt={item.title || 'Short'} loading={active ? 'eager' : 'lazy'} decoding="async" referrerPolicy="no-referrer" />;
+      return (
+        <img
+          className={`shorts-media shorts-media-${mediaAspect}`}
+          src={item.coverUrl}
+          alt={item.title || 'Short'}
+          loading={active ? 'eager' : 'lazy'}
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onLoad={(event) => setIntrinsicAspect(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
+        />
+      );
     }
     return (
       <div className="shorts-fallback-card">
@@ -328,7 +361,10 @@ function ShortsSlide({
           />
           <span>{formatTime(effectiveDuration || 0)}</span>
         </div>
-        <Link className="shorts-back" to="/" aria-label="Leave Shorts">←</Link>
+        <button type="button" className="shorts-back" onClick={onBack} aria-label="Leave Shorts">
+          <span aria-hidden="true">←</span>
+          <span>Back</span>
+        </button>
         <Link className="shorts-deep-link" to={shortsHrefForItem(item, topic)} state={{ item }} aria-label="Current Short permalink" />
       </div>
     </section>
@@ -439,6 +475,13 @@ export function ShortsPage() {
   const exploreWork = useCallback((item: DiscoverableItem) => {
     navigate(watchHrefForItem(item), { state: { item } });
   }, [navigate]);
+  const leaveShorts = useCallback(() => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate('/');
+  }, [navigate]);
 
   const activateIndex = useCallback((nextIndex: number) => {
     if (nextIndex < 0 || nextIndex >= items.length || nextIndex === activeIndexRef.current) return;
@@ -467,11 +510,11 @@ export function ShortsPage() {
               muted={muted}
               onMutedChange={setMuted}
               onExplore={exploreWork}
+              onBack={leaveShorts}
               onPrevious={playPreviousShort}
               onNext={playNextShort}
               canPrevious={activeIndex > 0}
               canNext={activeIndex < items.length - 1}
-              fullscreenFit={freeOnly}
               index={index}
               slideRef={(node) => {
                 sectionRefs.current[index] = node;
