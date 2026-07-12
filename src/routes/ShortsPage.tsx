@@ -42,6 +42,11 @@ function ShortsSlide({
   muted,
   onMutedChange,
   onExplore,
+  onPrevious,
+  onNext,
+  canPrevious,
+  canNext,
+  fullscreenFit = false,
   slideRef,
   index,
 }: {
@@ -52,6 +57,11 @@ function ShortsSlide({
   muted: boolean;
   onMutedChange: (muted: boolean) => void;
   onExplore: (item: DiscoverableItem) => void;
+  onPrevious: () => void;
+  onNext: () => void;
+  canPrevious: boolean;
+  canNext: boolean;
+  fullscreenFit?: boolean;
   slideRef: (node: HTMLElement | null) => void;
   index: number;
 }) {
@@ -61,7 +71,6 @@ function ShortsSlide({
   const playAttemptRef = useRef(0);
   const [paused, setPaused] = useState(true);
   const [ended, setEnded] = useState(false);
-  const [fit, setFit] = useState<'contain' | 'cover'>('contain');
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const playbackState = useMemo(() => resolveRuntimePlayback(item), [item]);
@@ -213,17 +222,14 @@ function ShortsSlide({
       return (
         <video
           ref={(node) => { mediaRef.current = node; }}
-          className={`shorts-media shorts-media-${fit}`}
+          className={`shorts-media ${fullscreenFit ? 'shorts-media-fill' : 'shorts-media-contain'}`}
           src={active ? playbackState.streamUrl : undefined}
           poster={item.coverUrl || undefined}
           muted={muted}
+          autoPlay={active}
           playsInline
           preload={active ? 'auto' : 'metadata'}
-          onLoadedMetadata={(event) => {
-            const video = event.currentTarget;
-            onLoadedMetadata(video);
-            setFit(video.videoHeight > video.videoWidth ? 'cover' : 'contain');
-          }}
+          onLoadedMetadata={(event) => onLoadedMetadata(event.currentTarget)}
           onPlay={() => { if (isCurrentGeneration()) { setPaused(false); setEnded(false); } }}
           onPause={() => { if (isCurrentGeneration()) setPaused(true); }}
           onEnded={() => { if (isCurrentGeneration()) { setPaused(true); setEnded(true); } }}
@@ -239,6 +245,7 @@ function ShortsSlide({
             ref={(node) => { mediaRef.current = node; }}
             src={active ? playbackState.streamUrl : undefined}
             muted={muted}
+            autoPlay={active}
             preload={active ? 'auto' : 'metadata'}
             onLoadedMetadata={(event) => onLoadedMetadata(event.currentTarget)}
             onPlay={() => { if (isCurrentGeneration()) { setPaused(false); setEnded(false); } }}
@@ -250,7 +257,7 @@ function ShortsSlide({
       );
     }
     if (item.coverUrl) {
-      return <img className="shorts-media shorts-media-contain" src={item.coverUrl} alt={item.title || 'Short'} loading={active ? 'eager' : 'lazy'} decoding="async" referrerPolicy="no-referrer" />;
+      return <img className={`shorts-media ${fullscreenFit ? 'shorts-media-fill' : 'shorts-media-contain'}`} src={item.coverUrl} alt={item.title || 'Short'} loading={active ? 'eager' : 'lazy'} decoding="async" referrerPolicy="no-referrer" />;
     }
     return (
       <div className="shorts-fallback-card">
@@ -281,6 +288,11 @@ function ShortsSlide({
           </div>
           <h1 className="line-clamp-2 text-2xl font-bold">{item.title || 'Untitled'}</h1>
           <p className="mt-1 text-sm text-zinc-200">@{item.creatorHandle || 'creator'} • {item.contentType || 'work'}</p>
+        </div>
+        <div className="shorts-desktop-transport" aria-label="Shorts transport controls">
+          <button type="button" onClick={(event) => { event.stopPropagation(); onPrevious(); }} disabled={!canPrevious} aria-label="Previous Short">‹</button>
+          <button type="button" onClick={(event) => { event.stopPropagation(); togglePlayback(); }} disabled={!isMediaPlayable} aria-label={paused ? 'Play Short' : 'Pause Short'}>{paused ? '▶' : 'Ⅱ'}</button>
+          <button type="button" onClick={(event) => { event.stopPropagation(); onNext(); }} disabled={!canNext} aria-label="Next Short">›</button>
         </div>
         <div className="shorts-actions" aria-label="Short actions">
           {isMediaPlayable ? (
@@ -336,7 +348,7 @@ export function ShortsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(() => freeOnly);
   const [activeGeneration, setActiveGeneration] = useState(1);
   const activeIndexRef = useRef(0);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -428,6 +440,17 @@ export function ShortsPage() {
     navigate(watchHrefForItem(item), { state: { item } });
   }, [navigate]);
 
+  const activateIndex = useCallback((nextIndex: number) => {
+    if (nextIndex < 0 || nextIndex >= items.length || nextIndex === activeIndexRef.current) return;
+    activeIndexRef.current = nextIndex;
+    setActiveGeneration((current) => current + 1);
+    setActiveIndex(nextIndex);
+    sectionRefs.current[nextIndex]?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [items.length]);
+
+  const playPreviousShort = useCallback(() => activateIndex(activeIndexRef.current - 1), [activateIndex]);
+  const playNextShort = useCallback(() => activateIndex(activeIndexRef.current + 1), [activateIndex]);
+
   return (
     <main className="shorts-page bg-black text-white">
       {loading ? <div className="grid h-[100dvh] place-items-center text-zinc-300">Loading Shorts…</div> : null}
@@ -444,6 +467,11 @@ export function ShortsPage() {
               muted={muted}
               onMutedChange={setMuted}
               onExplore={exploreWork}
+              onPrevious={playPreviousShort}
+              onNext={playNextShort}
+              canPrevious={activeIndex > 0}
+              canNext={activeIndex < items.length - 1}
+              fullscreenFit={freeOnly}
               index={index}
               slideRef={(node) => {
                 sectionRefs.current[index] = node;
