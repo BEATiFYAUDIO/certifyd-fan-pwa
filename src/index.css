@@ -991,7 +991,8 @@ body.has-shorts-mode .certifyd-player-center {
   position: relative;
   z-index: 2;
   display: grid;
-  width: min(82vw, 440px);
+  width: min(92vw, 560px);
+  max-height: min(76dvh, 620px);
   place-items: center;
 }
 
@@ -999,6 +1000,7 @@ body.has-shorts-mode .certifyd-player-center {
 .shorts-audio-artwork > div {
   aspect-ratio: 1;
   width: 100%;
+  max-height: min(76dvh, 620px);
   border-radius: 28px;
   object-fit: contain;
   background: rgba(255, 255, 255, 0.055);
@@ -1065,7 +1067,7 @@ body.has-shorts-mode .certifyd-player-center {
   position: absolute;
   left: 16px;
   right: 88px;
-  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(38px + env(safe-area-inset-bottom, 0px));
   z-index: 3;
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
 }
@@ -1073,19 +1075,37 @@ body.has-shorts-mode .certifyd-player-center {
 .shorts-actions {
   position: absolute;
   right: 14px;
-  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(38px + env(safe-area-inset-bottom, 0px));
   z-index: 4;
   display: grid;
   gap: 12px;
 }
 
-.shorts-volume {
+.shorts-scrubber {
   position: absolute;
-  right: 78px;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  left: 16px;
+  right: 88px;
+  bottom: calc(6px + env(safe-area-inset-bottom, 0px));
   z-index: 4;
-  width: min(32vw, 150px);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.shorts-scrubber input {
+  width: 100%;
+  min-width: 0;
   accent-color: rgb(var(--certifyd-orange));
+}
+
+.shorts-scrubber input:disabled {
+  opacity: 0.35;
 }
 
 .shorts-back {
@@ -1106,6 +1126,16 @@ body.has-shorts-mode .certifyd-player-center {
 
 .shorts-deep-link {
   display: none;
+}
+
+
+.shorts-slide[data-active="false"] .shorts-actions,
+.shorts-slide[data-active="false"] .shorts-scrubber {
+  pointer-events: none;
+}
+
+.shorts-slide[data-active="true"] {
+  z-index: 1;
 }
 
 .shorts-actions button,

@@ -1689,7 +1689,9 @@ export function HomePage() {
     return byContext;
   }, [premiumWorksSurface, recentlyPlayedSurface, recentlyPublishedSurface, topSurfaces]);
   const selectedSurface = surfaceByContext.get(discoveryContext);
+  const missingSignalSurface = discoveryContext === 'top-selling' || discoveryContext === 'top-connected' || discoveryContext === 'fastest-moving';
   const showOverview = discoveryContext === 'creator-economy-board';
+  const showFallbackBoard = !showOverview && missingSignalSurface && !selectedSurface;
   const showSaved = discoveryContext === 'saved';
   const showFollowing = discoveryContext === 'following';
   const selectedContextLabel = selectedSurface?.title || (discoveryContext === 'active-creator-ecosystems' ? 'Active Creator Ecosystems' : discoveryContext.split('-').map((word) => word[0].toUpperCase() + word.slice(1)).join(' '));
@@ -1784,7 +1786,7 @@ export function HomePage() {
           </div>
         ) : null}
 
-        {hasHomepageContent && showOverview ? (
+        {hasHomepageContent && (showOverview || showFallbackBoard) ? (
           <TopActivityBoard
             surfaces={topSurfaces}
             activeCreators={homepageCreators}
@@ -1793,31 +1795,31 @@ export function HomePage() {
           />
         ) : null}
 
-        {!showOverview && discoveryContext === 'active-creator-ecosystems' ? (
+        {!showOverview && !showFallbackBoard && discoveryContext === 'active-creator-ecosystems' ? (
           <ExpandedCreatorNetwork creators={homepageCreators} />
         ) : null}
 
-        {!showOverview && discoveryContext === 'active-creator-ecosystems' && homepageCreators.length === 0 ? (
+        {!showOverview && !showFallbackBoard && discoveryContext === 'active-creator-ecosystems' && homepageCreators.length === 0 ? (
           <EmptyDiscoveryContext id="active-creator-ecosystems" title="Active Creator Ecosystems" />
         ) : null}
 
-        {!showOverview && showFollowing ? (
+        {!showOverview && !showFallbackBoard && showFollowing ? (
           <LocalCreatorSection id="following" title="Following" subtitle="Creators followed locally on this device" creators={hydratedFollowedCreators} />
         ) : null}
 
-        {!showOverview && showSaved ? (
+        {!showOverview && !showFallbackBoard && showSaved ? (
           <SavedLibrarySection works={savedWorks} creators={hydratedSavedCreators} />
         ) : null}
 
-        {!showOverview && !showSaved && !showFollowing && selectedSurface ? (
+        {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && selectedSurface ? (
           <ExpandedRankedSurface surface={selectedSurface} id={discoveryContext} />
         ) : null}
 
-        {!showOverview && !showSaved && !showFollowing && selectedSurface && selectedSurface.items.length === 0 ? (
+        {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && selectedSurface && selectedSurface.items.length === 0 ? (
           <EmptyDiscoveryContext id={discoveryContext} title={selectedContextLabel} />
         ) : null}
 
-        {!showOverview && !showSaved && !showFollowing && discoveryContext !== 'free-drops' && discoveryContext !== 'creator-ecosystems' && discoveryContext !== 'active-creator-ecosystems' && !selectedSurface ? (
+        {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && discoveryContext !== 'free-drops' && discoveryContext !== 'creator-ecosystems' && discoveryContext !== 'active-creator-ecosystems' && !selectedSurface ? (
           <EmptyDiscoveryContext id={discoveryContext} title={selectedContextLabel} />
         ) : null}
 

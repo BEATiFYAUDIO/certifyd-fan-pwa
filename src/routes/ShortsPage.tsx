@@ -38,10 +38,9 @@ function ShortsSlide({
   item,
   active,
   topic,
+  activeGeneration,
   muted,
-  volume,
   onMutedChange,
-  onVolumeChange,
   onExplore,
   slideRef,
   index,
@@ -49,65 +48,111 @@ function ShortsSlide({
   item: DiscoverableItem;
   active: boolean;
   topic: Topic;
+  activeGeneration: number;
   muted: boolean;
-  volume: number;
   onMutedChange: (muted: boolean) => void;
-  onVolumeChange: (volume: number) => void;
   onExplore: (item: DiscoverableItem) => void;
   slideRef: (node: HTMLElement | null) => void;
   index: number;
 }) {
   const mediaRef = useRef<HTMLMediaElement | null>(null);
+  const activeRef = useRef(false);
+  const generationRef = useRef(0);
+  const playAttemptRef = useRef(0);
   const [paused, setPaused] = useState(true);
   const [ended, setEnded] = useState(false);
   const [fit, setFit] = useState<'contain' | 'cover'>('contain');
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
   const playbackState = useMemo(() => resolveRuntimePlayback(item), [item]);
   const creatorProfileUrl = canonicalCreatorProfileUrlForItem(item);
   const buyUrl = buyUrlWithFanReturnUrl(item.buyUrl, item);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
   const isMediaPlayable = Boolean(playbackState.streamUrl && (playbackState.renderKind === 'video' || playbackState.renderKind === 'audio'));
 
+  const isCurrentGeneration = useCallback(() => activeRef.current && generationRef.current === activeGeneration, [activeGeneration]);
+
   useEffect(() => {
-    const media = mediaRef.current;
-    if (!media) return undefined;
-    media.muted = muted;
-    media.volume = Math.min(1, Math.max(0, volume));
-    if (!active || !playbackState.streamUrl) {
-      try { media.pause(); } catch { /* ignore */ }
-      try { media.currentTime = 0; } catch { /* ignore */ }
-      return undefined;
-    }
-    media.setAttribute('playsinline', 'true');
-    media.preload = 'auto';
-    const playPromise = media.play();
-    if (playPromise && typeof playPromise.catch === 'function') {
-      playPromise.catch(() => {
-        media.muted = true;
-        onMutedChange(true);
-        const mutedPromise = media.play();
-        if (mutedPromise && typeof mutedPromise.catch === 'function') mutedPromise.catch(() => setPaused(true));
-      });
-    }
-    return () => {
-      try { media.pause(); } catch { /* ignore */ }
-    };
-  }, [active, muted, onMutedChange, playbackState.streamUrl, volume]);
+    activeRef.current = active;
+    if (active) generationRef.current = activeGeneration;
+  }, [active, activeGeneration]);
 
   useEffect(() => {
     const media = mediaRef.current;
     if (!media) return;
     media.muted = muted;
-    media.volume = Math.min(1, Math.max(0, volume));
-  }, [muted, volume]);
+  }, [muted]);
+
+  useEffect(() => {
+    const media = mediaRef.current;
+    const generation = activeGeneration;
+    if (!media) return undefined;
+    media.muted = muted;
+    media.volume = 1;
+    if (!active || !playbackState.streamUrl) {
+      try { media.pause(); } catch { /* ignore */ }
+      try { media.removeAttribute('src'); media.load(); } catch { /* ignore */ }
+      queueMicrotask(() => {
+        if (!activeRef.current) {
+          setPaused(true);
+          setEnded(false);
+          setProgress(0);
+        }
+      });
+      return undefined;
+    }
+    media.setAttribute('playsinline', 'true');
+    media.preload = 'auto';
+    queueMicrotask(() => {
+      if (generationRef.current === generation) setEnded(false);
+    });
+    const playAttempt = playAttemptRef.current + 1;
+    playAttemptRef.current = playAttempt;
+    const playPromise = media.play();
+    if (playPromise && typeof playPromise.then === 'function') {
+      playPromise
+        .then(() => {
+          if (generationRef.current !== generation || playAttemptRef.current !== playAttempt) return;
+          setPaused(false);
+        })
+        .catch(() => {
+          if (generationRef.current !== generation || playAttemptRef.current !== playAttempt) return;
+          media.muted = true;
+          onMutedChange(true);
+          const mutedPromise = media.play();
+          if (mutedPromise && typeof mutedPromise.then === 'function') {
+            mutedPromise
+              .then(() => {
+                if (generationRef.current === generation && playAttemptRef.current === playAttempt) setPaused(false);
+              })
+              .catch(() => {
+                if (generationRef.current === generation && playAttemptRef.current === playAttempt) setPaused(true);
+              });
+          }
+        });
+    }
+    return () => {
+      if (generationRef.current === generation) playAttemptRef.current += 1;
+      try { media.pause(); } catch { /* ignore */ }
+      try { media.removeAttribute('src'); media.load(); } catch { /* ignore */ }
+    };
+  }, [active, activeGeneration, muted, onMutedChange, playbackState.streamUrl]);
 
   const togglePlayback = () => {
     const media = mediaRef.current;
-    if (!media || !isMediaPlayable) return;
+    if (!media || !isMediaPlayable || !active) return;
     if (media.paused) {
+      const playAttempt = playAttemptRef.current + 1;
+      playAttemptRef.current = playAttempt;
+      const generation = activeGeneration;
       const playPromise = media.play();
       setPaused(false);
       setEnded(false);
-      if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => setPaused(true));
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          if (generationRef.current === generation && playAttemptRef.current === playAttempt) setPaused(true);
+        });
+      }
       return;
     }
     media.pause();
@@ -122,14 +167,45 @@ function ShortsSlide({
     if (media) media.muted = nextMuted;
   };
 
+  const effectiveDuration = playbackState.playback.mode === 'preview' && playbackState.playback.previewLimitSeconds
+    ? Math.min(duration || playbackState.playback.previewLimitSeconds, playbackState.playback.previewLimitSeconds)
+    : duration;
+
+  const onLoadedMetadata = (media: HTMLMediaElement) => {
+    if (!isCurrentGeneration()) return;
+    const limit = playbackState.playback.mode === 'preview' ? playbackState.playback.previewLimitSeconds : null;
+    const mediaDuration = Number.isFinite(media.duration) ? media.duration : 0;
+    setDuration(limit && mediaDuration ? Math.min(mediaDuration, limit) : limit || mediaDuration || 0);
+  };
+
   const onTimeUpdate = () => {
     const media = mediaRef.current;
+    if (!media || !isCurrentGeneration()) return;
     const limit = playbackState.playback.mode === 'preview' ? playbackState.playback.previewLimitSeconds : null;
-    if (!media || !limit || media.currentTime < limit) return;
+    setProgress(limit ? Math.min(media.currentTime, limit) : media.currentTime);
+    if (!limit || media.currentTime < limit) return;
     try { media.pause(); } catch { /* ignore */ }
     try { media.currentTime = Math.max(0, limit); } catch { /* ignore */ }
     setPaused(true);
     setEnded(true);
+  };
+
+  const seekTo = (value: number) => {
+    const media = mediaRef.current;
+    if (!media || !isMediaPlayable || !active) return;
+    const max = effectiveDuration || duration || 0;
+    const nextTime = max > 0 ? Math.min(Math.max(0, value), max) : 0;
+    try { media.currentTime = nextTime; } catch { /* ignore */ }
+    setProgress(nextTime);
+    setEnded(false);
+  };
+
+  const formatTime = (value: number): string => {
+    if (!Number.isFinite(value) || value <= 0) return '0:00';
+    const total = Math.floor(value);
+    const minutes = Math.floor(total / 60);
+    const seconds = String(total % 60).padStart(2, '0');
+    return `${minutes}:${seconds}`;
   };
 
   const mediaSurface = (() => {
@@ -145,11 +221,12 @@ function ShortsSlide({
           preload={active ? 'auto' : 'metadata'}
           onLoadedMetadata={(event) => {
             const video = event.currentTarget;
+            onLoadedMetadata(video);
             setFit(video.videoHeight > video.videoWidth ? 'cover' : 'contain');
           }}
-          onPlay={() => { setPaused(false); setEnded(false); }}
-          onPause={() => setPaused(true)}
-          onEnded={() => { setPaused(true); setEnded(true); }}
+          onPlay={() => { if (isCurrentGeneration()) { setPaused(false); setEnded(false); } }}
+          onPause={() => { if (isCurrentGeneration()) setPaused(true); }}
+          onEnded={() => { if (isCurrentGeneration()) { setPaused(true); setEnded(true); } }}
           onTimeUpdate={onTimeUpdate}
         />
       );
@@ -163,9 +240,10 @@ function ShortsSlide({
             src={active ? playbackState.streamUrl : undefined}
             muted={muted}
             preload={active ? 'auto' : 'metadata'}
-            onPlay={() => { setPaused(false); setEnded(false); }}
-            onPause={() => setPaused(true)}
-            onEnded={() => { setPaused(true); setEnded(true); }}
+            onLoadedMetadata={(event) => onLoadedMetadata(event.currentTarget)}
+            onPlay={() => { if (isCurrentGeneration()) { setPaused(false); setEnded(false); } }}
+            onPause={() => { if (isCurrentGeneration()) setPaused(true); }}
+            onEnded={() => { if (isCurrentGeneration()) { setPaused(true); setEnded(true); } }}
             onTimeUpdate={onTimeUpdate}
           />
         </div>
@@ -184,19 +262,11 @@ function ShortsSlide({
   })();
 
   return (
-    <section ref={slideRef} className="watch-shell shorts-slide" style={themeVars as CSSProperties} data-index={index} data-short-id={item.contentId}>
+    <section ref={slideRef} className="watch-shell shorts-slide" style={themeVars as CSSProperties} data-index={index} data-active={active ? 'true' : 'false'} data-short-id={item.contentId}>
       <div className="shorts-slide-surface">
         <div
           className="shorts-media-surface"
-          role="button"
-          tabIndex={0}
           onClick={togglePlayback}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              togglePlayback();
-            }
-          }}
           aria-label={`${paused ? 'Play' : 'Pause'} ${item.title || 'Short'}`}
         >
           {item.coverUrl ? <img className="shorts-backdrop" src={item.coverUrl} alt="" aria-hidden="true" referrerPolicy="no-referrer" /> : null}
@@ -213,9 +283,6 @@ function ShortsSlide({
           <p className="mt-1 text-sm text-zinc-200">@{item.creatorHandle || 'creator'} • {item.contentType || 'work'}</p>
         </div>
         <div className="shorts-actions" aria-label="Short actions">
-          <button type="button" onClick={(event) => { event.stopPropagation(); togglePlayback(); }} aria-label={paused ? 'Play Short' : 'Pause Short'}>
-            {paused ? '▶' : 'Ⅱ'}
-          </button>
           {isMediaPlayable ? (
             <button type="button" onClick={toggleMute} aria-label={muted ? 'Unmute Short' : 'Mute Short'}>
               {muted ? '🔇' : '🔊'}
@@ -235,21 +302,20 @@ function ShortsSlide({
             </a>
           ) : null}
         </div>
-        <input
-          className="shorts-volume"
-          type="range"
-          min="0"
-          max="1"
-          step="0.05"
-          value={volume}
-          onClick={(event) => event.stopPropagation()}
-          onChange={(event) => {
-            const nextVolume = Number(event.currentTarget.value);
-            onVolumeChange(nextVolume);
-            if (nextVolume > 0) onMutedChange(false);
-          }}
-          aria-label="Shorts volume"
-        />
+        <div className="shorts-scrubber" onClick={(event) => event.stopPropagation()}>
+          <span>{formatTime(progress)}</span>
+          <input
+            type="range"
+            min="0"
+            max={Math.max(0, effectiveDuration || 0)}
+            step="0.1"
+            value={Math.min(progress, effectiveDuration || progress || 0)}
+            disabled={!isMediaPlayable || !effectiveDuration}
+            onChange={(event) => seekTo(Number(event.currentTarget.value))}
+            aria-label="Shorts playback progress"
+          />
+          <span>{formatTime(effectiveDuration || 0)}</span>
+        </div>
         <Link className="shorts-back" to="/" aria-label="Leave Shorts">←</Link>
         <Link className="shorts-deep-link" to={shortsHrefForItem(item, topic)} state={{ item }} aria-label="Current Short permalink" />
       </div>
@@ -270,7 +336,8 @@ export function ShortsPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [muted, setMuted] = useState(false);
-  const [volume, setVolume] = useState(1);
+  const [activeGeneration, setActiveGeneration] = useState(1);
+  const activeIndexRef = useRef(0);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Array<HTMLElement | null>>([]);
   const hydratedKeys = useRef<Set<string>>(new Set());
@@ -287,7 +354,10 @@ export function ShortsPage() {
         if (!active) return;
         setItems(queue);
         const selectedIndex = contentId ? queue.findIndex((item) => item.contentId === contentId && (!originHint || normalizeCanonicalOrigin(item.publicOrigin) === originHint)) : 0;
-        setActiveIndex(selectedIndex > 0 ? selectedIndex : 0);
+        const nextIndex = selectedIndex > 0 ? selectedIndex : 0;
+        activeIndexRef.current = nextIndex;
+        setActiveGeneration((current) => current + 1);
+        setActiveIndex(nextIndex);
         window.requestAnimationFrame(() => {
           const target = sectionRefs.current[selectedIndex > 0 ? selectedIndex : 0];
           target?.scrollIntoView({ block: 'start' });
@@ -314,7 +384,11 @@ export function ShortsPage() {
           .filter((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.75)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
         if (!best) return;
-        setActiveIndex(Number((best.target as HTMLElement).dataset.index || 0));
+        const nextIndex = Number((best.target as HTMLElement).dataset.index || 0);
+        if (Number.isNaN(nextIndex) || nextIndex === activeIndexRef.current) return;
+        activeIndexRef.current = nextIndex;
+        setActiveGeneration((current) => current + 1);
+        setActiveIndex(nextIndex);
       },
       { root, threshold: [0.25, 0.5, 0.75, 0.9] },
     );
@@ -364,10 +438,9 @@ export function ShortsPage() {
               item={item}
               active={index === activeIndex}
               topic={topic}
+              activeGeneration={index === activeIndex ? activeGeneration : 0}
               muted={muted}
-              volume={volume}
               onMutedChange={setMuted}
-              onVolumeChange={setVolume}
               onExplore={exploreWork}
               index={index}
               slideRef={(node) => {
