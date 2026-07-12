@@ -24,8 +24,8 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams, queue }:
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
 
-  const query = watchParams || `origin=${encodeURIComponent(item.publicOrigin)}&mode=freebies&topic=all`;
-  const watchHref = `/watch/${encodeURIComponent(item.contentId)}?${query}`;
+  const query = watchParams || `origin=${encodeURIComponent(item.publicOrigin)}&topic=all`;
+  const watchHref = `/shorts/${encodeURIComponent(item.contentId)}?${query}`;
   const creator = item.creatorHandle || 'creator';
   const creatorHandleClean = String(item.creatorHandle || '').trim().replace(/^@+/, '');
   const creatorProfileUrl = canonicalCreatorProfileUrlForItem(item);

@@ -1830,7 +1830,6 @@ export function HomePage() {
                   const shortsQueue = freeItems.slice(0, 12);
                   const watchParams = new URLSearchParams({
                     origin: item.publicOrigin,
-                    mode: 'freebies',
                     topic,
                   }).toString();
                   return (

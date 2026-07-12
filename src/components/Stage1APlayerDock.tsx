@@ -10,7 +10,7 @@ import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/re
 import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
 import { canonicalCreatorProfileUrl, canonicalCreatorProfileUrlForItem } from '../lib/destinations';
 import { normalizeCanonicalOrigin } from '../lib/origin';
-import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerOptions, type Stage1APlayerState } from './stage1APlayerContext';
+import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerOptions, type Stage1APlayerSnapshot, type Stage1APlayerState } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
 type MediaAspect = Stage1APlayerMediaAspect;
@@ -384,6 +384,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const mutedAutoplayRef = useRef(false);
   const autoPlayAfterLoadRef = useRef(false);
   const endingRef = useRef(false);
+  const restoreMediaStateRef = useRef<{ currentTime: number; volume: number; muted: boolean } | null>(null);
 
   useEffect(() => {
     document.body.classList.add('has-stage1a-player');
@@ -593,8 +594,20 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     media.src = item.playback.streamUrl;
     media.preload = 'metadata';
     media.muted = mutedAutoplayRef.current;
+    const restoreMediaState = restoreMediaStateRef.current;
+    if (restoreMediaState) {
+      media.muted = restoreMediaState.muted;
+      media.volume = Math.min(1, Math.max(0, restoreMediaState.volume));
+    }
     setMediaMuted(media.muted);
     try { media.load(); } catch { /* ignore */ }
+    if (restoreMediaState && restoreMediaState.currentTime > 0) {
+      const restoreTime = () => {
+        try { media.currentTime = restoreMediaState.currentTime; } catch { /* ignore */ }
+      };
+      media.addEventListener('loadedmetadata', restoreTime, { once: true });
+      restoreMediaStateRef.current = null;
+    }
     if (!autoPlayAfterLoadRef.current) {
       setState('paused');
       setMessage('Tap Play to start playback.');
@@ -723,6 +736,33 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       setMessage('Paused');
     }
   }, [state]);
+
+  const getPlayerSnapshot = useCallback((): Stage1APlayerSnapshot => {
+    const media = activeMediaRef.current;
+    return {
+      item: item?.sourceItem || null,
+      queue: activePlayerQueue,
+      currentTime: media?.currentTime || progress || 0,
+      volume: media?.volume ?? 1,
+      muted: media?.muted ?? mediaMuted,
+      wasPlaying: state === 'playing' || state === 'loading',
+    };
+  }, [activePlayerQueue, item, mediaMuted, progress, state]);
+
+  const restorePlayerSnapshot = useCallback(async (snapshot: Stage1APlayerSnapshot | null) => {
+    if (!snapshot?.item) return;
+    restoreMediaStateRef.current = {
+      currentTime: snapshot.currentTime,
+      volume: snapshot.volume,
+      muted: snapshot.muted,
+    };
+    await playItem(snapshot.item, {
+      queue: snapshot.queue.length ? snapshot.queue : [snapshot.item],
+      autoPlay: false,
+      openPlayer: false,
+      muted: snapshot.muted,
+    });
+  }, [playItem]);
 
   const toggleMute = useCallback(() => {
     const media = activeMediaRef.current;
@@ -925,6 +965,8 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     setMobilePlayerOpen: setMobileSheetOpen,
     setPlayerChromeHidden,
     pausePlayback,
+    getPlayerSnapshot,
+    restorePlayerSnapshot,
     setFreeDropQueue,
     setDrawerContent,
     openDrawer: setDetailPanel,
@@ -942,7 +984,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     duration,
     canPlayNextFreeDrop,
     canPlayPreviousFreeDrop,
-  }), [activePlayerQueue, canPlayNextFreeDrop, canPlayPreviousFreeDrop, duration, item, message, pausePlayback, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, seek, setFreeDropQueue, state, togglePlay]);
+  }), [activePlayerQueue, canPlayNextFreeDrop, canPlayPreviousFreeDrop, duration, getPlayerSnapshot, item, message, pausePlayback, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, restorePlayerSnapshot, seek, setFreeDropQueue, state, togglePlay]);
   const isIdle = state === 'idle';
   const isPlaying = state === 'playing';
   const canControl = Boolean(item?.playback.streamUrl);

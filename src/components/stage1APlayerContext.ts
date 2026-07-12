@@ -52,11 +52,22 @@ export type Stage1APlayerOptions = {
   queue?: DiscoverableItem[];
 };
 
+export type Stage1APlayerSnapshot = {
+  item: DiscoverableItem | null;
+  queue: DiscoverableItem[];
+  currentTime: number;
+  volume: number;
+  muted: boolean;
+  wasPlaying: boolean;
+};
+
 export type Stage1APlayerContextValue = {
   playItem: (item: DiscoverableItem, options?: Stage1APlayerOptions) => Promise<void>;
   setMobilePlayerOpen: (open: boolean) => void;
   setPlayerChromeHidden: (hidden: boolean) => void;
   pausePlayback: () => void;
+  getPlayerSnapshot: () => Stage1APlayerSnapshot;
+  restorePlayerSnapshot: (snapshot: Stage1APlayerSnapshot | null) => Promise<void>;
   setFreeDropQueue: (items: DiscoverableItem[]) => void;
   setDrawerContent: (content: Stage1APlayerDrawerContent | null) => void;
   openDrawer: (panel: Stage1APlayerDrawerPanel) => void;
@@ -85,6 +96,8 @@ export function useStage1APlayer() {
     setMobilePlayerOpen: () => undefined,
     setPlayerChromeHidden: () => undefined,
     pausePlayback: () => undefined,
+    getPlayerSnapshot: () => ({ item: null, queue: [], currentTime: 0, volume: 1, muted: false, wasPlaying: false }),
+    restorePlayerSnapshot: async () => undefined,
     setFreeDropQueue: () => undefined,
     setDrawerContent: () => undefined,
     openDrawer: () => undefined,

@@ -1,171 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStage1APlayer } from '../components/stage1APlayerContext';
-import { fetchContentContext, fetchDiscoverablePage } from '../lib/api';
-import { loadConfiguredOrigins } from '../lib/config';
-import { resolveAccessFromOffer, type CanonicalOffer } from '../lib/accessResolver';
-import { fetchCanonicalOfferPayload, normalizeCanonicalOffer } from '../lib/offerFetch';
-import { rememberReceiptProofForItem, withReceiptProofs } from '../lib/receiptProofs';
-import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/receiptStatus';
+import { fetchContentContext } from '../lib/api';
+import { hydrateCanonicalOfferForItem, loadDiscoverableById, loadDiscoveryItems, normalizeTopic } from '../lib/contentRuntime';
 import { normalizeCanonicalOrigin } from '../lib/origin';
 import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
 import { canonicalCreatorProfileUrlForItem, canonicalCreatorProfileUrlForPerson } from '../lib/destinations';
-import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem, Topic } from '../lib/types';
-import { canOpenCreator, isLockedOrPremium, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
+import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem } from '../lib/types';
+import { isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
 import { buildWatchDiscoveryRails, dedupeDiscoveryItems, sortNewestFirst, type DiscoveryRail } from '../lib/discoveryViewModel';
 import { getCardThemeVars } from '../lib/profileTheme';
-
-function useMobileReelsMode() {
-  const [isMobile, setIsMobile] = useState(() => (typeof window === 'undefined' ? false : window.innerWidth < 900));
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    const query = window.matchMedia('(max-width: 899px)');
-    const update = () => setIsMobile(query.matches);
-    update();
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
-  return isMobile;
-}
 
 function ctaLabel(item: DiscoverableItem) {
   return displayStateFromItem(item).ctaLabel;
 }
 
-function resolveAbsoluteUrl(value: unknown, origin: string): string {
-  if (typeof value !== 'string') return '';
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  try {
-    return new URL(trimmed, `${origin}/`).toString();
-  } catch {
-    return '';
-  }
-}
-
 function priceLabel(item: DiscoverableItem): string {
   return displayStateFromItem(item).label;
-}
-
-function previewSecondsValue(...values: unknown[]): DiscoverableItem['previewSeconds'] {
-  for (const value of values) {
-    if (typeof value === 'number' || typeof value === 'string' || value === null) return value;
-  }
-  return null;
-}
-
-type CanonicalOfferResult = {
-  offer: CanonicalOffer | null;
-  receiptStatus: ReceiptAccessStatus | null;
-};
-
-async function fetchCanonicalOffer(item: DiscoverableItem): Promise<CanonicalOfferResult> {
-  let receiptStatus = await hydrateReceiptStatusForItem(item);
-  const canonicalOfferUrl = resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, item.publicOrigin);
-  const baseOfferUrls = [...new Set([String(item.offerUrl || '').trim(), canonicalOfferUrl].filter(Boolean))];
-  const offerUrls = baseOfferUrls.flatMap((offerUrl) => withReceiptProofs(offerUrl, item));
-  const offer = normalizeCanonicalOffer(await fetchCanonicalOfferPayload(offerUrls)) as CanonicalOffer | null;
-  const paymentAccessProof = offer?.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
-    ? offer.paymentAccessProof as Record<string, unknown>
-    : null;
-  rememberReceiptProofForItem(item, {
-    receiptId: typeof paymentAccessProof?.paymentReceiptId === 'string' ? paymentAccessProof.paymentReceiptId : typeof offer?.receiptId === 'string' ? offer.receiptId : undefined,
-    receiptToken: typeof paymentAccessProof?.receiptToken === 'string' ? paymentAccessProof.receiptToken : typeof offer?.receiptToken === 'string' ? offer.receiptToken : undefined,
-    paymentIntentId: typeof paymentAccessProof?.paymentIntentId === 'string' ? paymentAccessProof.paymentIntentId : typeof offer?.paymentIntentId === 'string' ? offer.paymentIntentId : undefined,
-    paidAt: typeof paymentAccessProof?.paidAt === 'string' ? paymentAccessProof.paidAt : typeof offer?.paidAt === 'string' ? offer.paidAt : undefined,
-  });
-  if (!receiptStatus) receiptStatus = await hydrateReceiptStatusForItem(item);
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    console.debug('[Certifyd receipt propagation]', 'WatchPage offer hydration result', {
-      item: { contentId: item.contentId, publicOrigin: item.publicOrigin },
-      receiptStatus,
-      offer,
-    });
-  }
-  return { offer, receiptStatus };
-}
-
-function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer, receiptStatus: ReceiptAccessStatus | null): DiscoverableItem {
-  const origin = item.publicOrigin;
-  const access = resolveAccessFromOffer(item, offer, receiptStatus);
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    console.debug('[Certifyd receipt propagation]', 'WatchPage resolved access', {
-      item: { contentId: item.contentId, publicOrigin: item.publicOrigin },
-      receiptStatus,
-      access,
-      playback: access.playback,
-    });
-  }
-
-  return {
-    ...item,
-    title: typeof offer.title === 'string' && offer.title.trim() ? offer.title : item.title,
-    description: typeof offer.description === 'string' ? offer.description : item.description,
-    contentType: typeof offer.type === 'string' && offer.type.trim()
-      ? offer.type
-      : (typeof offer.contentType === 'string' && offer.contentType.trim() ? offer.contentType : item.contentType),
-    primaryTopic: typeof offer.primaryTopic === 'string' && offer.primaryTopic.trim()
-      ? (offer.primaryTopic as DiscoverableItem['primaryTopic'])
-      : item.primaryTopic,
-    creatorHandle: typeof offer.creatorHandle === 'string' && offer.creatorHandle.trim() ? offer.creatorHandle : item.creatorHandle,
-    profileTheme: offer.profileTheme && typeof offer.profileTheme === 'object'
-      ? offer.profileTheme as DiscoverableItem['profileTheme']
-      : item.profileTheme,
-    coverUrl: resolveAbsoluteUrl(offer.coverUrl, origin) || item.coverUrl,
-    previewUrl: access.playback.mode === 'preview'
-      ? resolveAbsoluteUrl(access.playback.streamUrl, origin) || resolveAbsoluteUrl(offer.previewUrl, origin) || item.previewUrl
-      : resolveAbsoluteUrl(offer.previewUrl, origin) || item.previewUrl,
-    fullMediaUrl: access.playback.mode === 'full'
-      ? resolveAbsoluteUrl(access.playback.streamUrl, origin) || resolveAbsoluteUrl(offer.fullMediaUrl, origin) || item.fullMediaUrl || null
-      : null,
-    fullContentUrl: access.playback.mode === 'full'
-      ? resolveAbsoluteUrl(access.playback.streamUrl, origin) || resolveAbsoluteUrl(offer.fullContentUrl, origin) || item.fullContentUrl || null
-      : null,
-    buyUrl: resolveAbsoluteUrl(offer.buyUrl, origin) || item.buyUrl,
-    offerUrl: resolveAbsoluteUrl(offer.offerUrl, origin) || item.offerUrl || resolveAbsoluteUrl(`/buy/content/${encodeURIComponent(item.contentId)}/offer`, origin),
-    priceSats: access.priceSats,
-    accessMode: access.accessMode,
-    isLocked: access.isLocked,
-    isFree: access.isFree,
-    hasFullAccess: access.owned,
-    owned: access.owned,
-    canonicalOfferHydrated: true,
-    previewSeconds: previewSecondsValue(access.playback.previewLimitSeconds, offer.previewSeconds, offer.previewDurationSeconds, offer.previewLimitSeconds, item.previewSeconds),
-    primaryFileMime: typeof offer.primaryFileMime === 'string' ? offer.primaryFileMime : item.primaryFileMime,
-    paymentAccessProof: offer.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
-      ? offer.paymentAccessProof as DiscoverableItem['paymentAccessProof']
-      : item.paymentAccessProof,
-  };
-}
-
-async function hydrateCanonicalOffer(item: DiscoverableItem): Promise<DiscoverableItem> {
-  const { offer, receiptStatus } = await fetchCanonicalOffer(item);
-  if (!offer) {
-    if (import.meta.env.DEV) {
-      console.debug('[Certifyd WatchPage resolver]', {
-        phase: 'canonical-offer-missing',
-        contentId: item.contentId,
-        title: item.title,
-      });
-    }
-    return item;
-  }
-  const hydrated = mergeCanonicalOffer(item, offer, receiptStatus);
-  if (import.meta.env.DEV) {
-    console.debug('[Certifyd WatchPage resolver]', {
-      phase: 'canonical-offer-hydrated',
-      contentId: hydrated.contentId,
-      title: hydrated.title,
-      priceSats: hydrated.priceSats,
-      isLocked: hydrated.isLocked,
-      accessMode: hydrated.accessMode,
-      hasFullAccess: hydrated.hasFullAccess,
-      previewUrl: Boolean(hydrated.previewUrl),
-      fullMediaUrl: Boolean(hydrated.fullMediaUrl),
-    });
-  }
-  return hydrated;
 }
 
 function toErrorMessage(error: unknown): string {
@@ -182,134 +34,12 @@ type CreditItem = {
   percent?: number | string | null;
 };
 
-const FREEBIES_FIRST_PASS_TIMEOUT_MS = 4500;
-const FREEBIES_FALLBACK_TIMEOUT_MS = 7000;
-const FREEBIES_MAX_PAGES_PER_ORIGIN = 2;
-
-async function loadById(contentId: string, originHint: string | null): Promise<DiscoverableItem | null> {
-  const origins = await loadConfiguredOrigins();
-  const ordered = originHint ? [originHint, ...origins.filter((o) => o !== originHint)] : origins;
-
-  // Fast path: query first page on all origins in parallel.
-  const firstPass = await Promise.all(
-    ordered.map(async (origin) => {
-      try {
-        const response = await fetchDiscoverablePage({
-          origin,
-          topic: 'all',
-          limit: 24,
-          timeoutMs: FREEBIES_FIRST_PASS_TIMEOUT_MS,
-        });
-        return response.items.find((i) => i.contentId === contentId) || null;
-      } catch {
-        return null;
-      }
-    })
-  );
-  const hit = firstPass.find(Boolean) || null;
-  if (hit) return hit;
-
-  // Fallback: deeper sequential page walk.
-  for (const origin of ordered) {
-    let cursor: string | null = null;
-    for (let page = 0; page < 3; page += 1) {
-      try {
-        const response = await fetchDiscoverablePage({
-          origin,
-          topic: 'all',
-          limit: 24,
-          cursor,
-          timeoutMs: FREEBIES_FALLBACK_TIMEOUT_MS,
-        });
-        const deeperHit = response.items.find((i) => i.contentId === contentId);
-        if (deeperHit) return deeperHit;
-        if (!response.cursor) break;
-        cursor = response.cursor;
-      } catch {
-        break;
-      }
-    }
-  }
-  return null;
-}
-
 async function loadCredits(item: DiscoverableItem): Promise<CreditItem[]> {
   const endpoint = `${item.publicOrigin}/public/content/${encodeURIComponent(item.contentId)}/credits`;
   const res = await fetch(endpoint);
   if (!res.ok) return [];
   const data = await res.json().catch(() => []);
   return Array.isArray(data) ? (data as CreditItem[]) : [];
-}
-
-function normalizeTopic(value: string): Topic {
-  const raw = String(value || 'all').toLowerCase();
-  if (raw === 'entertainment' || raw === 'music' || raw === 'news' || raw === 'gaming' || raw === 'sports' || raw === 'technology') {
-    return raw;
-  }
-  return 'all';
-}
-
-async function loadFreebies(topic: Topic): Promise<DiscoverableItem[]> {
-  const origins = await loadConfiguredOrigins();
-  const rowsByOrigin = await Promise.all(
-    origins.map(async (origin) => {
-      const originRows: DiscoverableItem[] = [];
-      let cursor: string | null = null;
-      for (let page = 0; page < FREEBIES_MAX_PAGES_PER_ORIGIN; page += 1) {
-        try {
-          const response = await fetchDiscoverablePage({
-            origin,
-            topic,
-            limit: 18,
-            cursor,
-            timeoutMs: FREEBIES_FIRST_PASS_TIMEOUT_MS,
-          });
-          originRows.push(...response.items);
-          if (!response.cursor) break;
-          cursor = response.cursor;
-        } catch {
-          break;
-        }
-      }
-      return originRows;
-    })
-  );
-  const rows: DiscoverableItem[] = rowsByOrigin.flat();
-  const seen = new Map<string, DiscoverableItem>();
-  for (const it of rows) {
-    if (isLockedOrPremium(it) || !(it.accessMode === 'unlocked' || it.accessMode === 'owned')) continue;
-    const key = `${it.publicOrigin}::${it.contentId}`;
-    if (!seen.has(key)) seen.set(key, it);
-  }
-  return sortNewestFirst([...seen.values()]);
-}
-
-async function loadDiscoveryItems(topic: Topic): Promise<DiscoverableItem[]> {
-  const origins = await loadConfiguredOrigins();
-  const rowsByOrigin = await Promise.all(
-    origins.map(async (origin) => {
-      const originRows: DiscoverableItem[] = [];
-      let cursor: string | null = null;
-      for (let page = 0; page < FREEBIES_MAX_PAGES_PER_ORIGIN; page += 1) {
-        try {
-          const response = await fetchDiscoverablePage({
-            origin,
-            topic,
-            limit: 18,
-            cursor,
-            timeoutMs: FREEBIES_FIRST_PASS_TIMEOUT_MS,
-          });
-          originRows.push(...response.items);
-          if (!response.cursor) break;
-          cursor = response.cursor;
-        } catch {
-          break;
-        }
-      }
-      return originRows;
-    })
-  );
-  return sortNewestFirst(dedupeDiscoveryItems(rowsByOrigin.flat()));
 }
 
 function watchHrefForItem(item: DiscoverableItem): string {
@@ -1010,285 +740,6 @@ function HeroAttributionLineage({
   );
 }
 
-function shortMediaUrl(item: DiscoverableItem): string {
-  const canUseFull = Boolean(item.isFree || item.owned || item.hasFullAccess || item.accessMode === 'unlocked');
-  const fullUrl = item.fullMediaUrl || item.fullContentUrl || item.mediaUrl || item.contentUrl || '';
-  if (canUseFull && fullUrl) return fullUrl;
-  return item.previewUrl || '';
-}
-
-function shortMediaIsVideo(item: DiscoverableItem, src: string): boolean {
-  const hints = `${item.contentType || ''} ${item.primaryFileMime || ''} ${src}`.toLowerCase();
-  return hints.includes('video') || /\.(mp4|webm|mov|m4v)(?:$|[?&#])/.test(hints);
-}
-
-function ShortsMedia({
-  item,
-  active,
-  onExplore,
-}: {
-  item: DiscoverableItem;
-  active: boolean;
-  onExplore: () => void;
-}) {
-  const mediaRef = useRef<HTMLMediaElement | null>(null);
-  const [paused, setPaused] = useState(false);
-  const streamUrl = shortMediaUrl(item);
-  const isVideo = shortMediaIsVideo(item, streamUrl);
-  const playbackDisplay = displayStateFromItem(item);
-
-  useEffect(() => {
-    const media = mediaRef.current;
-    if (!media) return undefined;
-    if (!active || !streamUrl) {
-      try { media.pause(); } catch { /* ignore */ }
-      try { media.currentTime = 0; } catch { /* ignore */ }
-      return undefined;
-    }
-    media.muted = true;
-    media.loop = false;
-    media.setAttribute('playsinline', 'true');
-    const playPromise = media.play();
-    if (playPromise && typeof playPromise.catch === 'function') {
-      playPromise.catch(() => setPaused(true));
-    }
-    return () => {
-      try { media.pause(); } catch { /* ignore */ }
-    };
-  }, [active, streamUrl]);
-
-  const toggleShortPlayback = () => {
-    const media = mediaRef.current;
-    if (!media || !streamUrl) return;
-    if (media.paused) {
-      const playPromise = media.play();
-      setPaused(false);
-      if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => setPaused(true));
-      return;
-    }
-    media.pause();
-    setPaused(true);
-  };
-
-  return (
-    <div className="shorts-slide-surface">
-      <button
-        type="button"
-        className="shorts-media-hit-area"
-        onClick={toggleShortPlayback}
-        aria-label={paused ? `Play ${item.title || 'Short'}` : `Pause ${item.title || 'Short'}`}
-      >
-        {isVideo && streamUrl ? (
-          <video
-            ref={(node) => { mediaRef.current = node; }}
-            className="shorts-media"
-            src={streamUrl}
-            poster={item.coverUrl || undefined}
-            muted
-            playsInline
-            preload={active ? 'auto' : 'metadata'}
-            onPlay={() => setPaused(false)}
-            onPause={() => setPaused(true)}
-            onEnded={() => setPaused(true)}
-          />
-        ) : (
-          <>
-            {streamUrl ? (
-              <audio
-                ref={(node) => { mediaRef.current = node; }}
-                src={streamUrl}
-                muted
-                preload={active ? 'auto' : 'metadata'}
-                onPlay={() => setPaused(false)}
-                onPause={() => setPaused(true)}
-                onEnded={() => setPaused(true)}
-              />
-            ) : null}
-            {item.coverUrl ? (
-              <img src={item.coverUrl} alt={item.title || 'Short'} className="shorts-media" loading={active ? 'eager' : 'lazy'} decoding="async" referrerPolicy="no-referrer" />
-            ) : (
-              <div className="shorts-media shorts-media-empty">No preview</div>
-            )}
-          </>
-        )}
-      </button>
-      <div className="shorts-gradient" aria-hidden="true" />
-      <div className="shorts-meta">
-        <div className="min-w-0">
-          <div className="mb-2 flex flex-wrap gap-2">
-            <span className="watch-pill watch-pill-inline">{playbackDisplay.label}</span>
-            {paused ? <span className="watch-pill watch-pill-inline">Paused</span> : null}
-          </div>
-          <h1 className="line-clamp-2 text-2xl font-bold">{item.title || 'Untitled'}</h1>
-          <p className="mt-1 text-sm text-zinc-200">@{item.creatorHandle || 'creator'} • {item.primaryTopic || 'topic'} • {item.contentType}</p>
-        </div>
-      </div>
-      <div className="shorts-actions" aria-label="Short actions">
-        <button type="button" onClick={(event) => { event.stopPropagation(); toggleShortPlayback(); }} aria-label={paused ? 'Play Short' : 'Pause Short'}>
-          {paused ? '▶' : 'Ⅱ'}
-        </button>
-        <Link to={watchHrefForItem(item)} state={{ item }} onClick={(event) => { event.stopPropagation(); onExplore(); }} aria-label="Explore this work">
-          ↗
-        </Link>
-        {canOpenCreator(item) ? (
-          <a href={item.buyUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} aria-label={ctaLabel(item)}>
-            $
-          </a>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function FreebiesWatch({
-  contentId,
-  topic,
-  originHint,
-  stateItem,
-}: {
-  contentId: string;
-  topic: Topic;
-  originHint: string | null;
-  stateItem: DiscoverableItem | null;
-}) {
-  const { pausePlayback, setPlayerChromeHidden } = useStage1APlayer();
-  const [items, setItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const sectionRefs = useRef<Array<HTMLElement | null>>([]);
-  const canonicalHydrationKeys = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    setPlayerChromeHidden(true);
-    pausePlayback();
-    document.body.classList.add('has-shorts-mode');
-    return () => {
-      setPlayerChromeHidden(false);
-      document.body.classList.remove('has-shorts-mode');
-    };
-  }, [pausePlayback, setPlayerChromeHidden]);
-
-  useEffect(() => {
-    let active = true;
-    const run = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const feed = await loadFreebies(topic);
-        if (!active) return;
-        const map = new Map<string, DiscoverableItem>();
-        for (const it of feed) map.set(`${it.publicOrigin}::${it.contentId}`, it);
-        if (stateItem && isRenderableDiscoveryItem(stateItem)) map.set(`${stateItem.publicOrigin}::${stateItem.contentId}`, stateItem);
-        let merged = [...map.values()];
-        const selectedKey = stateItem
-          ? `${stateItem.publicOrigin}::${stateItem.contentId}`
-          : `${originHint || ''}::${contentId}`;
-        const selectedIndex = merged.findIndex(
-          (it) => `${it.publicOrigin}::${it.contentId}` === selectedKey || it.contentId === contentId,
-        );
-        if (selectedIndex > 0) {
-          const selected = merged[selectedIndex];
-          merged.splice(selectedIndex, 1);
-          merged = [selected, ...merged];
-        }
-        setItems(merged.filter((it) => isRenderableDiscoveryItem(it)));
-      } catch (e: unknown) {
-        if (!active) return;
-        setError(toErrorMessage(e));
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    void run();
-    return () => {
-      active = false;
-    };
-  }, [contentId, originHint, stateItem, topic]);
-
-  useEffect(() => {
-    const root = scrollerRef.current;
-    if (!root) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const best = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (!best) return;
-        const idx = Number((best.target as HTMLElement).dataset.index || 0);
-        setActiveIndex(idx);
-      },
-      { root, threshold: [0.5, 0.7, 0.9] },
-    );
-    sectionRefs.current.forEach((el) => {
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-  }, [items]);
-
-  const visibleDiscoveryItem = items[activeIndex] || null;
-  const visibleDiscoveryItemKey = visibleDiscoveryItem ? `${visibleDiscoveryItem.publicOrigin}::${visibleDiscoveryItem.contentId}` : null;
-
-  useEffect(() => {
-    let active = true;
-    if (!visibleDiscoveryItem || !visibleDiscoveryItemKey || canonicalHydrationKeys.current.has(visibleDiscoveryItemKey)) return;
-    canonicalHydrationKeys.current.add(visibleDiscoveryItemKey);
-    void hydrateCanonicalOffer(visibleDiscoveryItem)
-      .then((hydrated) => {
-        if (!active || hydrated === visibleDiscoveryItem) return;
-        setItems((current) =>
-          current.map((row) => (`${row.publicOrigin}::${row.contentId}` === visibleDiscoveryItemKey ? hydrated : row)),
-        );
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [visibleDiscoveryItem, visibleDiscoveryItemKey]);
-
-  return (
-    <main className="shorts-page bg-black text-white">
-      <div className="fixed left-3 z-50" style={{ top: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
-        <Link to="/" className="rounded-full bg-black/50 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-black/70">
-          ← Back
-        </Link>
-      </div>
-
-      {loading ? <div className="flex h-screen items-center justify-center text-zinc-300">Loading freebies…</div> : null}
-      {error ? <div className="flex h-screen items-center justify-center p-4 text-red-300">{error}</div> : null}
-
-      {!loading && !error ? (
-        <div ref={scrollerRef} className="watch-reel-scroller shorts-scroller">
-          {items.map((it, index) => {
-            const themeVars = getCardThemeVars(it.profileTheme);
-            return (
-              <section
-                key={`${it.publicOrigin}:${it.contentId}:${index}`}
-                className="watch-shell shorts-slide"
-                style={themeVars}
-                data-index={index}
-                ref={(el) => {
-                  sectionRefs.current[index] = el;
-                }}
-              >
-                <ShortsMedia
-                  item={it}
-                  active={index === activeIndex}
-                  onExplore={() => {
-                    setPlayerChromeHidden(false);
-                    document.body.classList.remove('has-shorts-mode');
-                  }}
-                />
-              </section>
-            );
-          })}
-        </div>
-      ) : null}
-    </main>
-  );
-}
-
 function StandardWatch({
   contentId,
   originHint,
@@ -1318,7 +769,7 @@ function StandardWatch({
       setLoading(true);
       setError(null);
       try {
-        const res = await loadById(contentId, originHint);
+        const res = await loadDiscoverableById(contentId, originHint);
         if (!active) return;
         if (!res) {
           setError('Content not found in configured origins.');
@@ -1403,7 +854,7 @@ function StandardWatch({
     const key = `${item.publicOrigin}::${item.contentId}`;
     if (canonicalHydrationKeys.current.has(key)) return;
     canonicalHydrationKeys.current.add(key);
-    void hydrateCanonicalOffer(item)
+    void hydrateCanonicalOfferForItem(item)
       .then((hydrated) => {
         if (!active || hydrated === item) return;
         setItem(hydrated);
@@ -1419,7 +870,7 @@ function StandardWatch({
 
   const rehydrateCurrentItem = useCallback(async () => {
     if (!item) return;
-    const hydrated = await hydrateCanonicalOffer(item);
+    const hydrated = await hydrateCanonicalOfferForItem(item);
     if (hydrated === item) return;
     setItem(hydrated);
     setDiscoveryItems((current) =>
@@ -1770,13 +1221,5 @@ export function WatchPage() {
       offerUrl: `${originHint}/buy/content/${encodeURIComponent(contentId)}/offer`,
     }
     : rawStateItem;
-  const mode = String(search.get('mode') || '').toLowerCase();
-  const topic = normalizeTopic(search.get('topic') || 'all');
-  const useMobileReels = useMobileReelsMode();
-
-  if (mode === 'freebies' && useMobileReels) {
-    return <FreebiesWatch contentId={contentId} originHint={originHint} topic={topic} stateItem={stateItem} />;
-  }
-
   return <StandardWatch contentId={contentId} originHint={originHint} stateItem={stateItem} />;
 }

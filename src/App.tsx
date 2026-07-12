@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { HomePage } from './routes/HomePage';
+import { ShortsPage } from './routes/ShortsPage';
 import { WatchPage } from './routes/WatchPage';
 import { Stage1APlayerProvider } from './components/Stage1APlayerDock';
 
@@ -105,6 +106,8 @@ function PlayerShell() {
       <div className="certifyd-player-center">
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/shorts" element={<ShortsPage />} />
+          <Route path="/shorts/:contentId" element={<ShortsPage />} />
           <Route path="/watch/:contentId" element={<WatchPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
