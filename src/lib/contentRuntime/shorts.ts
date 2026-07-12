@@ -13,6 +13,7 @@ export async function loadShortsRuntimeQueue(
   contentId: string | null,
   originHint: string | null,
   stateItem: DiscoverableItem | null,
+  options: { freeOnly?: boolean } = {},
 ): Promise<DiscoverableItem[]> {
   const extras: DiscoverableItem[] = [];
   if (stateItem && isRenderableDiscoveryItem(stateItem)) extras.push(stateItem);
@@ -23,6 +24,9 @@ export async function loadShortsRuntimeQueue(
   let queue = dedupeDiscoveryItems([...extras, ...await loadDiscoveryItems(topic)])
     .filter((item) => isRenderableDiscoveryItem(item))
     .filter((item) => Boolean(item.coverUrl || item.previewUrl || item.fullMediaUrl || item.fullContentUrl || item.mediaUrl || item.contentUrl));
+  if (options.freeOnly) {
+    queue = queue.filter((item) => item.isFree === true || item.accessMode === 'unlocked' || item.accessMode === 'owned' || Number(item.priceSats || 0) === 0);
+  }
   if (contentId) {
     const selectedIndex = queue.findIndex((item) => item.contentId === contentId && (!originHint || normalizeCanonicalOrigin(item.publicOrigin) === normalizeCanonicalOrigin(originHint)));
     if (selectedIndex > 0) {

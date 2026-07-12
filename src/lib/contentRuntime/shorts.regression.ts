@@ -52,6 +52,19 @@ function run() {
 
   const free = resolveRuntimePlayback(item({ priceSats: 0, accessMode: 'unlocked', isFree: true, isLocked: false, owned: false, hasFullAccess: false }));
   assertEqual(free.playback.mode, 'full');
+
+  const freePreviewOnly = resolveRuntimePlayback(item({
+    priceSats: 0,
+    accessMode: 'unlocked',
+    isFree: true,
+    isLocked: false,
+    owned: false,
+    hasFullAccess: false,
+    fullMediaUrl: null,
+    previewUrl: 'https://node.test/free-only.mp4',
+  }));
+  assertEqual(freePreviewOnly.playback.mode, 'full');
+  assertEqual(freePreviewOnly.streamUrl, 'https://node.test/free-only.mp4');
 }
 
 run();

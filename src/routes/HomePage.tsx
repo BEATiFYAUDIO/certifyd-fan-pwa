@@ -1833,6 +1833,7 @@ export function HomePage() {
                   const watchParams = new URLSearchParams({
                     origin: item.publicOrigin,
                     topic,
+                    free: '1',
                   }).toString();
                   return (
                     <ShortsCard key={`shorts:${item.publicOrigin}:${item.contentId}`} item={item} watchParams={watchParams} queue={shortsQueue} />

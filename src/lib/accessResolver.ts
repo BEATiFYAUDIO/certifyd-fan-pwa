@@ -94,14 +94,14 @@ export function resolveAccessFromOffer(item: DiscoverableItem, offer: CanonicalO
   const canonicalPreviewStreamUrl = requestedMode === 'preview' ? playback?.streamUrl : null;
   const previewStreamUrl = firstText([playback?.previewUrl, canonicalPreviewStreamUrl, offer?.previewUrl, item.previewUrl]);
   const offerFullStreamUrl = firstText([(requestedMode === 'full' || canPlayFull) ? playback?.streamUrl : null, offer?.fullMediaUrl, offer?.fullContentUrl, offer?.mediaUrl, offer?.contentUrl]);
-  const itemFullStreamUrl = receiptUnlocked || isFree ? firstText([item.fullMediaUrl, item.fullContentUrl, item.mediaUrl, item.contentUrl]) : null;
+  const itemFullStreamUrl = receiptUnlocked || isFree ? firstText([item.fullMediaUrl, item.fullContentUrl, item.mediaUrl, item.contentUrl, isFree ? item.previewUrl : null]) : null;
   const fullStreamUrl = offerFullStreamUrl || itemFullStreamUrl;
   const previewLimitSeconds = positiveNumber(playback?.previewLimitSeconds)
     || positiveNumber(offer?.previewSeconds)
     || positiveNumber(offer?.previewDurationSeconds)
     || positiveNumber(offer?.previewLimitSeconds)
     || positiveNumber(item.previewSeconds);
-  if (requestedMode === 'preview' && !hasViewerAccess) {
+  if (requestedMode === 'preview' && !hasViewerAccess && !isFree) {
     return {
       priceSats,
       isPaid,

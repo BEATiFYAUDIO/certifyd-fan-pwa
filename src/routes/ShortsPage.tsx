@@ -331,6 +331,7 @@ export function ShortsPage() {
   const stateItem = (location.state as { item?: DiscoverableItem } | null)?.item || null;
   const originHint = normalizeCanonicalOrigin(search.get('origin')) || null;
   const topic = normalizeTopic(search.get('topic'));
+  const freeOnly = search.get('free') === '1';
   const [items, setItems] = useState<DiscoverableItem[]>(stateItem && isRenderableDiscoveryItem(stateItem) ? [stateItem] : []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -350,7 +351,7 @@ export function ShortsPage() {
       setLoading(true);
       setError(null);
       try {
-        const queue = await loadShortsRuntimeQueue(topic, contentId || null, originHint, stateItem);
+        const queue = await loadShortsRuntimeQueue(topic, contentId || null, originHint, stateItem, { freeOnly });
         if (!active) return;
         setItems(queue);
         const selectedIndex = contentId ? queue.findIndex((item) => item.contentId === contentId && (!originHint || normalizeCanonicalOrigin(item.publicOrigin) === originHint)) : 0;
@@ -373,7 +374,7 @@ export function ShortsPage() {
     return () => {
       active = false;
     };
-  }, [contentId, originHint, stateItem, topic]);
+  }, [contentId, freeOnly, originHint, stateItem, topic]);
 
   useEffect(() => {
     const root = scrollerRef.current;
@@ -404,8 +405,9 @@ export function ShortsPage() {
   useEffect(() => {
     if (!activeItem) return;
     const params = new URLSearchParams({ origin: activeItem.publicOrigin, topic });
+    if (freeOnly) params.set('free', '1');
     window.history.replaceState(window.history.state, '', `/shorts/${encodeURIComponent(activeItem.contentId)}?${params.toString()}`);
-  }, [activeItem, topic]);
+  }, [activeItem, freeOnly, topic]);
 
   useEffect(() => {
     let active = true;
