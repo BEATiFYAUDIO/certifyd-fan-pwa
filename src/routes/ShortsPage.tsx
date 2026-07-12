@@ -47,6 +47,7 @@ function ShortsSlide({
   onNext,
   canPrevious,
   canNext,
+  mediaReady,
   slideRef,
   index,
 }: {
@@ -62,6 +63,7 @@ function ShortsSlide({
   onNext: () => void;
   canPrevious: boolean;
   canNext: boolean;
+  mediaReady: boolean;
   slideRef: (node: HTMLElement | null) => void;
   index: number;
 }) {
@@ -78,7 +80,8 @@ function ShortsSlide({
     aspect: 'portrait' | 'landscape' | 'square' | 'unknown';
   }>({ sourceKey: '', aspect: 'unknown' });
   const playbackState = useMemo(() => resolveRuntimePlayback(item), [item]);
-  const mediaSourceKey = playbackState.streamUrl || item.coverUrl || '';
+  const activeMediaSrc = active && mediaReady ? playbackState.streamUrl : '';
+  const mediaSourceKey = activeMediaSrc || item.coverUrl || '';
   const mediaAspect = mediaAspectState.sourceKey === mediaSourceKey ? mediaAspectState.aspect : 'unknown';
   const creatorProfileUrl = canonicalCreatorProfileUrlForItem(item);
   const buyUrl = buyUrlWithFanReturnUrl(item.buyUrl, item);
@@ -119,7 +122,7 @@ function ShortsSlide({
     if (!media) return undefined;
     media.muted = muted;
     media.volume = 1;
-    if (!active || !playbackState.streamUrl) {
+    if (!active || !mediaReady || !playbackState.streamUrl) {
       try { media.pause(); } catch { /* ignore */ }
       queueMicrotask(() => {
         if (!activeRef.current) {
@@ -164,7 +167,7 @@ function ShortsSlide({
       if (generationRef.current === generation) playAttemptRef.current += 1;
       try { media.pause(); } catch { /* ignore */ }
     };
-  }, [active, activeGeneration, muted, onMutedChange, playbackState.streamUrl]);
+  }, [active, activeGeneration, mediaReady, muted, onMutedChange, playbackState.streamUrl]);
 
   const togglePlayback = () => {
     const media = mediaRef.current;
@@ -242,7 +245,7 @@ function ShortsSlide({
         <video
           ref={(node) => { mediaRef.current = node; }}
           className={`shorts-media shorts-media-${mediaAspect}`}
-          src={active ? playbackState.streamUrl : undefined}
+          src={activeMediaSrc || undefined}
           poster={item.coverUrl || undefined}
           muted={muted}
           autoPlay={active}
@@ -266,7 +269,7 @@ function ShortsSlide({
           {item.coverUrl ? <img src={item.coverUrl} alt={item.title || 'Artwork'} referrerPolicy="no-referrer" /> : <div>CERTIFYD</div>}
           <audio
             ref={(node) => { mediaRef.current = node; }}
-            src={active ? playbackState.streamUrl : undefined}
+            src={activeMediaSrc || undefined}
             muted={muted}
             autoPlay={active}
             preload={active ? 'auto' : 'metadata'}
@@ -390,6 +393,7 @@ export function ShortsPage() {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Array<HTMLElement | null>>([]);
   const hydratedKeys = useRef<Set<string>>(new Set());
+  const [readyKeys, setReadyKeys] = useState<Set<string>>(() => new Set());
 
   useShortsSession();
 
@@ -401,9 +405,23 @@ export function ShortsPage() {
       try {
         const queue = await loadShortsRuntimeQueue(topic, contentId || null, originHint, stateItem, { freeOnly });
         if (!active) return;
-        setItems(queue);
         const selectedIndex = contentId ? queue.findIndex((item) => item.contentId === contentId && (!originHint || normalizeCanonicalOrigin(item.publicOrigin) === originHint)) : 0;
         const nextIndex = selectedIndex > 0 ? selectedIndex : 0;
+        const selected = queue[nextIndex];
+        if (selected && !selected.canonicalOfferHydrated) {
+          const selectedKey = contentRuntimeItemKey(selected);
+          hydratedKeys.current.add(selectedKey);
+          try {
+            const hydrated = await hydrateCanonicalOfferForItem(selected);
+            if (!active) return;
+            queue[nextIndex] = hydrated;
+          } catch {
+            // Fall back to discovery media if the canonical offer is unavailable.
+          } finally {
+            if (active) setReadyKeys((current) => new Set(current).add(selectedKey));
+          }
+        }
+        setItems(queue);
         activeIndexRef.current = nextIndex;
         setActiveGeneration((current) => current + 1);
         setActiveIndex(nextIndex);
@@ -466,7 +484,10 @@ export function ShortsPage() {
         if (!active) return;
         setItems((current) => current.map((item) => (contentRuntimeItemKey(item) === activeKey ? hydrated : item)));
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setReadyKeys((current) => new Set(current).add(activeKey));
+      });
     return () => {
       active = false;
     };
@@ -515,6 +536,7 @@ export function ShortsPage() {
               onNext={playNextShort}
               canPrevious={activeIndex > 0}
               canNext={activeIndex < items.length - 1}
+              mediaReady={!item.offerUrl || Boolean(item.canonicalOfferHydrated) || readyKeys.has(contentRuntimeItemKey(item))}
               index={index}
               slideRef={(node) => {
                 sectionRefs.current[index] = node;
