@@ -47,7 +47,6 @@ function ShortsSlide({
   onNext,
   canPrevious,
   canNext,
-  mediaReady,
   slideRef,
   index,
 }: {
@@ -63,7 +62,6 @@ function ShortsSlide({
   onNext: () => void;
   canPrevious: boolean;
   canNext: boolean;
-  mediaReady: boolean;
   slideRef: (node: HTMLElement | null) => void;
   index: number;
 }) {
@@ -79,10 +77,16 @@ function ShortsSlide({
     sourceKey: string;
     aspect: 'portrait' | 'landscape' | 'square' | 'unknown';
   }>({ sourceKey: '', aspect: 'unknown' });
+  const [posterAspectState, setPosterAspectState] = useState<{
+    sourceKey: string;
+    aspect: 'portrait' | 'landscape' | 'square' | 'unknown';
+  }>({ sourceKey: '', aspect: 'unknown' });
   const playbackState = useMemo(() => resolveRuntimePlayback(item), [item]);
-  const activeMediaSrc = active && mediaReady ? playbackState.streamUrl : '';
+  const activeMediaSrc = active ? playbackState.streamUrl : '';
   const mediaSourceKey = activeMediaSrc || item.coverUrl || '';
   const mediaAspect = mediaAspectState.sourceKey === mediaSourceKey ? mediaAspectState.aspect : 'unknown';
+  const posterAspect = posterAspectState.sourceKey === item.coverUrl ? posterAspectState.aspect : 'unknown';
+  const videoPosterUrl = posterAspect === 'portrait' ? undefined : item.coverUrl || undefined;
   const creatorProfileUrl = canonicalCreatorProfileUrlForItem(item);
   const buyUrl = buyUrlWithFanReturnUrl(item.buyUrl, item);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
@@ -103,6 +107,24 @@ function ShortsSlide({
     });
   };
 
+  useEffect(() => {
+    if (!item.coverUrl) return undefined;
+    let cancelled = false;
+    const image = new Image();
+    image.referrerPolicy = 'no-referrer';
+    image.onload = () => {
+      if (cancelled) return;
+      setPosterAspectState({
+        sourceKey: item.coverUrl,
+        aspect: classifyAspect(image.naturalWidth, image.naturalHeight),
+      });
+    };
+    image.src = item.coverUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [item.coverUrl]);
+
   const isCurrentGeneration = useCallback(() => activeRef.current && generationRef.current === activeGeneration, [activeGeneration]);
 
   useEffect(() => {
@@ -122,7 +144,7 @@ function ShortsSlide({
     if (!media) return undefined;
     media.muted = muted;
     media.volume = 1;
-    if (!active || !mediaReady || !playbackState.streamUrl) {
+    if (!active || !playbackState.streamUrl) {
       try { media.pause(); } catch { /* ignore */ }
       queueMicrotask(() => {
         if (!activeRef.current) {
@@ -149,25 +171,14 @@ function ShortsSlide({
         })
         .catch(() => {
           if (generationRef.current !== generation || playAttemptRef.current !== playAttempt) return;
-          media.muted = true;
-          onMutedChange(true);
-          const mutedPromise = media.play();
-          if (mutedPromise && typeof mutedPromise.then === 'function') {
-            mutedPromise
-              .then(() => {
-                if (generationRef.current === generation && playAttemptRef.current === playAttempt) setPaused(false);
-              })
-              .catch(() => {
-                if (generationRef.current === generation && playAttemptRef.current === playAttempt) setPaused(true);
-              });
-          }
+          setPaused(true);
         });
     }
     return () => {
       if (generationRef.current === generation) playAttemptRef.current += 1;
       try { media.pause(); } catch { /* ignore */ }
     };
-  }, [active, activeGeneration, mediaReady, muted, onMutedChange, playbackState.streamUrl]);
+  }, [active, activeGeneration, muted, playbackState.streamUrl]);
 
   const togglePlayback = () => {
     const media = mediaRef.current;
@@ -246,7 +257,7 @@ function ShortsSlide({
           ref={(node) => { mediaRef.current = node; }}
           className={`shorts-media shorts-media-${mediaAspect}`}
           src={activeMediaSrc || undefined}
-          poster={item.coverUrl || undefined}
+          poster={videoPosterUrl}
           muted={muted}
           autoPlay={active}
           playsInline
@@ -387,13 +398,12 @@ export function ShortsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [muted, setMuted] = useState(() => freeOnly);
+  const [muted, setMuted] = useState(false);
   const [activeGeneration, setActiveGeneration] = useState(1);
   const activeIndexRef = useRef(0);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Array<HTMLElement | null>>([]);
   const hydratedKeys = useRef<Set<string>>(new Set());
-  const [readyKeys, setReadyKeys] = useState<Set<string>>(() => new Set());
 
   useShortsSession();
 
@@ -407,20 +417,6 @@ export function ShortsPage() {
         if (!active) return;
         const selectedIndex = contentId ? queue.findIndex((item) => item.contentId === contentId && (!originHint || normalizeCanonicalOrigin(item.publicOrigin) === originHint)) : 0;
         const nextIndex = selectedIndex > 0 ? selectedIndex : 0;
-        const selected = queue[nextIndex];
-        if (selected && !selected.canonicalOfferHydrated) {
-          const selectedKey = contentRuntimeItemKey(selected);
-          hydratedKeys.current.add(selectedKey);
-          try {
-            const hydrated = await hydrateCanonicalOfferForItem(selected);
-            if (!active) return;
-            queue[nextIndex] = hydrated;
-          } catch {
-            // Fall back to discovery media if the canonical offer is unavailable.
-          } finally {
-            if (active) setReadyKeys((current) => new Set(current).add(selectedKey));
-          }
-        }
         setItems(queue);
         activeIndexRef.current = nextIndex;
         setActiveGeneration((current) => current + 1);
@@ -485,9 +481,6 @@ export function ShortsPage() {
         setItems((current) => current.map((item) => (contentRuntimeItemKey(item) === activeKey ? hydrated : item)));
       })
       .catch(() => undefined)
-      .finally(() => {
-        if (active) setReadyKeys((current) => new Set(current).add(activeKey));
-      });
     return () => {
       active = false;
     };
@@ -536,7 +529,6 @@ export function ShortsPage() {
               onNext={playNextShort}
               canPrevious={activeIndex > 0}
               canNext={activeIndex < items.length - 1}
-              mediaReady={!item.offerUrl || Boolean(item.canonicalOfferHydrated) || readyKeys.has(contentRuntimeItemKey(item))}
               index={index}
               slideRef={(node) => {
                 sectionRefs.current[index] = node;
