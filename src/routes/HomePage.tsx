@@ -1111,7 +1111,7 @@ function TopActivityBoard({
           Explore creators
         </a>
       </div>
-      <div className="top-activity-grid grid min-w-0 auto-rows-auto grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="top-activity-grid grid min-w-0 auto-rows-auto grid-cols-1 gap-2.5 md:grid-cols-2">
         <CreatorNetworkCard creators={activeCreators} />
         {recentItems.length > 0 ? (
           <RankedSurfaceCard
