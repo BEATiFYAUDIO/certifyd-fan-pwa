@@ -867,6 +867,12 @@ body::after {
     0 8px 28px rgba(var(--profile-primary-rgb, var(--certifyd-blue)), 0.08);
 }
 
+@media (max-width: 900px) {
+  .signal-row .ranking-row-play-button {
+    display: none;
+  }
+}
+
 .watch-shell {
   background:
     radial-gradient(1000px 720px at 14% 0%, rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.12), transparent 62%),

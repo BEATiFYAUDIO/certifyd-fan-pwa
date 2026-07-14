@@ -703,7 +703,7 @@ function RankingRow({
           )}
           <button
             type="button"
-            className="absolute inset-0 grid place-items-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100 focus:bg-black/45 focus:opacity-100"
+            className="ranking-row-play-button absolute inset-0 grid place-items-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100 focus:bg-black/45 focus:opacity-100"
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
