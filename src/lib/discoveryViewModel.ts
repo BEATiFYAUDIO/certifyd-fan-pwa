@@ -74,6 +74,10 @@ function text(value: unknown): string {
   return String(value || '').trim();
 }
 
+function normalizedTextKey(value: unknown): string {
+  return text(value).toLowerCase().replace(/\s+/g, ' ');
+}
+
 function publicNumberSignal(item: DiscoverableItem, keys: string[]): number {
   const record = item as unknown as Record<string, unknown>;
   for (const key of keys) {
@@ -179,11 +183,29 @@ export function sortNewestFirst(items: DiscoverableItem[]): DiscoverableItem[] {
 }
 
 export function dedupeDiscoveryItems(items: DiscoverableItem[]): DiscoverableItem[] {
+  const seenById = new Set<string>();
   const seen = new Map<string, DiscoverableItem>();
   for (const item of items) {
     if (!isRenderableDiscoveryItem(item)) continue;
-    const key = itemKey(item);
-    if (!seen.has(key)) seen.set(key, item);
+    const exactKey = itemKey(item);
+    if (seenById.has(exactKey)) continue;
+    seenById.add(exactKey);
+
+    const creator = normalizedTextKey(item.creatorHandle).replace(/^@+/, '');
+    const title = normalizedTextKey(item.title);
+    const type = normalizedTextKey(item.contentType) || 'work';
+    const workKey = `${item.publicOrigin}::${creator}::${title}::${type}`;
+    const current = seen.get(workKey);
+    if (!current) {
+      seen.set(workKey, item);
+      continue;
+    }
+
+    const currentTime = itemSortTime(current);
+    const itemTime = itemSortTime(item);
+    if (itemTime > currentTime || (itemTime === currentTime && itemKey(item).localeCompare(itemKey(current)) > 0)) {
+      seen.set(workKey, item);
+    }
   }
   return [...seen.values()];
 }
