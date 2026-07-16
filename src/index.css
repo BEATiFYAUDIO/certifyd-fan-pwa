@@ -1431,7 +1431,7 @@ body.has-shorts-mode .certifyd-player-center {
 .watch-hero-lineage {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(12rem, 0.8fr) minmax(0, 1.65fr);
+  grid-template-columns: minmax(10rem, 0.55fr) minmax(0, 2fr);
   gap: clamp(1rem, 1.8vw, 1.5rem);
   align-items: stretch;
   margin-top: 0;
@@ -1507,9 +1507,7 @@ body.has-shorts-mode .certifyd-player-center {
 .watch-hero-lineage-card strong,
 .watch-hero-lineage-card small {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .watch-hero-lineage-card span {
@@ -1535,8 +1533,9 @@ body.has-shorts-mode .certifyd-player-center {
 
 .watch-hero-lineage-person > div {
   display: grid;
-  grid-template-columns: 1.8rem minmax(0, max-content) minmax(0, 1fr);
-  gap: 0.55rem;
+  grid-template-columns: 1.8rem minmax(0, 1fr);
+  column-gap: 0.55rem;
+  row-gap: 0.1rem;
   align-items: center;
   margin-top: 0.45rem;
 }
@@ -1548,6 +1547,11 @@ body.has-shorts-mode .certifyd-player-center {
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
   object-fit: cover;
+}
+
+.watch-hero-lineage-person strong,
+.watch-hero-lineage-person small {
+  grid-column: 2;
 }
 
 .watch-hero-lineage-chips,
@@ -1564,12 +1568,14 @@ body.has-shorts-mode .certifyd-player-center {
 }
 
 .watch-hero-lineage-chips small {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
   max-width: 100%;
   align-items: center;
-  gap: 0.42rem;
+  column-gap: 0.42rem;
+  row-gap: 0.05rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
+  border-radius: 0.8rem;
   background: rgba(15, 23, 42, 0.44);
   padding: 0.34rem 0.58rem;
 }
@@ -1583,18 +1589,19 @@ body.has-shorts-mode .certifyd-player-center {
 
 .watch-hero-lineage-chips b,
 .watch-hero-lineage-chips em {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .watch-hero-lineage-chips b {
+  grid-column: 2;
   color: rgba(245, 245, 245, 0.94);
   font-style: normal;
   font-weight: 700;
 }
 
 .watch-hero-lineage-chips em {
+  grid-column: 2;
   color: rgba(161, 161, 170, 0.86);
   font-style: normal;
 }
