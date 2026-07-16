@@ -1,4 +1,5 @@
 import { resolveAccessFromOffer, type CanonicalOffer } from '../accessResolver';
+import { rememberUnlockedAccessForItem } from '../accessCache';
 import type { ReceiptAccessStatus } from '../receiptStatus';
 import type { DiscoverableItem } from '../types';
 import { fetchCanonicalOfferForItem } from './offers';
@@ -14,6 +15,7 @@ function previewSecondsValue(...values: unknown[]): DiscoverableItem['previewSec
 export function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer, receiptStatus: ReceiptAccessStatus | null): DiscoverableItem {
   const origin = item.publicOrigin;
   const access = resolveAccessFromOffer(item, offer, receiptStatus);
+  if (access.owned) rememberUnlockedAccessForItem(item);
   return {
     ...item,
     title: typeof offer.title === 'string' && offer.title.trim() ? offer.title : item.title,

@@ -1,4 +1,5 @@
 import type { DiscoverableItem } from './types';
+import { hasRecentUnlockedAccessForItem } from './accessCache';
 
 export type PlayerCommerceState = 'free' | 'preview' | 'owned' | 'unavailable';
 
@@ -15,7 +16,7 @@ function previewLabel(seconds: number | string | null | undefined): string {
 }
 
 export function displayStateFromItem(item: DiscoverableItem): PlaybackDisplayState {
-  if (item.accessMode === 'owned' || item.owned === true || item.hasFullAccess === true) {
+  if (item.accessMode === 'owned' || item.owned === true || item.hasFullAccess === true || hasRecentUnlockedAccessForItem(item)) {
     return { state: 'owned', label: 'OWNED', ctaLabel: 'Support Creator' };
   }
   if (item.accessMode === 'locked' || item.isLocked === true || Number(item.priceSats || 0) > 0) {

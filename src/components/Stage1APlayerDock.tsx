@@ -11,6 +11,7 @@ import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from '../lib/fanRetur
 import { canonicalCreatorProfileUrl, canonicalCreatorProfileUrlForItem } from '../lib/destinations';
 import { normalizeCanonicalOrigin } from '../lib/origin';
 import { openExternalNavigation } from '../lib/externalNavigation';
+import { rememberUnlockedAccessForItem } from '../lib/accessCache';
 import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerOptions, type Stage1APlayerSnapshot, type Stage1APlayerState } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
@@ -489,6 +490,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     try {
       const { offer, receiptStatus } = await fetchCanonicalOffer(nextItem);
       const access = resolveAccessFromOffer(nextItem, offer, receiptStatus);
+      if (access.owned) rememberUnlockedAccessForItem(nextItem);
       const playback = access.playback;
       if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
         console.debug('[Certifyd receipt propagation]', 'Player resolved access and final playback', {

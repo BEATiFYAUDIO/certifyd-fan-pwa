@@ -1,6 +1,7 @@
 import type { DiscoverableItem } from './types';
 import { receiptProofsForItem, rememberReceiptProofForItem, type ReceiptProof } from './receiptProofs';
 import { normalizeCanonicalOrigin } from './origin';
+import { forgetUnlockedAccessForItem, rememberUnlockedAccessForItem } from './accessCache';
 
 export type ReceiptAccessStatus = {
   contentId: string | null;
@@ -176,7 +177,11 @@ async function hydrateNodeAccessStatusForItem(item: DiscoverableItem): Promise<R
         receiptToken: status.receiptToken,
         unlocked: isReceiptStatusUnlocked(status),
       });
-      if (isReceiptStatusUnlocked(status)) return status;
+      if (isReceiptStatusUnlocked(status)) {
+        rememberUnlockedAccessForItem(item);
+        return status;
+      }
+      forgetUnlockedAccessForItem(item);
     } catch (error) {
       debugReceiptPropagation('node access status fetch blocked or failed', { url, error });
     }
@@ -211,9 +216,11 @@ export async function hydrateReceiptStatusForItem(item: DiscoverableItem): Promi
           paidAt: status.paidAt || proof.paidAt,
         });
         if (isReceiptStatusUnlocked(status)) {
+          rememberUnlockedAccessForItem(item);
           debugReceiptPropagation('receipt status unlocked item', { item: { contentId: item.contentId, publicOrigin: item.publicOrigin }, status });
           return status;
         }
+        forgetUnlockedAccessForItem(item);
         debugReceiptPropagation('receipt status did not unlock item', { item: { contentId: item.contentId, publicOrigin: item.publicOrigin }, status });
       } catch (error) {
         debugReceiptPropagation('receipt status fetch blocked or failed', { url, error });
