@@ -912,10 +912,12 @@ function StandardWatch({
     navigate(watchHrefForItem(activePlaybackSourceItem), { state: { item: activePlaybackSourceItem } });
   }, [activePlaybackSourceItem, navigate]);
   const selectContentItem = useCallback((nextItem: DiscoverableItem) => {
+    const nextContentKey = discoveryItemKey(nextItem);
     setItem(nextItem);
     setDiscoveryItems((current) => dedupeDiscoveryItems([nextItem, ...current]));
+    if (nextContentKey === selectedContentKey) return;
     navigate(watchHrefForItem(nextItem), { state: { item: nextItem } });
-  }, [navigate]);
+  }, [navigate, selectedContentKey]);
   const playContentItem = useCallback((nextItem: DiscoverableItem, queue: DiscoverableItem[]) => {
     const nextQueue = queue.length ? queue : [nextItem];
     selectContentItem(nextItem);
@@ -927,10 +929,11 @@ function StandardWatch({
     const nextPlaybackKey = discoveryItemKey(activePlaybackSourceItem);
     if (!nextPlaybackKey || lastPlaybackSelectionKey.current === nextPlaybackKey) return;
     lastPlaybackSelectionKey.current = nextPlaybackKey;
+    if (selectedContentKey === nextPlaybackKey) return;
     setItem(activePlaybackSourceItem);
     setDiscoveryItems((current) => dedupeDiscoveryItems([activePlaybackSourceItem, ...current]));
     navigate(watchHrefForItem(activePlaybackSourceItem), { state: { item: activePlaybackSourceItem } });
-  }, [activePlaybackSourceItem, navigate]);
+  }, [activePlaybackSourceItem, navigate, selectedContentKey]);
   const relationshipContext = item && relationshipContextState?.key === `${item.publicOrigin}::${item.contentId}`
     ? relationshipContextState.context
     : null;
