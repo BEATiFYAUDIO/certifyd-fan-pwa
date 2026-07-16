@@ -1032,6 +1032,29 @@ body::after {
   text-decoration-color: rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.72);
 }
 
+.local-creator-action {
+  display: inline-flex;
+  min-height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.22);
+  border-radius: 999px;
+  background: rgba(2, 6, 12, 0.42);
+  padding: 0 0.8rem;
+  color: rgba(248, 250, 252, 0.9);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+}
+
+.local-creator-action:hover,
+.local-creator-action:focus-visible {
+  border-color: rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.42);
+  background: rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.12);
+}
+
 .creator-themed-rank {
   border-color: rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.18) !important;
   background:

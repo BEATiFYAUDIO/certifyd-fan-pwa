@@ -899,7 +899,7 @@ function hydrateLocalCreators(creators: LocalCreator[], creatorSources: CreatorS
   });
 }
 
-function LocalCreatorCard({ creator }: { creator: LocalCreator }) {
+function LocalCreatorCard({ creator, actionLabel, onAction }: { creator: LocalCreator; actionLabel?: string; onAction?: (creator: LocalCreator) => void }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
   const profileUrl = canonicalCreatorProfileUrl({
@@ -923,39 +923,40 @@ function LocalCreatorCard({ creator }: { creator: LocalCreator }) {
     }
   })();
   return (
-    <a
-      href={profileUrl}
-      target="_blank"
-      rel="noreferrer"
-      className="creator-themed-card group flex min-w-0 items-center gap-3 rounded-2xl border p-3 transition"
-      style={themeVars}
-    >
-      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-900">
-        {creator.avatarUrl ? (
-          <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
-        ) : (
-          <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-2 opacity-75" loading="lazy" decoding="async" />
-        )}
-      </div>
-      <div className="min-w-0">
-        <div className="truncate text-sm font-semibold text-zinc-100 group-hover:text-white">{creator.displayName || creator.handle}</div>
-        <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator.handle}</div>
-        <div className="mt-1 truncate text-[11px] text-zinc-300/80">{creator.latestTitle || displayHost}</div>
-        {chips.length > 0 ? (
-          <div className="mt-1.5 flex min-w-0 gap-1 overflow-hidden">
-            {chips.map((chip) => (
-              <span key={chip} className="creator-themed-badge-muted truncate rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
-                {chip}
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </a>
+    <article className="creator-themed-card group flex min-w-0 items-center gap-3 rounded-2xl border p-3 transition" style={themeVars}>
+      <a href={profileUrl} target="_blank" rel="noreferrer" className="flex min-w-0 flex-1 items-center gap-3 text-inherit no-underline">
+        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-white/10 bg-zinc-900">
+          {creator.avatarUrl ? (
+            <img src={creator.avatarUrl} alt={`@${creator.handle}`} className="h-full w-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+          ) : (
+            <img src={fallbackLogo} alt="" className="h-full w-full object-contain p-2 opacity-75" loading="lazy" decoding="async" />
+          )}
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-zinc-100 group-hover:text-white">{creator.displayName || creator.handle}</div>
+          <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator.handle}</div>
+          <div className="mt-1 truncate text-[11px] text-zinc-300/80">{creator.latestTitle || displayHost}</div>
+          {chips.length > 0 ? (
+            <div className="mt-1.5 flex min-w-0 gap-1 overflow-hidden">
+              {chips.map((chip) => (
+                <span key={chip} className="creator-themed-badge-muted truncate rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+                  {chip}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </a>
+      {actionLabel && onAction ? (
+        <button type="button" className="local-creator-action" onClick={() => onAction(creator)}>
+          {actionLabel}
+        </button>
+      ) : null}
+    </article>
   );
 }
 
-function LocalCreatorSection({ id, title, subtitle, creators }: { id: DiscoveryContext; title: string; subtitle: string; creators: LocalCreator[] }) {
+function LocalCreatorSection({ id, title, subtitle, creators, actionLabel, onAction }: { id: DiscoveryContext; title: string; subtitle: string; creators: LocalCreator[]; actionLabel?: string; onAction?: (creator: LocalCreator) => void }) {
   return (
     <section id={id} className="min-w-0 scroll-mt-40 overflow-hidden rounded-3xl border border-zinc-800/90 bg-zinc-950/75 p-3 shadow-2xl shadow-black/30 sm:p-5">
       <div className="flex min-w-0 items-start justify-between gap-4">
@@ -969,7 +970,7 @@ function LocalCreatorSection({ id, title, subtitle, creators }: { id: DiscoveryC
       {creators.length > 0 ? (
         <div className="mt-5 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2">
           {creators.map((creator) => (
-            <LocalCreatorCard key={creator.key} creator={creator} />
+            <LocalCreatorCard key={creator.key} creator={creator} actionLabel={actionLabel} onAction={onAction} />
           ))}
         </div>
       ) : (
@@ -1190,7 +1191,7 @@ function readScope(searchValue?: string): { topic: Topic; extraScope: ExtraScope
 
 export function HomePage() {
   const { recentItems } = useStage1APlayer();
-  const { savedWorks, savedCreators, followedCreators } = useLocalLibrary();
+  const { savedWorks, savedCreators, followedCreators, toggleFollowedCreator } = useLocalLibrary();
   const location = useLocation();
   const navigate = useNavigate();
   const [origins, setOrigins] = useState<string[]>([]);
@@ -1804,7 +1805,7 @@ export function HomePage() {
         ) : null}
 
         {!showOverview && !showFallbackBoard && showFollowing ? (
-          <LocalCreatorSection id="following" title="Following" subtitle="Creators followed locally on this device" creators={hydratedFollowedCreators} />
+          <LocalCreatorSection id="following" title="Following" subtitle="Creators followed locally on this device" creators={hydratedFollowedCreators} actionLabel="Unfollow" onAction={toggleFollowedCreator} />
         ) : null}
 
         {!showOverview && !showFallbackBoard && showSaved ? (
