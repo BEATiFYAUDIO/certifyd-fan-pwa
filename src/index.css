@@ -706,18 +706,29 @@ body::after {
     margin-top: 12px;
   }
 
+  .watch-hero-card {
+    border-radius: 24px;
+  }
+
+  .watch-hero-card::after {
+    background:
+      linear-gradient(110deg, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.34) 56%, rgba(0, 0, 0, 0.68)),
+      linear-gradient(180deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.86));
+  }
+
   .watch-hero-content {
     display: flex;
     min-height: auto;
     flex-direction: column;
-    gap: 16px;
-    padding: 14px;
+    gap: 18px;
+    padding: clamp(26px, 7vw, 36px);
   }
 
   .watch-hero-copy {
     display: flex;
     min-height: 0;
-    gap: 20px;
+    gap: clamp(34px, 10vw, 54px);
+    order: 1;
   }
 
   .watch-hero-control-deck {
@@ -725,13 +736,37 @@ body::after {
     border-radius: 16px;
   }
 
+  .watch-pill {
+    min-height: 36px;
+    padding: 0.48rem 0.78rem;
+    font-size: 0.78rem;
+  }
+
+  .watch-topic {
+    font-size: 0.95rem;
+  }
+
+  .watch-details-pill {
+    min-height: 44px;
+    border-radius: 999px;
+    padding: 0 1.1rem;
+    font-size: 0.82rem;
+  }
+
   .watch-hero-main {
-    padding-top: 20px;
+    padding-top: 0;
     padding-right: 0;
+  }
+
+  .watch-hero-main p {
+    display: none;
   }
 
   .watch-hero-lineage {
     display: block;
+    order: 4;
+    border-radius: 18px;
+    padding: clamp(18px, 5vw, 24px);
   }
 
   .watch-hero-lineage-head {
@@ -741,23 +776,75 @@ body::after {
 
   .watch-hero-lineage-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-top: 0.75rem;
+    gap: 12px;
+    margin-top: 18px;
   }
 
   .watch-title {
-    font-size: clamp(2rem, 13vw, 3.2rem);
+    max-width: 100%;
+    font-size: clamp(3rem, 12.6vw, 4.3rem);
+    line-height: 0.98;
   }
 
   .watch-preview-stack {
     position: static;
     width: 100%;
-    order: 3;
+    order: 2;
+    margin-top: 0;
   }
 
   .watch-preview-frame {
     width: 100%;
     min-height: 0;
     aspect-ratio: 16 / 9;
+    border-radius: 18px;
+  }
+
+  .watch-preview-frame button[aria-label^="Play"] {
+    right: 14px;
+    bottom: 14px;
+    min-height: 44px;
+    border-radius: 999px;
+    padding: 0 16px;
+    font-size: 0.94rem;
+  }
+
+  .watch-preview-frame button[aria-label^="Play"]::after {
+    content: "▶";
+    margin-left: 10px;
+    font-size: 0.78rem;
+  }
+
+  .watch-mobile-preview-pill {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    align-items: center;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    padding: 0.45rem 0.82rem;
+    color: rgba(255, 255, 255, 0.94);
+    font-size: 0.86rem;
+    font-weight: 950;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .watch-hero-mobile-actions {
+    order: 5;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .watch-hero-mobile-actions .watch-details-pill {
+    min-height: 58px;
+    border-radius: 16px;
+    background: rgba(0, 0, 0, 0.22);
+    color: #ffffff;
+    font-size: 0.92rem;
+    font-weight: 950;
+    text-decoration: none;
   }
 
   .watch-secondary-button,
@@ -1426,6 +1513,11 @@ body.has-shorts-mode .certifyd-player-center {
   color: var(--profile-accent, rgb(var(--certifyd-orange)));
   font-size: 0.9rem;
   filter: drop-shadow(0 0 10px rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.42));
+}
+
+.watch-mobile-preview-pill,
+.watch-hero-mobile-actions {
+  display: none;
 }
 
 .watch-hero-lineage {
