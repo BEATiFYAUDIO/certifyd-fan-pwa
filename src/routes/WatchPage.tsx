@@ -1137,7 +1137,6 @@ function StandardWatch({
                     {item.description ? (
                       <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-zinc-100 sm:text-base">{item.description}</p>
                     ) : null}
-                    <HeroAttributionLineage context={relationshipContext} credits={credits} />
                   </div>
                 </div>
 
@@ -1160,6 +1159,7 @@ function StandardWatch({
                     </button>
                   </div>
                 </div>
+                <HeroAttributionLineage context={relationshipContext} credits={credits} />
               </div>
               {detailsOpen ? (
                 <div className="watch-details-modal" role="dialog" aria-modal="true" aria-label="Work details" onClick={() => setDetailsOpen(false)}>

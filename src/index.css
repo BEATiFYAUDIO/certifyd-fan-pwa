@@ -730,6 +730,20 @@ body::after {
     padding-right: 0;
   }
 
+  .watch-hero-lineage {
+    display: block;
+  }
+
+  .watch-hero-lineage-head {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .watch-hero-lineage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 0.75rem;
+  }
+
   .watch-title {
     font-size: clamp(2rem, 13vw, 3.2rem);
   }
@@ -1313,16 +1327,17 @@ body.has-shorts-mode .certifyd-player-center {
 }
 
 .watch-title {
-  max-width: 48rem;
+  max-width: 32rem;
   text-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
 }
 
 .watch-hero-content {
   display: grid;
-  grid-template-columns: minmax(0, 0.44fr) minmax(0, 0.56fr);
-  column-gap: clamp(3rem, 4.25vw, 4rem);
+  grid-template-columns: minmax(0, 0.43fr) minmax(0, 0.57fr);
+  column-gap: clamp(2.25rem, 3.4vw, 3.5rem);
+  row-gap: clamp(1.35rem, 2vw, 1.85rem);
   align-items: end;
-  padding: clamp(2rem, 2.6vw, 2.5rem);
+  padding: clamp(1.65rem, 2.25vw, 2.25rem);
 }
 
 .watch-hero-copy {
@@ -1332,7 +1347,7 @@ body.has-shorts-mode .certifyd-player-center {
   min-width: 0;
   flex-direction: column;
   grid-column: 1;
-  gap: clamp(2rem, 3vw, 3rem);
+  gap: clamp(1.9rem, 3.4vw, 3.1rem);
 }
 
 .watch-hero-control-deck {
@@ -1414,24 +1429,29 @@ body.has-shorts-mode .certifyd-player-center {
 }
 
 .watch-hero-lineage {
-  margin-top: 1.25rem;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.8fr) minmax(0, 1.65fr);
+  gap: clamp(1rem, 1.8vw, 1.5rem);
+  align-items: stretch;
+  margin-top: 0;
   max-width: 100%;
   border: 1px solid rgba(34, 197, 94, 0.28);
   border-radius: 1.125rem;
   background:
     linear-gradient(90deg, rgba(3, 7, 12, 0.68), rgba(3, 7, 12, 0.38)),
     radial-gradient(circle at 0% 0%, rgba(34, 197, 94, 0.12), transparent 44%);
-  padding: 1rem;
+  padding: 0.82rem;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     0 10px 26px rgba(0, 0, 0, 0.18);
 }
 
 .watch-hero-lineage-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+  display: block;
+  min-width: 0;
+  padding-right: clamp(0.75rem, 1.5vw, 1.25rem);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .watch-hero-lineage-heading {
@@ -1445,7 +1465,8 @@ body.has-shorts-mode .certifyd-player-center {
 .watch-hero-lineage-head p {
   margin-top: 0.35rem;
   color: rgba(212, 212, 216, 0.78);
-  font-size: 0.84rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .watch-hero-lineage-open {
@@ -1468,9 +1489,9 @@ body.has-shorts-mode .certifyd-player-center {
 
 .watch-hero-lineage-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.55rem;
-  margin-top: 0.75rem;
+  margin-top: 0;
 }
 
 .watch-hero-lineage-card {
@@ -1478,7 +1499,7 @@ body.has-shorts-mode .certifyd-player-center {
   border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 0.75rem;
   background: rgba(2, 6, 12, 0.62);
-  padding: 0.62rem;
+  padding: 0.58rem;
   text-decoration: none;
 }
 
@@ -1514,7 +1535,7 @@ body.has-shorts-mode .certifyd-player-center {
 
 .watch-hero-lineage-person > div {
   display: grid;
-  grid-template-columns: 2rem minmax(0, max-content) minmax(0, 1fr);
+  grid-template-columns: 1.8rem minmax(0, max-content) minmax(0, 1fr);
   gap: 0.55rem;
   align-items: center;
   margin-top: 0.45rem;
@@ -1522,8 +1543,8 @@ body.has-shorts-mode .certifyd-player-center {
 
 .watch-hero-lineage-person img {
   grid-row: span 2;
-  width: 2rem;
-  height: 2rem;
+  width: 1.8rem;
+  height: 1.8rem;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
   object-fit: cover;
@@ -1618,7 +1639,7 @@ body.has-shorts-mode .certifyd-player-center {
 
 .watch-preview-frame {
   position: relative;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   border-color: rgba(255, 255, 255, 0.15);
   border-radius: 1.125rem;
