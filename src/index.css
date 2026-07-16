@@ -708,8 +708,24 @@ body::after {
 
   .watch-hero-content {
     display: flex;
-    flex-direction: column-reverse;
+    min-height: auto;
+    flex-direction: column;
     gap: 16px;
+    padding: 14px;
+  }
+
+  .watch-hero-copy {
+    min-height: 0;
+  }
+
+  .watch-hero-control-deck {
+    width: 100%;
+    border-radius: 16px;
+  }
+
+  .watch-hero-main {
+    padding-top: 20px;
+    padding-right: 0;
   }
 
   .watch-title {
@@ -717,7 +733,9 @@ body::after {
   }
 
   .watch-preview-stack {
+    position: static;
     width: 100%;
+    order: 3;
   }
 
   .watch-preview-frame {
@@ -1261,8 +1279,9 @@ body.has-shorts-mode .certifyd-player-center {
 .watch-hero-card {
   border-color: rgba(255, 255, 255, 0.09);
   background:
-    linear-gradient(180deg, rgba(4, 6, 12, 0.72), rgba(4, 4, 8, 0.98) 72%),
-    radial-gradient(circle at 20% 0%, rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(4, 6, 12, 0.68), rgba(4, 4, 8, 0.98) 72%),
+    radial-gradient(circle at 18% 4%, rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.18), transparent 38%),
+    radial-gradient(circle at 82% 82%, rgba(250, 204, 21, 0.12), transparent 36%),
     linear-gradient(135deg, rgba(11, 16, 28, 0.92), rgba(6, 8, 15, 0.98));
   box-shadow:
     0 22px 58px rgba(0, 0, 0, 0.44),
@@ -1275,8 +1294,8 @@ body.has-shorts-mode .certifyd-player-center {
   content: "";
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.38) 48%, rgba(0, 0, 0, 0.72)),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.9));
+    linear-gradient(110deg, rgba(0, 0, 0, 0.74), rgba(0, 0, 0, 0.34) 54%, rgba(0, 0, 0, 0.74)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.9));
 }
 
 .watch-hero-backdrop {
@@ -1291,7 +1310,55 @@ body.has-shorts-mode .certifyd-player-center {
 }
 
 .watch-title {
+  max-width: 48rem;
   text-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+}
+
+.watch-hero-content {
+  min-height: clamp(520px, 58vw, 640px);
+  padding: clamp(1.15rem, 2.4vw, 2rem);
+}
+
+.watch-hero-copy {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-height: calc(clamp(520px, 58vw, 640px) - clamp(2.3rem, 4.8vw, 4rem));
+  flex-direction: column;
+}
+
+.watch-hero-control-deck {
+  width: fit-content;
+  max-width: min(100%, 38rem);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 1.1rem;
+  background:
+    linear-gradient(135deg, rgba(10, 15, 26, 0.78), rgba(5, 8, 14, 0.5)),
+    radial-gradient(circle at 0% 0%, rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.2), transparent 52%);
+  padding: 0.68rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 14px 34px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(18px);
+}
+
+.watch-hero-status-row,
+.watch-hero-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.watch-hero-action-row {
+  margin-top: 0.58rem;
+}
+
+.watch-hero-main {
+  margin-top: auto;
+  max-width: 100%;
+  padding-top: 2.5rem;
+  padding-right: clamp(18rem, 35vw, 28rem);
 }
 
 .watch-pill {
@@ -1540,20 +1607,34 @@ body.has-shorts-mode .certifyd-player-center {
 }
 
 .watch-preview-stack {
-  display: grid;
-  gap: 1rem;
+  position: absolute;
+  right: clamp(1rem, 2.4vw, 2rem);
+  bottom: clamp(1rem, 2.4vw, 2rem);
+  z-index: 3;
+  width: clamp(18rem, 31vw, 24rem);
 }
 
 .watch-preview-frame {
   position: relative;
   aspect-ratio: 4 / 3;
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.8);
-  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.48);
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.15);
+  border-radius: 1.25rem;
+  background: rgba(0, 0, 0, 0.82);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.56),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .watch-preview-frame img {
-  opacity: 0.88;
+  opacity: 0.94;
+  transition: transform 260ms ease, opacity 260ms ease;
+}
+
+.watch-preview-frame:hover img {
+  opacity: 1;
+  transform: scale(1.025);
 }
 
 .watch-details-modal {

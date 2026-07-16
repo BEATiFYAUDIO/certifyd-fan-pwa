@@ -1096,14 +1096,32 @@ function StandardWatch({
               {item.coverUrl ? (
                 <img src={item.coverUrl} alt="" className="watch-hero-backdrop" loading="eager" decoding="async" referrerPolicy="no-referrer" />
               ) : null}
-              <div className="watch-hero-content relative z-10 grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.58fr)] lg:p-6">
-                <div className="flex min-h-[300px] flex-col justify-end lg:min-h-[360px]">
-                  <div className="max-w-3xl">
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
+              <div className="watch-hero-content relative z-10">
+                <div className="watch-hero-copy">
+                  <div className="watch-hero-control-deck">
+                    <div className="watch-hero-status-row">
                       <span className="watch-pill">{priceLabel(item)}</span>
                       {item.primaryTopic ? <span className="watch-topic">{item.primaryTopic}</span> : null}
                       {item.contentType ? <span className="watch-topic">{item.contentType}</span> : null}
                     </div>
+                    <div className="watch-hero-action-row">
+                      <button type="button" className="watch-pill watch-details-pill" onClick={() => setDetailsOpen(true)}>
+                        Details
+                      </button>
+                      {selectedCreatorProfileUrl ? (
+                        <a className="watch-pill watch-details-pill" href={selectedCreatorProfileUrl} target="_blank" rel="noreferrer">
+                          Visit Creator
+                        </a>
+                      ) : null}
+                      {canRestoreAccess ? (
+                        <a className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold" href={buyWithReturnUrl} target="_blank" rel="noreferrer">
+                          {ctaLabel(item)}
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="watch-hero-main">
                     <h1 className="watch-title text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">{item.title || 'Untitled'}</h1>
                     <div className="mt-4 flex flex-wrap items-center gap-3 text-lg font-semibold text-zinc-100">
                       {selectedCreatorProfileUrl ? (
@@ -1116,31 +1134,14 @@ function StandardWatch({
                       <span className="watch-verified-dot" aria-hidden="true">●</span>
                       <span className="watch-pill watch-pill-inline">{priceLabel(item)}</span>
                     </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <button type="button" className="watch-pill watch-details-pill" onClick={() => setDetailsOpen(true)}>
-                        Details
-                      </button>
-                      {selectedCreatorProfileUrl ? (
-                        <a className="watch-pill watch-details-pill" href={selectedCreatorProfileUrl} target="_blank" rel="noreferrer">
-                          Visit Creator
-                        </a>
-                      ) : null}
-                    </div>
                     {item.description ? (
                       <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-zinc-100 sm:text-base">{item.description}</p>
                     ) : null}
                     <HeroAttributionLineage context={relationshipContext} credits={credits} />
-                    {canRestoreAccess ? (
-                      <div className="mt-5 flex flex-wrap items-center gap-3">
-                        <a className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold" href={buyWithReturnUrl} target="_blank" rel="noreferrer">
-                          {ctaLabel(item)}
-                        </a>
-                      </div>
-                    ) : null}
                   </div>
                 </div>
 
-                <div className="watch-preview-stack self-start">
+                <div className="watch-preview-stack">
                   <div className="watch-preview-frame group overflow-hidden rounded-2xl border text-left">
                     {item.coverUrl ? (
                       <img src={item.coverUrl} alt={item.title} className="h-full w-full object-cover" loading="eager" decoding="async" referrerPolicy="no-referrer" />
