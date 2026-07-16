@@ -12,6 +12,7 @@ import { displayStateFromItem } from '../lib/playbackDisplay';
 import { buildWatchDiscoveryRails, dedupeDiscoveryItems, sortNewestFirst, type DiscoveryRail } from '../lib/discoveryViewModel';
 import { getCardThemeVars } from '../lib/profileTheme';
 import { openExternalNavigation } from '../lib/externalNavigation';
+import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
 
 function ctaLabel(item: DiscoverableItem) {
   return displayStateFromItem(item).ctaLabel;
@@ -751,6 +752,7 @@ function StandardWatch({
   stateItem: DiscoverableItem | null;
 }) {
   const { item: activePlaybackItem, playItem, setDrawerContent } = useStage1APlayer();
+  const { savedWorkKeys, followedCreatorKeys, toggleSavedWork, toggleFollowedCreator } = useLocalLibrary();
   const navigate = useNavigate();
   const [item, setItem] = useState<DiscoverableItem | null>(stateItem && isRenderableDiscoveryItem(stateItem) ? stateItem : null);
   const [loading, setLoading] = useState(!(stateItem && isRenderableDiscoveryItem(stateItem)));
@@ -951,6 +953,30 @@ function StandardWatch({
   const selectedCreatorProfileUrl = item ? canonicalCreatorProfileUrlForItem(item) : '';
   const canRestoreAccess = Boolean(item && Number(item.priceSats || 0) > 0 && displayStateFromItem(item).state === 'preview');
   const buyWithReturnUrl = item ? buyUrlWithFanReturnUrl(item.buyUrl, item) : '#';
+  const selectedBuyUrl = item?.buyUrl && item.buyUrl !== '#' ? item.buyUrl : '';
+  const currentWorkKey = item ? `${item.publicOrigin}::${item.contentId}` : '';
+  const currentCreator = item ? creatorFromItem(item) : null;
+  const isCurrentSaved = Boolean(currentWorkKey && savedWorkKeys.has(currentWorkKey));
+  const isCurrentFollowed = Boolean(currentCreator?.key && followedCreatorKeys.has(currentCreator.key));
+  const toggleCurrentSaved = useCallback(() => {
+    if (item) toggleSavedWork(item);
+  }, [item, toggleSavedWork]);
+  const toggleCurrentFollowed = useCallback(() => {
+    toggleFollowedCreator(currentCreator);
+  }, [currentCreator, toggleFollowedCreator]);
+  const shareCurrent = useCallback(async () => {
+    if (!item) return;
+    const url = selectedBuyUrl || selectedCreatorProfileUrl || window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: item.title || 'Certifyd work', url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // ignore
+    }
+  }, [item, selectedBuyUrl, selectedCreatorProfileUrl]);
   const detailRows = useMemo(() => {
     if (!item) return [];
     const rows: WatchDetailRow[] = [];
@@ -1164,14 +1190,28 @@ function StandardWatch({
                 </div>
                 <HeroAttributionLineage context={relationshipContext} credits={credits} />
                 <div className="watch-hero-mobile-actions">
-                  <button type="button" className="watch-details-pill" onClick={() => setDetailsOpen(true)}>
-                    Details
+                  <button type="button" className="watch-details-pill" onClick={toggleCurrentSaved}>
+                    {isCurrentSaved ? 'Saved' : 'Save Work'}
+                  </button>
+                  <button type="button" className="watch-details-pill" onClick={() => void shareCurrent()}>
+                    Share
+                  </button>
+                  <button type="button" className="watch-details-pill" onClick={toggleCurrentFollowed} disabled={!currentCreator}>
+                    {isCurrentFollowed ? 'Following' : 'Follow'}
                   </button>
                   {selectedCreatorProfileUrl ? (
                     <a className="watch-details-pill" href={selectedCreatorProfileUrl} target="_blank" rel="noreferrer" onClick={(event) => openExternalNavigation(event, selectedCreatorProfileUrl)}>
                       Visit Creator
                     </a>
-                  ) : null}
+                  ) : <span aria-hidden="true" />}
+                  {selectedBuyUrl ? (
+                    <a className="watch-details-pill" href={selectedBuyUrl} target="_blank" rel="noreferrer" onClick={(event) => openExternalNavigation(event, selectedBuyUrl)}>
+                      Visit Work
+                    </a>
+                  ) : <span aria-hidden="true" />}
+                  <button type="button" className="watch-details-pill" onClick={() => setDetailsOpen(true)}>
+                    Details
+                  </button>
                 </div>
               </div>
               {detailsOpen ? (

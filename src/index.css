@@ -903,6 +903,11 @@ body::after {
     text-decoration: none;
   }
 
+  .watch-hero-mobile-actions .watch-details-pill:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+  }
+
   .watch-secondary-button,
   .watch-action-primary,
   .watch-action-secondary {
@@ -2003,6 +2008,11 @@ body.has-shorts-mode .certifyd-player-center {
     font-size: 0.86rem;
     font-weight: 950;
     text-decoration: none;
+  }
+
+  .watch-hero-mobile-actions .watch-details-pill:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
   }
 }
 
