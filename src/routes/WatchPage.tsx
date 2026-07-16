@@ -311,6 +311,12 @@ function workToDiscoverableItem(work: ContentContextWork): DiscoverableItem | nu
   };
 }
 
+function lineageSourceLink(work: ContentContextWork): { href: string; external: boolean } {
+  const playable = workToDiscoverableItem(work);
+  if (playable) return { href: watchHrefForItem(playable), external: false };
+  return { href: work.publicUrl || '', external: true };
+}
+
 function compactPersonLabel(person: ContentContextPerson | ContentContextCreator | null | undefined): string {
   if (!person) return '';
   return person.displayName || person.handle || 'Creator';
@@ -702,6 +708,7 @@ function HeroAttributionLineage({
   const creator = context?.creator || null;
   const creatorProfileUrl = canonicalCreatorProfileUrlForPerson(creator);
   const source = dedupeWorks([...(context?.derivedFrom || []), ...(context?.builtFrom || [])])[0] || null;
+  const sourceLink = source ? lineageSourceLink(source) : null;
   const people = filterDisplayPeople(
     dedupePeople([...(context?.peopleBehindThis || []), ...(context?.createdWith || [])]),
   ).slice(0, 4);
@@ -740,11 +747,25 @@ function HeroAttributionLineage({
           </a>
         ) : null}
         {source ? (
-          <div className="watch-hero-lineage-card">
-            <span>{source.relationshipLabel || 'Built from'}</span>
-            <strong>{source.title || 'Untitled work'}</strong>
-            <small>{compactPersonLabel(source.creator)}</small>
-          </div>
+          sourceLink?.href && sourceLink.external ? (
+            <a className="watch-hero-lineage-card" href={sourceLink.href} target="_blank" rel="noreferrer">
+              <span>{source.relationshipLabel || 'Built from'}</span>
+              <strong>{source.title || 'Untitled work'}</strong>
+              <small>{compactPersonLabel(source.creator)}</small>
+            </a>
+          ) : sourceLink?.href ? (
+            <Link to={sourceLink.href} className="watch-hero-lineage-card">
+              <span>{source.relationshipLabel || 'Built from'}</span>
+              <strong>{source.title || 'Untitled work'}</strong>
+              <small>{compactPersonLabel(source.creator)}</small>
+            </Link>
+          ) : (
+            <div className="watch-hero-lineage-card">
+              <span>{source.relationshipLabel || 'Built from'}</span>
+              <strong>{source.title || 'Untitled work'}</strong>
+              <small>{compactPersonLabel(source.creator)}</small>
+            </div>
+          )
         ) : null}
         {people.length ? (
           <div className="watch-hero-lineage-card">
