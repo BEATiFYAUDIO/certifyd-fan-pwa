@@ -10,6 +10,7 @@ import { hydrateReceiptStatusForItem, type ReceiptAccessStatus } from '../lib/re
 import { buyUrlWithFanReturnUrl, contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
 import { canonicalCreatorProfileUrl, canonicalCreatorProfileUrlForItem } from '../lib/destinations';
 import { normalizeCanonicalOrigin } from '../lib/origin';
+import { openExternalNavigation } from '../lib/externalNavigation';
 import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerOptions, type Stage1APlayerSnapshot, type Stage1APlayerState } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
@@ -1158,7 +1159,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
             ) : null}
             {showPrimaryAction ? (
               <div className="stage1a-rich-actions">
-                <a className="stage1a-rich-support" href={primaryActionUrl} target="_blank" rel="noreferrer">
+                <a className="stage1a-rich-support" href={primaryActionUrl} target="_blank" rel="noreferrer" onClick={(event) => openExternalNavigation(event, primaryActionUrl)}>
                   {item?.supportLabel || 'Support Creator'}
                 </a>
               </div>
@@ -1174,12 +1175,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                 {isCurrentFollowed ? 'Following' : 'Follow'}
               </button>
               {item?.creatorUrl ? (
-                <a className="stage1a-rich-overlay-link" href={item.creatorUrl} target="_blank" rel="noreferrer">
+                <a className="stage1a-rich-overlay-link" href={item.creatorUrl} target="_blank" rel="noreferrer" onClick={(event) => openExternalNavigation(event, item.creatorUrl)}>
                   Visit Creator
                 </a>
               ) : null}
               {item?.buyUrl && item.buyUrl !== '#' ? (
-                <a className="stage1a-rich-overlay-link" href={item.buyUrl} target="_blank" rel="noreferrer">
+                <a className="stage1a-rich-overlay-link" href={item.buyUrl} target="_blank" rel="noreferrer" onClick={(event) => openExternalNavigation(event, item.buyUrl)}>
                   Visit Work
                 </a>
               ) : null}

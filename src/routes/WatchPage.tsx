@@ -11,6 +11,7 @@ import { isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
 import { buildWatchDiscoveryRails, dedupeDiscoveryItems, sortNewestFirst, type DiscoveryRail } from '../lib/discoveryViewModel';
 import { getCardThemeVars } from '../lib/profileTheme';
+import { openExternalNavigation } from '../lib/externalNavigation';
 
 function ctaLabel(item: DiscoverableItem) {
   return displayStateFromItem(item).ctaLabel;
@@ -1109,12 +1110,12 @@ function StandardWatch({
                         Details
                       </button>
                       {selectedCreatorProfileUrl ? (
-                        <a className="watch-pill watch-details-pill" href={selectedCreatorProfileUrl} target="_blank" rel="noreferrer">
+                        <a className="watch-pill watch-details-pill" href={selectedCreatorProfileUrl} target="_blank" rel="noreferrer" onClick={(event) => openExternalNavigation(event, selectedCreatorProfileUrl)}>
                           Visit Creator
                         </a>
                       ) : null}
                       {canRestoreAccess ? (
-                        <a className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold" href={buyWithReturnUrl} target="_blank" rel="noreferrer">
+                        <a className="watch-action-primary rounded-xl px-4 py-2 text-sm font-bold" href={buyWithReturnUrl} target="_blank" rel="noreferrer" onClick={(event) => openExternalNavigation(event, buyWithReturnUrl)}>
                           {ctaLabel(item)}
                         </a>
                       ) : null}
@@ -1125,7 +1126,7 @@ function StandardWatch({
                     <h1 className="watch-title text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">{item.title || 'Untitled'}</h1>
                     <div className="mt-4 flex flex-wrap items-center gap-3 text-lg font-semibold text-zinc-100">
                       {selectedCreatorProfileUrl ? (
-                        <a href={selectedCreatorProfileUrl} target="_blank" rel="noreferrer" className="hover:underline">
+                        <a href={selectedCreatorProfileUrl} target="_blank" rel="noreferrer" className="hover:underline" onClick={(event) => openExternalNavigation(event, selectedCreatorProfileUrl)}>
                           {creatorLabel}
                         </a>
                       ) : (
@@ -1168,7 +1169,7 @@ function StandardWatch({
                     Details
                   </button>
                   {selectedCreatorProfileUrl ? (
-                    <a className="watch-details-pill" href={selectedCreatorProfileUrl} target="_blank" rel="noreferrer">
+                    <a className="watch-details-pill" href={selectedCreatorProfileUrl} target="_blank" rel="noreferrer" onClick={(event) => openExternalNavigation(event, selectedCreatorProfileUrl)}>
                       Visit Creator
                     </a>
                   ) : null}
