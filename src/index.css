@@ -1815,6 +1815,201 @@ body.has-shorts-mode .certifyd-player-center {
   transform: scale(1.025);
 }
 
+@media (max-width: 900px) {
+  .watch-hero-card {
+    border-radius: 24px;
+  }
+
+  .watch-hero-card::after {
+    background:
+      linear-gradient(110deg, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.34) 56%, rgba(0, 0, 0, 0.68)),
+      linear-gradient(180deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.86));
+  }
+
+  .watch-hero-content {
+    display: flex;
+    min-height: auto;
+    flex-direction: column;
+    gap: 12px;
+    padding: clamp(16px, 4.8vw, 22px);
+  }
+
+  .watch-hero-copy {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    gap: 18px;
+    order: 1;
+  }
+
+  .watch-hero-main {
+    padding: 0;
+  }
+
+  .watch-hero-main p {
+    display: none;
+  }
+
+  .watch-title {
+    max-width: 100%;
+    font-size: clamp(2.35rem, 10.5vw, 3.35rem);
+    line-height: 1.01;
+  }
+
+  .watch-pill {
+    min-height: 30px;
+    padding: 0.34rem 0.62rem;
+    font-size: 0.68rem;
+  }
+
+  .watch-topic {
+    font-size: 0.82rem;
+  }
+
+  .watch-details-pill {
+    min-height: 36px;
+    border-radius: 999px;
+    padding: 0 0.85rem;
+    font-size: 0.72rem;
+  }
+
+  .watch-preview-stack {
+    position: static;
+    width: 100%;
+    order: 2;
+    margin-top: 0;
+  }
+
+  .watch-preview-frame {
+    width: 100%;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+    border-radius: 16px;
+  }
+
+  .watch-preview-frame button[aria-label^="Play"] {
+    right: 14px;
+    bottom: 14px;
+    min-height: 44px;
+    border-radius: 999px;
+    padding: 0 16px;
+    font-size: 0.94rem;
+  }
+
+  .watch-preview-frame button[aria-label^="Play"]::after {
+    content: "▶";
+    margin-left: 10px;
+    font-size: 0.78rem;
+  }
+
+  .watch-mobile-preview-pill {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    align-items: center;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    padding: 0.38rem 0.72rem;
+    color: rgba(255, 255, 255, 0.94);
+    font-size: 0.76rem;
+    font-weight: 950;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .watch-hero-lineage {
+    display: block;
+    order: 3;
+    border-radius: 16px;
+    padding: 12px;
+  }
+
+  .watch-hero-lineage-head {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .watch-hero-lineage-head p {
+    font-size: 0.72rem;
+    line-height: 1.35;
+  }
+
+  .watch-hero-lineage-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .watch-hero-lineage-card {
+    padding: 0.5rem;
+  }
+
+  .watch-hero-lineage-card span {
+    font-size: 0.58rem;
+  }
+
+  .watch-hero-lineage-card strong {
+    font-size: 0.82rem;
+  }
+
+  .watch-hero-lineage-card small {
+    font-size: 0.68rem;
+  }
+
+  .watch-hero-lineage-card span,
+  .watch-hero-lineage-card strong,
+  .watch-hero-lineage-card small,
+  .watch-hero-lineage-chips b,
+  .watch-hero-lineage-chips em {
+    overflow: hidden;
+    overflow-wrap: normal;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    word-break: normal;
+  }
+
+  .watch-hero-lineage-person > div {
+    grid-template-columns: 2rem minmax(0, 1fr);
+  }
+
+  .watch-hero-lineage-chips small {
+    display: grid;
+    grid-template-columns: 1.25rem minmax(0, 1fr);
+    min-width: 0;
+    gap: 0.42rem;
+    border-radius: 999px;
+  }
+
+  .watch-hero-lineage-chips b,
+  .watch-hero-lineage-chips em {
+    grid-column: 2;
+  }
+
+  .watch-hero-mobile-actions {
+    order: 4;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .watch-hero-mobile-actions .watch-details-pill {
+    min-height: 48px;
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.22);
+    color: #ffffff;
+    font-size: 0.86rem;
+    font-weight: 950;
+    text-decoration: none;
+  }
+}
+
+@media (max-width: 380px) {
+  .watch-hero-lineage-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .watch-details-modal {
   position: absolute;
   inset: 0;
