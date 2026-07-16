@@ -9,7 +9,7 @@ import { canonicalCreatorProfileUrlForItem, canonicalCreatorProfileUrlForPerson 
 import type { ContentContextCreator, ContentContextPerson, ContentContextWork, ContentRelationshipContext, DiscoverableItem } from '../lib/types';
 import { isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { displayStateFromItem } from '../lib/playbackDisplay';
-import { buildWatchDiscoveryRails, dedupeDiscoveryItems, sortNewestFirst, type DiscoveryRail } from '../lib/discoveryViewModel';
+import { buildWatchDiscoveryRails, dedupeDiscoveryItems, itemSortTime, sortNewestFirst, type DiscoveryRail } from '../lib/discoveryViewModel';
 import { getCardThemeVars } from '../lib/profileTheme';
 import { openExternalNavigation } from '../lib/externalNavigation';
 import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
@@ -103,15 +103,54 @@ function discoverableKey(item: DiscoverableItem): string {
   return `${item.publicOrigin}::${item.contentId}`;
 }
 
+function normalizedBadge(value: unknown): string {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function usefulWorkBadge(item: DiscoverableItem, groupKey: string, groupReason?: string): string {
+  const explicitBadge = (item.relationshipBadges || [])
+    .map((badge) => displayConnectionLabel(badge, ''))
+    .find((badge) => {
+      const normalized = normalizedBadge(badge);
+      return normalized && normalized !== 'same creator' && normalized !== 'same node' && normalized !== 'related work';
+    });
+  if (explicitBadge) return explicitBadge;
+  if (groupKey === 'same-genre' && item.primaryTopic) return displayConnectionLabel(item.primaryTopic, 'Scene');
+  if (groupKey === 'same-type' && item.contentType) return displayConnectionLabel(item.contentType, 'Format');
+  if (groupKey === 'trending-new') return itemSortLabel(item) || 'Recent';
+  if (groupKey === 'related-works') return 'Connected';
+  if (groupKey === 'original-work') return 'Built From';
+  if (groupKey === 'derivatives') return 'Built On This';
+  if (groupKey === 'more-they-worked-on') return 'Shared Credits';
+  if (item.primaryTopic) return displayConnectionLabel(item.primaryTopic, 'Topic');
+  if (item.contentType) return displayConnectionLabel(item.contentType, 'Format');
+  return groupReason && !['same creator', 'same node', 'related work'].includes(normalizedBadge(groupReason))
+    ? displayConnectionLabel(groupReason, 'Related')
+    : '';
+}
+
+function itemSortLabel(item: DiscoverableItem): string {
+  const time = itemSortTime(item);
+  if (!time) return '';
+  const ageMs = Date.now() - time;
+  if (ageMs < 0) return 'Scheduled';
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (ageMs <= dayMs * 14) return 'New';
+  if (ageMs <= dayMs * 90) return 'Recent';
+  return '';
+}
+
 function WatchDiscoveryCard({
   item,
   queue,
+  groupKey,
   relationshipLabel,
   onSelect,
   onPlay,
 }: {
   item: DiscoverableItem;
   queue: DiscoverableItem[];
+  groupKey: string;
   relationshipLabel?: string;
   onSelect: (item: DiscoverableItem) => void;
   onPlay: (item: DiscoverableItem, queue: DiscoverableItem[]) => void;
@@ -119,6 +158,7 @@ function WatchDiscoveryCard({
   const [imageFailed, setImageFailed] = useState(false);
   const playbackDisplay = displayStateFromItem(item);
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
+  const secondaryBadge = usefulWorkBadge(item, groupKey, relationshipLabel);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
   return (
     <Link
@@ -138,9 +178,9 @@ function WatchDiscoveryCard({
           }`}>
             {playbackDisplay.label}
           </span>
-          {relationshipLabel ? (
+          {secondaryBadge ? (
             <span className="creator-themed-badge-muted rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-              {relationshipLabel}
+              {secondaryBadge}
             </span>
           ) : null}
         </div>
@@ -207,6 +247,7 @@ function ConnectionGroupSection({
               key={`${group.key}:${related.publicOrigin}:${related.contentId}`}
               item={related}
               queue={group.items}
+              groupKey={group.key}
               relationshipLabel={group.reason}
               onSelect={onSelectItem}
               onPlay={onPlayItem}
