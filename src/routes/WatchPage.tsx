@@ -1199,19 +1199,11 @@ function StandardWatch({
                   <button type="button" className="watch-details-pill" onClick={toggleCurrentFollowed} disabled={!currentCreator}>
                     {isCurrentFollowed ? 'Following' : 'Follow'}
                   </button>
-                  {selectedCreatorProfileUrl ? (
-                    <a className="watch-details-pill" href={selectedCreatorProfileUrl} target="_blank" rel="noreferrer" onClick={(event) => openExternalNavigation(event, selectedCreatorProfileUrl)}>
-                      Visit Creator
-                    </a>
-                  ) : <span aria-hidden="true" />}
                   {selectedBuyUrl ? (
                     <a className="watch-details-pill" href={selectedBuyUrl} target="_blank" rel="noreferrer" onClick={(event) => openExternalNavigation(event, selectedBuyUrl)}>
                       Visit Work
                     </a>
                   ) : <span aria-hidden="true" />}
-                  <button type="button" className="watch-details-pill" onClick={() => setDetailsOpen(true)}>
-                    Details
-                  </button>
                 </div>
               </div>
               {detailsOpen ? (
