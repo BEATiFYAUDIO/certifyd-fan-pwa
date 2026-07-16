@@ -1583,7 +1583,6 @@ body.has-shorts-mode .certifyd-player-center {
   filter: drop-shadow(0 0 10px rgba(var(--profile-accent-rgb, var(--certifyd-blue)), 0.42));
 }
 
-.watch-mobile-preview-pill,
 .watch-hero-mobile-actions {
   display: none;
 }
@@ -1918,21 +1917,6 @@ body.has-shorts-mode .certifyd-player-center {
     content: "▶";
     margin-left: 10px;
     font-size: 0.78rem;
-  }
-
-  .watch-mobile-preview-pill {
-    display: inline-flex;
-    width: fit-content;
-    max-width: 100%;
-    align-items: center;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.16);
-    padding: 0.38rem 0.72rem;
-    color: rgba(255, 255, 255, 0.94);
-    font-size: 0.76rem;
-    font-weight: 950;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
   }
 
   .watch-hero-lineage {

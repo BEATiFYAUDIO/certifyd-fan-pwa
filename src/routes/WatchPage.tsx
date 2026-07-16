@@ -1136,11 +1136,7 @@ function StandardWatch({
                         <span>{creatorLabel}</span>
                       )}
                       <span className="watch-verified-dot" aria-hidden="true">●</span>
-                      <span className="watch-pill watch-pill-inline">{priceLabel(item)}</span>
                     </div>
-                    {displayStateFromItem(item).state === 'preview' ? (
-                      <div className="watch-mobile-preview-pill">{priceLabel(item)}</div>
-                    ) : null}
                     {item.description ? (
                       <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-zinc-100 sm:text-base">{item.description}</p>
                     ) : null}
