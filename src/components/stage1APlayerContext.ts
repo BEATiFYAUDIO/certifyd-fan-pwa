@@ -6,7 +6,7 @@ export type Stage1APlayerState = 'idle' | 'loading' | 'playing' | 'paused' | 'en
 export type Stage1APlaybackMode = 'full' | 'preview' | 'none';
 export type Stage1APlayerDrawerPanel = 'details' | 'creator' | 'more' | 'worked' | 'lineage' | 'connections' | 'proofs' | null;
 export type Stage1APlayerMediaAspect = 'landscape' | 'portrait' | 'square' | 'unknown';
-export type Stage1AQueueSource = 'board' | 'creator' | 'watch' | 'search' | 'manual';
+export type Stage1AQueueSource = 'board' | 'creator' | 'watch' | 'search' | 'manual' | 'library' | 'bundle';
 
 export type Stage1APlayerItem = {
   sourceItem?: DiscoverableItem;
@@ -52,6 +52,7 @@ export type Stage1APlayerOptions = {
   mediaAspect?: Stage1APlayerMediaAspect;
   queue?: DiscoverableItem[];
   queueSource?: Stage1AQueueSource;
+  queueSourceId?: string | null;
   transportIntent?: boolean;
 };
 

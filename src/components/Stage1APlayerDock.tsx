@@ -13,6 +13,7 @@ import { canonicalCreatorProfileUrl, canonicalCreatorProfileUrlForItem } from '.
 import { normalizeCanonicalOrigin } from '../lib/origin';
 import { openExternalNavigation } from '../lib/externalNavigation';
 import { rememberUnlockedAccessForItem } from '../lib/accessCache';
+import { itemIdFromDiscoverable } from '../lib/libraryStore';
 import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerOptions, type Stage1APlayerSnapshot, type Stage1APlayerState, type Stage1AQueueSource } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
@@ -28,6 +29,7 @@ type PersistentQueueState = {
   queueItemIds: string[];
   currentQueueIndex: number;
   queueSource: Stage1AQueueSource;
+  queueSourceId?: string | null;
 };
 
 function normalizeOffer(payload: unknown): CanonicalOffer | null {
@@ -320,8 +322,9 @@ function safeQueueStateFromStorage(): PersistentQueueState {
       : [];
     const hasMalformedIds = queueItemIds.some((id) => !parseQueueItemKey(id));
     const currentQueueIndex = Number.isInteger(parsed.currentQueueIndex) ? Number(parsed.currentQueueIndex) : -1;
-    const hasValidSource = parsed.queueSource === 'board' || parsed.queueSource === 'creator' || parsed.queueSource === 'watch' || parsed.queueSource === 'search' || parsed.queueSource === 'manual';
+    const hasValidSource = parsed.queueSource === 'board' || parsed.queueSource === 'creator' || parsed.queueSource === 'watch' || parsed.queueSource === 'search' || parsed.queueSource === 'manual' || parsed.queueSource === 'library' || parsed.queueSource === 'bundle';
     const queueSource = hasValidSource ? parsed.queueSource as Stage1AQueueSource : 'manual';
+    const queueSourceId = typeof parsed.queueSourceId === 'string' && parsed.queueSourceId.trim() ? parsed.queueSourceId.trim() : null;
     if (hasMalformedIds || !Array.isArray(parsed.queueItemIds) || !hasValidSource || (queueItemIds.length > 0 && currentQueueIndex < 0)) {
       window.localStorage.removeItem(QUEUE_STORAGE_KEY);
       return { queueItemIds: [], currentQueueIndex: -1, queueSource: 'manual' };
@@ -330,6 +333,7 @@ function safeQueueStateFromStorage(): PersistentQueueState {
       queueItemIds,
       currentQueueIndex: queueItemIds.length ? Math.min(Math.max(currentQueueIndex, 0), queueItemIds.length - 1) : -1,
       queueSource,
+      queueSourceId,
     };
   } catch {
     window.localStorage.removeItem(QUEUE_STORAGE_KEY);
@@ -344,6 +348,7 @@ function writeQueueStateToStorage(state: PersistentQueueState) {
       queueItemIds: state.queueItemIds,
       currentQueueIndex: state.currentQueueIndex,
       queueSource: state.queueSource,
+      queueSourceId: state.queueSourceId || null,
     }));
   } catch {
     /* ignore storage failures */
@@ -482,7 +487,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       if (!active) return;
       const nextQueue = dedupeDrawerItems(restoredQueue);
       if (!nextQueue.length) {
-        updatePersistentQueueState({ queueItemIds: [], currentQueueIndex: -1, queueSource: persistentQueueState.queueSource });
+        updatePersistentQueueState({ queueItemIds: [], currentQueueIndex: -1, queueSource: persistentQueueState.queueSource, queueSourceId: persistentQueueState.queueSourceId || null });
         return;
       }
       const nextIndex = Math.min(Math.max(persistentQueueState.currentQueueIndex, 0), nextQueue.length - 1);
@@ -491,6 +496,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
         queueItemIds: nextQueue.map(queueItemKey),
         currentQueueIndex: nextIndex,
         queueSource: persistentQueueState.queueSource,
+        queueSourceId: persistentQueueState.queueSourceId || null,
       });
     };
     void restore();
@@ -554,6 +560,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     setMediaMuted(options?.muted === true);
     if (options?.openPlayer !== false) setMobileSheetOpen(true);
     const queueSource = options?.queueSource || 'manual';
+    const queueSourceId = options?.queueSourceId || null;
     const requestedQueue = options?.queue?.length ? dedupeDrawerItems(options.queue) : [nextItem];
     const nextQueue = queueContainsItem(requestedQueue, nextItem) ? requestedQueue : dedupeDrawerItems([nextItem, ...requestedQueue]);
     const nextIndex = Math.max(0, nextQueue.findIndex((queueItem) => queueItemKey(queueItem) === queueItemKey(nextItem)));
@@ -562,6 +569,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       queueItemIds: nextQueue.map(queueItemKey),
       currentQueueIndex: nextIndex,
       queueSource,
+      queueSourceId,
     });
     setRecentItems((current) => {
       const next = [nextItem, ...current.filter((row) => row.contentId !== nextItem.contentId || row.publicOrigin !== nextItem.publicOrigin)].slice(0, MAX_RECENT_ITEMS);
@@ -694,6 +702,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       queueItemIds: nextQueue.map(queueItemKey),
       currentQueueIndex: -1,
       queueSource,
+      queueSourceId: null,
     });
   }, [updatePersistentQueueState]);
 
@@ -763,11 +772,11 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     const currentIndex = queue.findIndex((queueItem) => queueItemKey(queueItem) === activeKey);
     if (currentIndex < 0 || currentIndex >= queue.length - 1) return false;
     for (let index = currentIndex + 1; index < queue.length; index += 1) {
-      const started = await playItem(queue[index], { queue, queueSource: persistentQueueState.queueSource, transportIntent: true });
+      const started = await playItem(queue[index], { queue, queueSource: persistentQueueState.queueSource, queueSourceId: persistentQueueState.queueSourceId || null, transportIntent: true });
       if (started) return true;
     }
     return false;
-  }, [activePlayerQueue, item, persistentQueueState.queueSource, playItem]);
+  }, [activePlayerQueue, item, persistentQueueState.queueSource, persistentQueueState.queueSourceId, playItem]);
 
   const playPreviousQueuedItem = useCallback(async (fromItem: Stage1APlayerItem | null = item) => {
     if (!fromItem) return false;
@@ -776,11 +785,11 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     const currentIndex = activePlayerQueue.findIndex((queueItem) => queueItemKey(queueItem) === activeKey);
     if (currentIndex <= 0) return false;
     for (let index = currentIndex - 1; index >= 0; index -= 1) {
-      const started = await playItem(activePlayerQueue[index], { queue: activePlayerQueue, queueSource: persistentQueueState.queueSource, transportIntent: true });
+      const started = await playItem(activePlayerQueue[index], { queue: activePlayerQueue, queueSource: persistentQueueState.queueSource, queueSourceId: persistentQueueState.queueSourceId || null, transportIntent: true });
       if (started) return true;
     }
     return false;
-  }, [activePlayerQueue, item, persistentQueueState.queueSource, playItem]);
+  }, [activePlayerQueue, item, persistentQueueState.queueSource, persistentQueueState.queueSourceId, playItem]);
 
   const onTimeUpdate = useCallback((event: SyntheticEvent<HTMLMediaElement>) => {
     const media = event.currentTarget;
@@ -899,11 +908,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     await playItem(snapshot.item, {
       queue: snapshot.queue.length ? snapshot.queue : [snapshot.item],
       queueSource: persistentQueueState.queueSource,
+      queueSourceId: persistentQueueState.queueSourceId || null,
       autoPlay: false,
       openPlayer: false,
       muted: snapshot.muted,
     });
-  }, [persistentQueueState.queueSource, playItem]);
+  }, [persistentQueueState.queueSource, persistentQueueState.queueSourceId, playItem]);
 
   const toggleMute = useCallback(() => {
     const media = activeMediaRef.current;
@@ -991,9 +1001,10 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       queueItemIds: nextQueue.map(queueItemKey),
       currentQueueIndex: Math.min(Math.max(nextIndex, 0), nextQueue.length - 1),
       queueSource: persistentQueueState.queueSource,
+      queueSourceId: persistentQueueState.queueSourceId || null,
     });
     return nextQueue;
-  }, [activePlayerQueue, item, nextQueueExpansionCandidates, persistentQueueState.currentQueueIndex, persistentQueueState.queueSource, recentItems, updatePersistentQueueState]);
+  }, [activePlayerQueue, item, nextQueueExpansionCandidates, persistentQueueState.currentQueueIndex, persistentQueueState.queueSource, persistentQueueState.queueSourceId, recentItems, updatePersistentQueueState]);
 
   const playNextFreeDrop = useCallback(() => {
     void (async () => {
@@ -1015,7 +1026,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   }, [playPreviousQueuedItem]);
 
   const currentSourceItem = item?.sourceItem || null;
-  const currentWorkKey = currentSourceItem ? `${currentSourceItem.publicOrigin}::${currentSourceItem.contentId}` : '';
+  const currentWorkKey = currentSourceItem ? itemIdFromDiscoverable(currentSourceItem) : '';
   const currentCreator = currentSourceItem ? creatorFromItem(currentSourceItem) : null;
   const currentCreatorKey = currentCreator?.key || '';
   const isCurrentSaved = Boolean(currentWorkKey && savedWorkKeys.has(currentWorkKey));
@@ -1365,7 +1376,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
             ) : null}
             <div className="stage1a-rich-overlay-actions" aria-label="Secondary work actions">
               <button type="button" onClick={toggleCurrentSaved} disabled={!currentSourceItem}>
-                {isCurrentSaved ? 'Saved' : 'Save Work'}
+                {isCurrentSaved ? 'Remove from Library' : 'Add to Library'}
               </button>
               <button type="button" onClick={shareCurrent}>
                 Share

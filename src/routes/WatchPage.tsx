@@ -13,6 +13,7 @@ import { buildWatchDiscoveryRails, dedupeDiscoveryItems, itemSortTime, sortNewes
 import { getCardThemeVars } from '../lib/profileTheme';
 import { openExternalNavigation } from '../lib/externalNavigation';
 import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
+import { itemIdFromDiscoverable } from '../lib/libraryStore';
 
 function ctaLabel(item: DiscoverableItem) {
   return displayStateFromItem(item).ctaLabel;
@@ -1016,7 +1017,7 @@ function StandardWatch({
   const canRestoreAccess = Boolean(item && Number(item.priceSats || 0) > 0 && displayStateFromItem(item).state === 'preview');
   const buyWithReturnUrl = item ? buyUrlWithFanReturnUrl(item.buyUrl, item) : '#';
   const selectedBuyUrl = item?.buyUrl && item.buyUrl !== '#' ? item.buyUrl : '';
-  const currentWorkKey = item ? `${item.publicOrigin}::${item.contentId}` : '';
+  const currentWorkKey = item ? itemIdFromDiscoverable(item) : '';
   const currentCreator = item ? creatorFromItem(item) : null;
   const isCurrentSaved = Boolean(currentWorkKey && savedWorkKeys.has(currentWorkKey));
   const isCurrentFollowed = Boolean(currentCreator?.key && followedCreatorKeys.has(currentCreator.key));
@@ -1253,7 +1254,7 @@ function StandardWatch({
                 <HeroAttributionLineage context={relationshipContext} credits={credits} />
                 <div className="watch-hero-mobile-actions">
                   <button type="button" className="watch-details-pill" onClick={toggleCurrentSaved}>
-                    {isCurrentSaved ? 'Saved' : 'Save Work'}
+                    {isCurrentSaved ? 'Remove from Library' : 'Add to Library'}
                   </button>
                   <button type="button" className="watch-details-pill" onClick={() => void shareCurrent()}>
                     Share
