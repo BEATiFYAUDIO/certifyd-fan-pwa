@@ -2012,11 +2012,11 @@ export function HomePage() {
           <SavedLibrarySection works={savedWorks} creators={hydratedSavedCreators} />
         ) : null}
 
-        {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && selectedSurface ? (
+        {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && discoveryContext !== 'premium-works' && selectedSurface ? (
           <ExpandedRankedSurface surface={selectedSurface} id={discoveryContext} queueSource={query.trim() ? 'search' : 'board'} />
         ) : null}
 
-        {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && selectedSurface && selectedSurface.items.length === 0 ? (
+        {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && discoveryContext !== 'premium-works' && selectedSurface && selectedSurface.items.length === 0 ? (
           <EmptyDiscoveryContext id={discoveryContext} title={selectedContextLabel} />
         ) : null}
 
@@ -2046,6 +2046,29 @@ export function HomePage() {
 
           {discoveryContext === 'free-drops' && freeItems.length === 0 ? (
             <EmptyDiscoveryContext id="free-drops" title="Free Drops" />
+          ) : null}
+
+          {discoveryContext === 'premium-works' && boardUnlockableItems.length > 0 ? (
+            <section id="premium-works" className="space-y-3 scroll-mt-40">
+              <RailHeader title="Premium Works" subtitle="Premium works to preview here and unlock on creator pages" badge="Preview" />
+              <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+                {boardUnlockableItems.slice(0, 12).map((item) => {
+                  const premiumQueue = boardUnlockableItems.slice(0, 12);
+                  const watchParams = new URLSearchParams({
+                    origin: item.publicOrigin,
+                    topic,
+                    premium: '1',
+                  }).toString();
+                  return (
+                    <ShortsCard key={`premium-shorts:${item.publicOrigin}:${item.contentId}`} item={item} watchParams={watchParams} queue={premiumQueue} />
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {discoveryContext === 'premium-works' && boardUnlockableItems.length === 0 ? (
+            <EmptyDiscoveryContext id="premium-works" title="Premium Works" />
           ) : null}
 
           {discoveryContext === 'creator-ecosystems' && homepageCreators.length > 0 ? (
