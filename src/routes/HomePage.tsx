@@ -23,6 +23,7 @@ import { canonicalCreatorProfileUrl, canonicalCreatorProfileUrlForItem } from '.
 import { BUNDLES_EVENT, createBundle, encodeSharedBundle, listBundles, sharedBundleUrl, type Bundle, type BundleVisibility } from '../lib/bundleStore';
 import { itemIdFromDiscoverable, parseItemId } from '../lib/libraryStore';
 import { loadDiscoverableById } from '../lib/contentRuntime/discovery';
+import { hydrateCanonicalOfferForItem } from '../lib/contentRuntime/hydration';
 
 const INITIAL_PAGE_LIMIT = 8;
 const NEXT_PAGE_LIMIT = 18;
@@ -1405,12 +1406,14 @@ export function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feeds, setFeeds] = useState<OriginFeedState[]>([]);
+  const [hydratedPremiumItems, setHydratedPremiumItems] = useState<Record<string, DiscoverableItem>>({});
   const randomSeed = HOME_RANDOM_SEED;
   const requestIdRef = useRef(0);
   const loadingRef = useRef(false);
   const originPassOffsetRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const sentinelWasVisibleRef = useRef(false);
+  const premiumHydrationKeysRef = useRef(new Set<string>());
   const retryMetaRef = useRef<Map<string, { failCount: number; retryAfter: number; disabledUntil: number }>>(new Map());
   const cacheKey = useMemo(
     () => `fanfeed:v1:${topic}:${origins.slice().sort().join(',') || 'none'}`,
@@ -1857,7 +1860,33 @@ export function HomePage() {
     const discoverableRecent = discoveryView.recentRail?.items || [];
     return sortNewestFirst(dedupeDiscoveryItems([...signalRecent, ...discoverableRecent]));
   }, [discoveryView.recentRail, inActiveScope, signalWorks.collaborativeItems, signalWorks.fastestMovingItems, signalWorks.recentlyAddedItems, signalWorks.recentlySupportedItems]);
-  const boardUnlockableItems = useMemo(() => lockedItems, [lockedItems]);
+  const baseUnlockableItems = useMemo(() => lockedItems, [lockedItems]);
+  const visiblePremiumHydrationKey = useMemo(
+    () => baseUnlockableItems.slice(0, 12).map(itemKey).join('|'),
+    [baseUnlockableItems]
+  );
+  useEffect(() => {
+    if (discoveryContext !== 'premium-works' || !baseUnlockableItems.length) return;
+    let active = true;
+    for (const item of baseUnlockableItems.slice(0, 12)) {
+      const key = itemKey(item);
+      if (!key || premiumHydrationKeysRef.current.has(key)) continue;
+      premiumHydrationKeysRef.current.add(key);
+      void hydrateCanonicalOfferForItem(item)
+        .then((hydrated) => {
+          if (!active) return;
+          setHydratedPremiumItems((current) => ({ ...current, [key]: hydrated }));
+        })
+        .catch(() => undefined);
+    }
+    return () => {
+      active = false;
+    };
+  }, [baseUnlockableItems, discoveryContext, visiblePremiumHydrationKey]);
+  const boardUnlockableItems = useMemo(
+    () => baseUnlockableItems.map((item) => hydratedPremiumItems[itemKey(item)] || item),
+    [baseUnlockableItems, hydratedPremiumItems]
+  );
   const hasHomepageContent = filtered.length > 0 || homepageCreators.length > 0 || topSurfaces.some((surface) => surface.items.length > 0);
   const recentlyPublishedSurface = useMemo<RankedSurface>(() => ({
     key: 'recently-added',
