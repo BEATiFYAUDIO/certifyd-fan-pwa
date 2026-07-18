@@ -14,6 +14,7 @@ import { normalizeCanonicalOrigin } from '../lib/origin';
 import { openExternalNavigation } from '../lib/externalNavigation';
 import { rememberUnlockedAccessForItem } from '../lib/accessCache';
 import { itemIdFromDiscoverable } from '../lib/libraryStore';
+import { BUNDLES_EVENT, listBundles, updateBundle, type Bundle } from '../lib/bundleStore';
 import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerOptions, type Stage1APlayerSnapshot, type Stage1APlayerState, type Stage1AQueueSource } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
@@ -430,6 +431,8 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const [freeDropQueue, setFreeDropQueueState] = useState<DiscoverableItem[]>([]);
   const [persistentQueueState, setPersistentQueueState] = useState<PersistentQueueState>(() => safeQueueStateFromStorage());
   const [recentItems, setRecentItems] = useState<DiscoverableItem[]>(() => safeRecentItemsFromStorage());
+  const [bundles, setBundles] = useState<Bundle[]>(() => listBundles());
+  const [bundlePickerOpen, setBundlePickerOpen] = useState(false);
   const [detailPanel, setDetailPanel] = useState<DetailPanel>(null);
   const [drawerContent, setDrawerContent] = useState<Stage1APlayerDrawerContent | null>(null);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
@@ -1041,6 +1044,23 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     toggleSavedWork(currentSourceItem);
   }, [currentSourceItem, toggleSavedWork]);
 
+  const addCurrentToBundle = useCallback((bundle: Bundle) => {
+    if (!currentSourceItem || !currentWorkKey) return;
+    if (bundle.itemIds.includes(currentWorkKey)) {
+      setMessage(`Already in ${bundle.title}.`);
+      setBundlePickerOpen(false);
+      return;
+    }
+    const updated = updateBundle(bundle.id, { itemIds: [...bundle.itemIds, currentWorkKey] });
+    if (!updated) {
+      setMessage('Could not update Bundle.');
+      return;
+    }
+    setBundles(listBundles());
+    setMessage(`Added to ${updated.title}.`);
+    setBundlePickerOpen(false);
+  }, [currentSourceItem, currentWorkKey]);
+
   const toggleCurrentFollowed = useCallback(() => {
     toggleFollowedCreator(currentCreator);
   }, [currentCreator, toggleFollowedCreator]);
@@ -1151,6 +1171,12 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       active = false;
     };
   }, [currentSourceItem]);
+
+  useEffect(() => {
+    const refreshBundles = () => setBundles(listBundles());
+    window.addEventListener(BUNDLES_EVENT, refreshBundles);
+    return () => window.removeEventListener(BUNDLES_EVENT, refreshBundles);
+  }, []);
 
   const handleEnded = useCallback(() => {
     endingRef.current = true;
@@ -1380,6 +1406,9 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               <button type="button" onClick={toggleCurrentSaved} disabled={!currentSourceItem}>
                 {isCurrentSaved ? 'Remove from Library' : 'Add to Library'}
               </button>
+              <button type="button" onClick={() => setBundlePickerOpen((current) => !current)} disabled={!currentSourceItem || !bundles.length}>
+                Add to Bundle
+              </button>
               <button type="button" onClick={shareCurrent}>
                 Share
               </button>
@@ -1398,6 +1427,29 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               ) : null}
               <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>Details</button>
             </div>
+            {bundlePickerOpen ? (
+              <div className="stage1a-rich-bundle-picker" role="region" aria-label="Add this work to a Bundle">
+                <div className="stage1a-rich-bundle-picker-head">
+                  <span>Add to Bundle</span>
+                  <button type="button" onClick={() => setBundlePickerOpen(false)} aria-label="Close Bundle picker">×</button>
+                </div>
+                {bundles.length ? (
+                  <div className="stage1a-rich-bundle-picker-list">
+                    {bundles.map((bundle) => {
+                      const alreadyAdded = Boolean(currentWorkKey && bundle.itemIds.includes(currentWorkKey));
+                      return (
+                        <button type="button" key={bundle.id} onClick={() => addCurrentToBundle(bundle)} disabled={alreadyAdded}>
+                          <span>{bundle.title}</span>
+                          <small>{alreadyAdded ? 'Already added' : `${bundle.itemIds.length} items`}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p>Create a Bundle from My Library first.</p>
+                )}
+              </div>
+            ) : null}
             {item?.connectedLabels.length ? (
               <div className="stage1a-rich-connected">
                 <div className="stage1a-rich-connected-title">Connected to</div>

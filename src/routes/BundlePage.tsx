@@ -15,7 +15,7 @@ import {
 } from '../lib/bundleStore';
 import { loadDiscoverableById } from '../lib/contentRuntime/discovery';
 import { displayStateFromItem } from '../lib/playbackDisplay';
-import { itemIdFromDiscoverable, libraryRepository, parseItemId } from '../lib/libraryStore';
+import { itemIdFromDiscoverable, LIBRARY_EVENT, libraryRepository, parseItemId } from '../lib/libraryStore';
 import type { DiscoverableItem } from '../lib/types';
 
 type ResolvedBundleRow = {
@@ -163,7 +163,14 @@ function BundleDetail({ bundle, shared = false }: { bundle: Bundle | SharedBundl
   const [visibility, setVisibility] = useState<BundleVisibility>('visibility' in currentBundle ? currentBundle.visibility : 'private');
   const [message, setMessage] = useState(shared ? 'This link contains a snapshot of the Bundle.' : '');
   const [copying, setCopying] = useState(false);
-  const libraryKeys = useMemo(() => new Set(libraryRepository.getItems().map((record) => record.itemId)), [message]);
+  const [libraryItemIds, setLibraryItemIds] = useState<string[]>(() => libraryRepository.getItems().map((record) => record.itemId));
+  const [addingFromLibrary, setAddingFromLibrary] = useState(false);
+  const libraryKeys = useMemo(() => new Set(libraryItemIds), [libraryItemIds]);
+  const libraryCandidateIds = useMemo(
+    () => libraryItemIds.filter((itemId) => !currentBundle.itemIds.includes(itemId)),
+    [currentBundle.itemIds, libraryItemIds],
+  );
+  const libraryCandidateRows = useResolvedBundleItems(addingFromLibrary ? libraryCandidateIds : []);
   const resolvedPlayable = useMemo(() => playableItems(rows), [rows]);
   const local = Boolean(localBundle);
 
@@ -172,6 +179,12 @@ function BundleDetail({ bundle, shared = false }: { bundle: Bundle | SharedBundl
     setDescription(currentBundle.description || '');
     setVisibility('visibility' in currentBundle ? currentBundle.visibility : 'private');
   }, [currentBundle]);
+
+  useEffect(() => {
+    const refreshLibrary = () => setLibraryItemIds(libraryRepository.getItems().map((record) => record.itemId));
+    window.addEventListener(LIBRARY_EVENT, refreshLibrary);
+    return () => window.removeEventListener(LIBRARY_EVENT, refreshLibrary);
+  }, []);
 
   const startQueue = useCallback((queue: DiscoverableItem[], startItem = queue[0]) => {
     if (!startItem || !queue.length) {
@@ -246,6 +259,11 @@ function BundleDetail({ bundle, shared = false }: { bundle: Bundle | SharedBundl
     persistLocal({ itemIds });
   }, [localBundle, persistLocal]);
 
+  const addLibraryItem = useCallback((itemId: string) => {
+    if (!localBundle || localBundle.itemIds.includes(itemId)) return;
+    persistLocal({ itemIds: [...localBundle.itemIds, itemId] });
+  }, [localBundle, persistLocal]);
+
   const deleteCurrentBundle = useCallback(() => {
     if (!localBundle) return;
     if (!window.confirm('Delete this Bundle from this device?')) return;
@@ -283,10 +301,37 @@ function BundleDetail({ bundle, shared = false }: { bundle: Bundle | SharedBundl
           <button type="button" className="rounded-full bg-amber-300 px-5 py-3 text-sm font-black text-black shadow-lg shadow-amber-300/20 transition hover:-translate-y-0.5 hover:bg-amber-200 hover:shadow-amber-300/30 active:translate-y-0" onClick={() => startQueue(resolvedPlayable)}>Play Bundle</button>
           <button type="button" className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300/70 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0" onClick={() => startQueue(shuffled(resolvedPlayable))}>Shuffle</button>
           <button type="button" className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300/70 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:border-zinc-700 disabled:hover:bg-transparent disabled:hover:text-zinc-100" disabled={'visibility' in currentBundle && currentBundle.visibility === 'private'} title={'visibility' in currentBundle && currentBundle.visibility === 'private' ? 'Change visibility to Unlisted or Public to share' : 'Copy share URL'} onClick={shareBundle}>Share Bundle</button>
+          {local ? <button type="button" className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300/70 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40" disabled={!libraryCandidateIds.length} onClick={() => setAddingFromLibrary((current) => !current)}>Add Library Works</button> : null}
           {shared ? <button type="button" className="rounded-full border border-emerald-400/50 px-5 py-3 text-sm font-bold text-emerald-100" onClick={saveCopy} disabled={copying}>Save a Copy</button> : null}
           {local ? <button type="button" className="rounded-full border border-red-400/50 px-5 py-3 text-sm font-bold text-red-100" onClick={deleteCurrentBundle}>Delete</button> : null}
         </div>
         {message ? <p className="mt-4 rounded-2xl border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-300">{message}</p> : null}
+        {local && addingFromLibrary ? (
+          <div className="mt-4 rounded-2xl border border-amber-300/20 bg-black/35 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-200/80">Add saved works</p>
+                <p className="mt-1 text-xs text-zinc-400">Choose works from My Library to append to this Bundle.</p>
+              </div>
+              <button type="button" className="rounded-full border border-zinc-700 px-3 py-2 text-xs font-bold text-zinc-100" onClick={() => setAddingFromLibrary(false)}>Done</button>
+            </div>
+            {libraryCandidateRows.length ? (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {libraryCandidateRows.map((row) => (
+                  <button type="button" key={row.itemId} className="flex min-w-0 items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-2 text-left transition hover:border-amber-300/50 hover:bg-amber-300/5" onClick={() => addLibraryItem(row.itemId)}>
+                    {row.item?.coverUrl ? <img src={row.item.coverUrl} alt="" className="h-12 w-16 shrink-0 rounded-xl object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : <span className="h-12 w-16 shrink-0 rounded-xl bg-zinc-900" />}
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-bold text-zinc-100">{row.item?.title || 'Unavailable work'}</span>
+                      <span className="block truncate text-xs text-zinc-500">{row.item ? `@${row.item.creatorHandle || 'creator'}` : row.itemId}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-400">No additional Library works are available to add.</p>
+            )}
+          </div>
+        ) : null}
       </section>
       <section className="space-y-3">
         {rows.map((row, index) => (

@@ -50,11 +50,11 @@ function PlayerSidebar() {
     {
       key: 'your-world',
       label: 'Your World',
-      defaultHref: contextHref('#following'),
+      defaultHref: contextHref('#saved'),
       items: [
+        { label: 'My Library', href: contextHref('#saved'), active: location.hash === '#saved' },
         { label: 'Following', href: contextHref('#following'), active: location.hash === '#following' },
         { label: 'Recently Played', href: contextHref('#recently-played'), active: location.hash === '#recently-played' },
-        { label: 'My Library', href: contextHref('#saved'), active: location.hash === '#saved' },
       ],
     },
   ];
