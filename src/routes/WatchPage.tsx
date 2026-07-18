@@ -442,7 +442,7 @@ function WorksList({
                       onPlayWork(playableWork, playableWorks);
                       return;
                     }
-                    void playItem(playableWork, { queue: playableWorks });
+                    void playItem(playableWork, { queue: playableWorks, queueSource: 'watch' });
                   }}
                   aria-label={`Play ${work.title || 'work'}`}
                 >
@@ -824,7 +824,6 @@ function StandardWatch({
   const [relationshipContextState, setRelationshipContextState] = useState<{ key: string; context: ContentRelationshipContext | null } | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const canonicalHydrationKeys = useRef<Set<string>>(new Set());
-  const initialPlayerSeedKeys = useRef<Set<string>>(new Set());
   const lastPlaybackSelectionKey = useRef(discoveryItemKey(activePlaybackItem));
 
   useEffect(() => {
@@ -986,7 +985,7 @@ function StandardWatch({
   const playContentItem = useCallback((nextItem: DiscoverableItem, queue: DiscoverableItem[]) => {
     const nextQueue = queue.length ? queue : [nextItem];
     selectContentItem(nextItem);
-    void playItem(nextItem, { queue: nextQueue });
+    void playItem(nextItem, { queue: nextQueue, queueSource: 'watch' });
   }, [playItem, selectContentItem]);
 
   useEffect(() => {
@@ -1097,21 +1096,9 @@ function StandardWatch({
     : themeVars;
   const watchContextQueue = useMemo(() => {
     if (!item) return [];
-    const related = dedupeDiscoveryItems(explorationRails.flatMap((rail) => rail.items || []));
-    return dedupeDiscoveryItems([item, ...related]);
+    const moreFromCreator = explorationRails.find((rail) => rail.key === 'more-from-creator')?.items || [];
+    return dedupeDiscoveryItems([item, ...moreFromCreator]);
   }, [explorationRails, item]);
-
-  useEffect(() => {
-    if (!item || activePlaybackItem) return;
-    const key = discoveryItemKey(item);
-    if (!key || initialPlayerSeedKeys.current.has(key)) return;
-    initialPlayerSeedKeys.current.add(key);
-    void playItem(item, {
-      queue: watchContextQueue.length ? watchContextQueue : [item],
-      autoPlay: false,
-      openPlayer: false,
-    });
-  }, [activePlaybackItem, item, playItem, watchContextQueue]);
 
   useEffect(() => {
     if (!item) return;

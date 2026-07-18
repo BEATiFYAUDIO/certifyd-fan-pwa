@@ -655,6 +655,7 @@ function RankingRow({
   scoreLabel,
   showPrice = false,
   queue,
+  queueSource = 'board',
 }: {
   item: DiscoverableItem;
   rank: number;
@@ -662,6 +663,7 @@ function RankingRow({
   scoreLabel?: string;
   showPrice?: boolean;
   queue?: DiscoverableItem[];
+  queueSource?: 'board' | 'search' | 'manual';
 }) {
   const { playItem } = useStage1APlayer();
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
@@ -707,7 +709,7 @@ function RankingRow({
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              void playItem(item, queue ? { queue } : undefined);
+              void playItem(item, queue ? { queue, queueSource } : { queueSource });
             }}
             aria-label={`Play ${item.title || 'work'} in Certifyd`}
           >
@@ -742,9 +744,10 @@ function RankingRow({
   );
 }
 
-function RankedSurfaceCard({ surface, id }: { surface: RankedSurface; id?: string }) {
+function RankedSurfaceCard({ surface, id, queueSource = 'board' }: { surface: RankedSurface; id?: string; queueSource?: 'board' | 'search' | 'manual' }) {
   if (surface.items.length === 0) return null;
   const showPrice = surface.key === 'unlockable-works';
+  const visibleItems = surface.items.slice(0, 5);
   return (
     <section id={id || surface.key} className="signal-surface-card min-w-0 scroll-mt-40 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">
@@ -756,7 +759,7 @@ function RankedSurfaceCard({ surface, id }: { surface: RankedSurface; id?: strin
       </div>
 
       <div className="mt-2.5 space-y-1.5 sm:mt-3 sm:space-y-2">
-        {surface.items.slice(0, 5).map((item, index) => (
+        {visibleItems.map((item, index) => (
           <RankingRow
             key={`${surface.key}:${itemKey(item)}`}
             item={item}
@@ -764,7 +767,8 @@ function RankedSurfaceCard({ surface, id }: { surface: RankedSurface; id?: strin
             score={surface.scoreFor?.(item)}
             scoreLabel={surface.scoreLabel}
             showPrice={showPrice}
-            queue={surface.items}
+            queue={visibleItems}
+            queueSource={queueSource}
           />
         ))}
       </div>
@@ -772,9 +776,10 @@ function RankedSurfaceCard({ surface, id }: { surface: RankedSurface; id?: strin
   );
 }
 
-function ExpandedRankedSurface({ surface, id }: { surface: RankedSurface; id: string }) {
+function ExpandedRankedSurface({ surface, id, queueSource = 'board' }: { surface: RankedSurface; id: string; queueSource?: 'board' | 'search' | 'manual' }) {
   if (surface.items.length === 0) return null;
   const showPrice = surface.key === 'unlockable-works';
+  const visibleItems = surface.items.slice(0, 12);
   return (
     <section id={id} className="signal-surface-card min-w-0 scroll-mt-40 overflow-hidden rounded-3xl border border-zinc-800/90 bg-zinc-950/75 p-3 shadow-2xl shadow-black/30 sm:p-5">
       <div className="flex min-w-0 items-start justify-between gap-4">
@@ -787,7 +792,7 @@ function ExpandedRankedSurface({ surface, id }: { surface: RankedSurface; id: st
       </div>
 
       <div className="mt-5 grid min-w-0 grid-cols-1 gap-2.5 lg:grid-cols-2">
-        {surface.items.slice(0, 12).map((item, index) => (
+        {visibleItems.map((item, index) => (
           <RankingRow
             key={`${surface.key}:expanded:${itemKey(item)}`}
             item={item}
@@ -795,7 +800,8 @@ function ExpandedRankedSurface({ surface, id }: { surface: RankedSurface; id: st
             score={surface.scoreFor?.(item)}
             scoreLabel={surface.scoreLabel}
             showPrice={showPrice}
-            queue={surface.items}
+            queue={visibleItems}
+            queueSource={queueSource}
           />
         ))}
       </div>
@@ -992,6 +998,7 @@ function SavedLibrarySection({ works, creators }: { works: DiscoverableItem[]; c
             subtitle: 'Works saved locally on this device',
             items: works,
           }}
+          queueSource="manual"
         />
       ) : (
         <EmptyDiscoveryContext id="saved" title="Saved Works" />
@@ -1813,7 +1820,7 @@ export function HomePage() {
         ) : null}
 
         {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && selectedSurface ? (
-          <ExpandedRankedSurface surface={selectedSurface} id={discoveryContext} />
+          <ExpandedRankedSurface surface={selectedSurface} id={discoveryContext} queueSource={query.trim() ? 'search' : 'board'} />
         ) : null}
 
         {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && selectedSurface && selectedSurface.items.length === 0 ? (

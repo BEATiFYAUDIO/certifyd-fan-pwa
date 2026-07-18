@@ -4,7 +4,7 @@ import type { DiscoverableItem } from '../lib/types';
 import { displayStateFromItem } from '../lib/playbackDisplay';
 import { getCardThemeVars } from '../lib/profileTheme';
 import { canonicalCreatorProfileUrlForItem } from '../lib/destinations';
-import { useStage1APlayer } from './stage1APlayerContext';
+import { useStage1APlayer, type Stage1AQueueSource } from './stage1APlayerContext';
 
 function avatarInitials(handle: string | null): string {
   const raw = String(handle || '').replace(/^@+/, '').trim();
@@ -18,7 +18,7 @@ function shouldOpenMobilePlayerOnly(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches;
 }
 
-export const FeedCard = memo(function FeedCard({ item, queue }: { item: DiscoverableItem; queue?: DiscoverableItem[] }) {
+export const FeedCard = memo(function FeedCard({ item, queue, queueSource = 'manual' }: { item: DiscoverableItem; queue?: DiscoverableItem[]; queueSource?: Stage1AQueueSource }) {
   const { playItem, setMobilePlayerOpen } = useStage1APlayer();
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
@@ -43,7 +43,7 @@ export const FeedCard = memo(function FeedCard({ item, queue }: { item: Discover
     event.preventDefault();
     event.stopPropagation();
     if (shouldOpenMobilePlayerOnly()) setMobilePlayerOpen(true);
-    void playItem(item, queue?.length ? { queue } : undefined);
+    void playItem(item, queue?.length ? { queue, queueSource } : { queueSource });
   };
   const avatarGradient = useMemo(() => {
     const seed = creator.toLowerCase().charCodeAt(0) || 0;
