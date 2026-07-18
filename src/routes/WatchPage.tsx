@@ -824,6 +824,7 @@ function StandardWatch({
   const [relationshipContextState, setRelationshipContextState] = useState<{ key: string; context: ContentRelationshipContext | null } | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const canonicalHydrationKeys = useRef<Set<string>>(new Set());
+  const initialPlayerSeedKeys = useRef<Set<string>>(new Set());
   const lastPlaybackSelectionKey = useRef(discoveryItemKey(activePlaybackItem));
 
   useEffect(() => {
@@ -1099,6 +1100,18 @@ function StandardWatch({
     const related = dedupeDiscoveryItems(explorationRails.flatMap((rail) => rail.items || []));
     return dedupeDiscoveryItems([item, ...related]);
   }, [explorationRails, item]);
+
+  useEffect(() => {
+    if (!item || activePlaybackItem) return;
+    const key = discoveryItemKey(item);
+    if (!key || initialPlayerSeedKeys.current.has(key)) return;
+    initialPlayerSeedKeys.current.add(key);
+    void playItem(item, {
+      queue: watchContextQueue.length ? watchContextQueue : [item],
+      autoPlay: false,
+      openPlayer: false,
+    });
+  }, [activePlaybackItem, item, playItem, watchContextQueue]);
 
   useEffect(() => {
     if (!item) return;
