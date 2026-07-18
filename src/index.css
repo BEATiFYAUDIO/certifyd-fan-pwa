@@ -2515,11 +2515,15 @@ body.has-stage1a-player {
   width: 100%;
   height: 100%;
   min-height: 0;
-  place-items: center;
-  color: rgba(246, 240, 247, 0.35);
-  font-size: 1.2rem;
-  font-weight: 900;
-  letter-spacing: 0.16em;
+  place-items: start;
+  padding: 1rem;
+}
+
+.stage1a-rich-empty img {
+  width: clamp(42px, 12vw, 84px);
+  height: auto;
+  opacity: 0.34;
+  filter: saturate(0.8);
 }
 
 .stage1a-rich-copy {
@@ -3685,11 +3689,14 @@ body.has-stage1a-player {
     width: 100%;
     height: 100%;
     min-height: 0;
-    place-items: center;
-    color: rgba(255, 255, 255, 0.38);
-    font-size: 22px;
-    font-weight: 950;
-    letter-spacing: 0.12em;
+    place-items: start;
+    padding: 1rem;
+  }
+
+  .stage1a-rich-empty img {
+    width: 64px;
+    height: auto;
+    opacity: 0.34;
   }
 
   .stage1a-rich-copy {

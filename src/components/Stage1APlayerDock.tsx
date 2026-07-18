@@ -1296,7 +1296,9 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               }}
             />
           ) : (
-            <div className="stage1a-rich-empty" aria-hidden="true">CERTIFYD</div>
+            <div className="stage1a-rich-empty" aria-hidden="true">
+              <img src={`${import.meta.env.BASE_URL}header-logo.svg`} alt="" />
+            </div>
           )}
           {item?.mediaKind !== 'video' ? (
             <audio
