@@ -2028,7 +2028,7 @@ export function HomePage() {
           {discoveryContext === 'free-drops' && freeItems.length > 0 ? (
             <section id="free-drops" className="space-y-3 scroll-mt-40">
               <RailHeader title="Free Drops" subtitle="Open works fans can play while exploring creators" badge="Open" />
-              <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+              <div className="shorts-card-layout rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
                 {freeItems.slice(0, 12).map((item) => {
                   const shortsQueue = freeItems.slice(0, 12);
                   const watchParams = new URLSearchParams({
@@ -2051,7 +2051,7 @@ export function HomePage() {
           {discoveryContext === 'premium-works' && boardUnlockableItems.length > 0 ? (
             <section id="premium-works" className="space-y-3 scroll-mt-40">
               <RailHeader title="Premium Works" subtitle="Premium works to preview here and unlock on creator pages" badge="Preview" />
-              <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+              <div className="shorts-card-layout rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
                 {boardUnlockableItems.slice(0, 12).map((item) => {
                   const premiumQueue = boardUnlockableItems.slice(0, 12);
                   const watchParams = new URLSearchParams({
