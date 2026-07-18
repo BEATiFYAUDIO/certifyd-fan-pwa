@@ -1,8 +1,9 @@
-import { isRenderableDiscoveryItem } from '../discoveryGuard';
+import { isLockedOrPremium, isRenderableDiscoveryItem } from '../discoveryGuard';
 import { dedupeDiscoveryItems } from '../discoveryViewModel';
 import { normalizeCanonicalOrigin } from '../origin';
 import type { DiscoverableItem, Topic } from '../types';
 import { loadDiscoverableById, loadDiscoveryItems } from './discovery';
+import { hydrateCanonicalOfferForItem } from './hydration';
 
 export function contentRuntimeItemKey(item: Pick<DiscoverableItem, 'contentId' | 'publicOrigin'>): string {
   return `${normalizeCanonicalOrigin(item.publicOrigin) || item.publicOrigin}::${item.contentId}`;
@@ -13,7 +14,7 @@ export async function loadShortsRuntimeQueue(
   contentId: string | null,
   originHint: string | null,
   stateItem: DiscoverableItem | null,
-  options: { freeOnly?: boolean } = {},
+  options: { freeOnly?: boolean; premiumOnly?: boolean } = {},
 ): Promise<DiscoverableItem[]> {
   const extras: DiscoverableItem[] = [];
   if (stateItem && isRenderableDiscoveryItem(stateItem)) extras.push(stateItem);
@@ -27,11 +28,23 @@ export async function loadShortsRuntimeQueue(
   if (options.freeOnly) {
     queue = queue.filter((item) => item.isFree === true || item.accessMode === 'unlocked' || item.accessMode === 'owned' || Number(item.priceSats || 0) === 0);
   }
+  if (options.premiumOnly) {
+    queue = queue.filter((item) => isLockedOrPremium(item));
+  }
   if (contentId) {
     const selectedIndex = queue.findIndex((item) => item.contentId === contentId && (!originHint || normalizeCanonicalOrigin(item.publicOrigin) === normalizeCanonicalOrigin(originHint)));
     if (selectedIndex > 0) {
       const selected = queue[selectedIndex];
       queue = [selected, ...queue.slice(0, selectedIndex), ...queue.slice(selectedIndex + 1)];
+    }
+    if (queue[0]) {
+      try {
+        const hydrated = await hydrateCanonicalOfferForItem(queue[0]);
+        const hydratedKey = contentRuntimeItemKey(hydrated);
+        queue = [hydrated, ...queue.slice(1).map((item) => (contentRuntimeItemKey(item) === hydratedKey ? hydrated : item))];
+      } catch {
+        // Keep the discovery item if the source cannot be reached.
+      }
     }
   }
   return queue;
