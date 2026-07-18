@@ -15,8 +15,10 @@ import { isRenderableDiscoveryItem } from './discoveryGuard';
 
 const DISCOVERABLE_CACHE_MS = 60_000;
 const SIGNALS_CACHE_MS = 60_000;
+const CONTENT_CONTEXT_CACHE_MS = 60_000;
 const discoverablePageCache = new Map<string, { expiresAt: number; promise: Promise<DiscoverableResponse> }>();
 const discoverySignalsCache = new Map<string, { expiresAt: number; promise: Promise<DiscoverySignalsResponse | null> }>();
+const contentContextCache = new Map<string, { expiresAt: number; promise: Promise<ContentRelationshipContext | null> }>();
 const creatorProfileThemeCache = new Map<string, Promise<ProfileTheme | null>>();
 
 function resolveUrl(value: unknown, origin: string): string {
@@ -445,52 +447,62 @@ export async function fetchContentContext(input: {
   const { origin, contentId, timeoutMs = 5000 } = input;
   if (!origin || !contentId) return null;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const endpoint = `${origin}/public/content/${encodeURIComponent(contentId)}/context`;
-    const res = await fetch(endpoint, { cache: 'no-store', signal: controller.signal });
-    if (!res.ok) return null;
-    const data = (await res.json()) as ContentRelationshipContext;
-    const creator = await enrichContextCreatorAvatar(await normalizeContextCreator(data.creator, origin));
-    const peopleBehindThis = await Promise.all(
-      normalizeContextArray<ContentContextPerson>(data.peopleBehindThis)
-        .map(async (person) => enrichContextCreatorAvatar(await normalizeContextPerson(person, origin))),
-    );
-    const featuring = await Promise.all(
-      normalizeContextArray<ContentContextPerson>(data.featuring)
-        .map(async (person) => enrichContextCreatorAvatar(await normalizeContextPerson(person, origin))),
-    );
-    const createdWith = await Promise.all(
-      normalizeContextArray<ContentContextPerson>(data.createdWith)
-        .map(async (person) => enrichContextCreatorAvatar(await normalizeContextPerson(person, origin))),
-    );
-    const connectedCreators = (await Promise.all(
-      normalizeContextArray<ContentContextCreator>(data.connectedCreators)
-        .map(async (row) => enrichContextCreatorAvatar(await normalizeContextCreator(row, origin))),
-    )).filter((row): row is ContentContextCreator => Boolean(row));
-    const builtFrom = await Promise.all(normalizeContextArray<ContentContextWork>(data.builtFrom).map((work) => normalizeContextWork(work, origin)));
-    const derivedFrom = await Promise.all(normalizeContextArray<ContentContextWork>(data.derivedFrom).map((work) => normalizeContextWork(work, origin)));
-    const worksThatBuiltOnThis = await Promise.all(normalizeContextArray<ContentContextWork>(data.worksThatBuiltOnThis).map((work) => normalizeContextWork(work, origin)));
-    const moreTheyWorkedOn = await Promise.all(normalizeContextArray<ContentContextWork>(data.moreTheyWorkedOn).map((work) => normalizeContextWork(work, origin)));
-    const relatedWorks = await Promise.all(normalizeContextArray<ContentContextWork>(data.relatedWorks).map((work) => normalizeContextWork(work, origin)));
-    return {
-      ...data,
-      publicOrigin: data.publicOrigin || origin,
-      creator,
-      peopleBehindThis,
-      featuring,
-      createdWith,
-      builtFrom,
-      derivedFrom,
-      worksThatBuiltOnThis,
-      moreTheyWorkedOn,
-      relatedWorks,
-      connectedCreators,
-    };
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  const endpoint = `${origin}/public/content/${encodeURIComponent(contentId)}/context`;
+  const now = Date.now();
+  const cached = contentContextCache.get(endpoint);
+  if (cached && cached.expiresAt > now) return cached.promise;
+
+  const promise = (async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(endpoint, { signal: controller.signal });
+      if (!res.ok) return null;
+      const data = (await res.json()) as ContentRelationshipContext;
+      const creator = await enrichContextCreatorAvatar(await normalizeContextCreator(data.creator, origin));
+      const peopleBehindThis = await Promise.all(
+        normalizeContextArray<ContentContextPerson>(data.peopleBehindThis)
+          .map(async (person) => enrichContextCreatorAvatar(await normalizeContextPerson(person, origin))),
+      );
+      const featuring = await Promise.all(
+        normalizeContextArray<ContentContextPerson>(data.featuring)
+          .map(async (person) => enrichContextCreatorAvatar(await normalizeContextPerson(person, origin))),
+      );
+      const createdWith = await Promise.all(
+        normalizeContextArray<ContentContextPerson>(data.createdWith)
+          .map(async (person) => enrichContextCreatorAvatar(await normalizeContextPerson(person, origin))),
+      );
+      const connectedCreators = (await Promise.all(
+        normalizeContextArray<ContentContextCreator>(data.connectedCreators)
+          .map(async (row) => enrichContextCreatorAvatar(await normalizeContextCreator(row, origin))),
+      )).filter((row): row is ContentContextCreator => Boolean(row));
+      const builtFrom = await Promise.all(normalizeContextArray<ContentContextWork>(data.builtFrom).map((work) => normalizeContextWork(work, origin)));
+      const derivedFrom = await Promise.all(normalizeContextArray<ContentContextWork>(data.derivedFrom).map((work) => normalizeContextWork(work, origin)));
+      const worksThatBuiltOnThis = await Promise.all(normalizeContextArray<ContentContextWork>(data.worksThatBuiltOnThis).map((work) => normalizeContextWork(work, origin)));
+      const moreTheyWorkedOn = await Promise.all(normalizeContextArray<ContentContextWork>(data.moreTheyWorkedOn).map((work) => normalizeContextWork(work, origin)));
+      const relatedWorks = await Promise.all(normalizeContextArray<ContentContextWork>(data.relatedWorks).map((work) => normalizeContextWork(work, origin)));
+      return {
+        ...data,
+        publicOrigin: data.publicOrigin || origin,
+        creator,
+        peopleBehindThis,
+        featuring,
+        createdWith,
+        builtFrom,
+        derivedFrom,
+        worksThatBuiltOnThis,
+        moreTheyWorkedOn,
+        relatedWorks,
+        connectedCreators,
+      };
+    } catch {
+      contentContextCache.delete(endpoint);
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  })();
+
+  contentContextCache.set(endpoint, { expiresAt: now + CONTENT_CONTEXT_CACHE_MS, promise });
+  return promise;
 }

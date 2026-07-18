@@ -826,10 +826,18 @@ function StandardWatch({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const canonicalHydrationKeys = useRef<Set<string>>(new Set());
   const lastPlaybackSelectionKey = useRef(discoveryItemKey(activePlaybackItem));
+  const currentItemKey = discoveryItemKey(item);
 
   useEffect(() => {
     let active = true;
     if (!contentId) return undefined;
+    if (stateItem && isRenderableDiscoveryItem(stateItem) && stateItem.contentId === contentId) {
+      setItem(stateItem);
+      setDiscoveryItems((current) => dedupeDiscoveryItems([stateItem, ...current]));
+      setLoading(false);
+      setError(null);
+      return undefined;
+    }
 
     const run = async () => {
       setLoading(true);
@@ -877,7 +885,7 @@ function StandardWatch({
     return () => {
       active = false;
     };
-  }, [item]);
+  }, [currentItemKey, item?.primaryTopic]);
 
   useEffect(() => {
     let active = true;
@@ -894,7 +902,7 @@ function StandardWatch({
     return () => {
       active = false;
     };
-  }, [item]);
+  }, [currentItemKey]);
 
   useEffect(() => {
     let active = true;
@@ -912,7 +920,7 @@ function StandardWatch({
     return () => {
       active = false;
     };
-  }, [item]);
+  }, [currentItemKey]);
 
   useEffect(() => {
     let active = true;
@@ -932,7 +940,7 @@ function StandardWatch({
     return () => {
       active = false;
     };
-  }, [item]);
+  }, [currentItemKey]);
 
   const rehydrateCurrentItem = useCallback(async () => {
     if (!item) return;
