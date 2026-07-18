@@ -1056,7 +1056,7 @@ function SavedLibrarySection({ works, creators }: { works: DiscoverableItem[]; c
 
   const shareBundle = useCallback(async (bundle: Bundle) => {
     if (bundle.visibility === 'private') {
-      setBundleMessage('Private Bundles cannot be shared. Open the Bundle and change visibility first.');
+      setBundleMessage('Private Bundles cannot be shared. Open the Bundle and change visibility to Unlisted or Public first.');
       return;
     }
     const url = `${window.location.origin}/bundles/shared?data=${encodeSharedBundle(bundle)}`;
@@ -1064,10 +1064,10 @@ function SavedLibrarySection({ works, creators }: { works: DiscoverableItem[]; c
       if (navigator.share) await navigator.share({ title: bundle.title, url });
       else {
         await navigator.clipboard.writeText(url);
-        setBundleMessage('Share link copied. This link contains a snapshot of the Bundle.');
+        setBundleMessage(`Share URL copied: ${url}`);
       }
     } catch {
-      setBundleMessage('Share unavailable.');
+      setBundleMessage(`Share URL: ${url}`);
     }
   }, []);
 
@@ -1179,9 +1179,9 @@ function SavedLibrarySection({ works, creators }: { works: DiscoverableItem[]; c
                   <span className="rounded-full border border-zinc-700 px-2 py-1">Updated {new Date(bundle.updatedAt).toLocaleDateString()}</span>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Link className="rounded-full bg-white px-4 py-2 text-xs font-black text-black" to={`/bundles/${encodeURIComponent(bundle.id)}`}>Open</Link>
-                  <button type="button" className="rounded-full border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-100" onClick={() => void playBundle(bundle)}>Play</button>
-                  <button type="button" className="rounded-full border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-100 disabled:opacity-40" disabled={bundle.visibility === 'private'} onClick={() => void shareBundle(bundle)}>Share</button>
+                  <Link className="rounded-full bg-white px-4 py-2 text-xs font-black text-black shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-200 hover:shadow-lg hover:shadow-amber-300/20 active:translate-y-0" to={`/bundles/${encodeURIComponent(bundle.id)}`}>Open</Link>
+                  <button type="button" className="rounded-full border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300/70 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0" onClick={() => void playBundle(bundle)}>Play</button>
+                  <button type="button" className="rounded-full border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300/70 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:border-zinc-700 disabled:hover:bg-transparent disabled:hover:text-zinc-100" disabled={bundle.visibility === 'private'} title={bundle.visibility === 'private' ? 'Change visibility to Unlisted or Public to share' : 'Copy share URL'} onClick={() => void shareBundle(bundle)}>Share</button>
                 </div>
               </article>
             ))}

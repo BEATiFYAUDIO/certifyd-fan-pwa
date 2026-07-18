@@ -203,12 +203,13 @@ function BundleDetail({ bundle, shared = false }: { bundle: Bundle | SharedBundl
     try {
       if (navigator.share) {
         await navigator.share({ title: currentBundle.title, url });
+        setMessage(`Share URL: ${url}`);
       } else {
         await navigator.clipboard.writeText(url);
-        setMessage('Share link copied. This link contains a snapshot of the Bundle.');
+        setMessage(`Share URL copied: ${url}`);
       }
     } catch {
-      setMessage('Share unavailable.');
+      setMessage(`Share URL: ${url}`);
     }
   }, [currentBundle]);
 
@@ -277,9 +278,9 @@ function BundleDetail({ bundle, shared = false }: { bundle: Bundle | SharedBundl
           <span className="rounded-full border border-zinc-700 bg-black/35 px-3 py-1.5">Updated {formatDate('updatedAt' in currentBundle ? currentBundle.updatedAt : currentBundle.createdAt)}</span>
         </div>
         <div className="mt-5 flex flex-wrap gap-2">
-          <button type="button" className="rounded-full bg-amber-300 px-5 py-3 text-sm font-black text-black shadow-lg shadow-amber-300/20" onClick={() => startQueue(resolvedPlayable)}>Play Bundle</button>
-          <button type="button" className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-zinc-100" onClick={() => startQueue(shuffled(resolvedPlayable))}>Shuffle</button>
-          <button type="button" className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-zinc-100 disabled:opacity-40" disabled={'visibility' in currentBundle && currentBundle.visibility === 'private'} onClick={shareBundle}>Share Bundle</button>
+          <button type="button" className="rounded-full bg-amber-300 px-5 py-3 text-sm font-black text-black shadow-lg shadow-amber-300/20 transition hover:-translate-y-0.5 hover:bg-amber-200 hover:shadow-amber-300/30 active:translate-y-0" onClick={() => startQueue(resolvedPlayable)}>Play Bundle</button>
+          <button type="button" className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300/70 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0" onClick={() => startQueue(shuffled(resolvedPlayable))}>Shuffle</button>
+          <button type="button" className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300/70 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:border-zinc-700 disabled:hover:bg-transparent disabled:hover:text-zinc-100" disabled={'visibility' in currentBundle && currentBundle.visibility === 'private'} title={'visibility' in currentBundle && currentBundle.visibility === 'private' ? 'Change visibility to Unlisted or Public to share' : 'Copy share URL'} onClick={shareBundle}>Share Bundle</button>
           {shared ? <button type="button" className="rounded-full border border-emerald-400/50 px-5 py-3 text-sm font-bold text-emerald-100" onClick={saveCopy} disabled={copying}>Save a Copy</button> : null}
           {local ? <button type="button" className="rounded-full border border-red-400/50 px-5 py-3 text-sm font-bold text-red-100" onClick={deleteCurrentBundle}>Delete</button> : null}
         </div>
