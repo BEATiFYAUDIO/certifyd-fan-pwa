@@ -39,6 +39,11 @@
   padding: 0 !important;
 }
 
+.stage1a-player-media-frame > .stage1a-rich-empty {
+  display: grid !important;
+  place-items: center !important;
+}
+
 .stage1a-player-art {
   object-fit: contain !important;
   background: #000;
