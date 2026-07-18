@@ -7,6 +7,7 @@ import {
   deleteBundle,
   encodeSharedBundle,
   getBundle,
+  sharedBundleUrl,
   updateBundle,
   type Bundle,
   type BundleVisibility,
@@ -199,17 +200,18 @@ function BundleDetail({ bundle, shared = false }: { bundle: Bundle | SharedBundl
       return;
     }
     const data = encodeSharedBundle(currentBundle);
-    const url = `${window.location.origin}/bundles/shared?data=${data}`;
+    const url = sharedBundleUrl(data);
     try {
-      if (navigator.share) {
-        await navigator.share({ title: currentBundle.title, url });
-        setMessage(`Share URL: ${url}`);
-      } else {
-        await navigator.clipboard.writeText(url);
-        setMessage(`Share URL copied: ${url}`);
-      }
+      await navigator.clipboard.writeText(url);
+      setMessage('Share link copied to clipboard. This link contains a snapshot of the Bundle.');
     } catch {
-      setMessage(`Share URL: ${url}`);
+      try {
+        if (!navigator.share) throw new Error('Share unavailable.');
+        await navigator.share({ title: currentBundle.title, url });
+        setMessage('Share sheet opened. This link contains a snapshot of the Bundle.');
+      } catch {
+        setMessage('Could not copy the share link.');
+      }
     }
   }, [currentBundle]);
 

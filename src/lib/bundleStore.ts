@@ -197,3 +197,12 @@ export function decodeSharedBundle(data: string): SharedBundleManifest | null {
     return null;
   }
 }
+
+export function sharedBundleUrl(data: string): string {
+  const configuredBase = String(import.meta.env.VITE_CERTIFYD_FAN_PUBLIC_URL || '').trim();
+  const runtimeBase = typeof window !== 'undefined'
+    ? new URL(import.meta.env.BASE_URL || '/', window.location.origin).toString()
+    : '/';
+  const base = configuredBase || runtimeBase;
+  return new URL(`bundles/shared?data=${encodeURIComponent(data)}`, base.endsWith('/') ? base : `${base}/`).toString();
+}
