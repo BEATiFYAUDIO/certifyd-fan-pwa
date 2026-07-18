@@ -13,6 +13,7 @@ import { buildWatchDiscoveryRails, dedupeDiscoveryItems, itemSortTime, sortNewes
 import { getCardThemeVars } from '../lib/profileTheme';
 import { openExternalNavigation } from '../lib/externalNavigation';
 import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
+import { itemIdFromDiscoverable } from '../lib/libraryStore';
 
 function ctaLabel(item: DiscoverableItem) {
   return displayStateFromItem(item).ctaLabel;
@@ -442,7 +443,7 @@ function WorksList({
                       onPlayWork(playableWork, playableWorks);
                       return;
                     }
-                    void playItem(playableWork, { queue: playableWorks });
+                    void playItem(playableWork, { queue: playableWorks, queueSource: 'watch' });
                   }}
                   aria-label={`Play ${work.title || 'work'}`}
                 >
@@ -824,7 +825,6 @@ function StandardWatch({
   const [relationshipContextState, setRelationshipContextState] = useState<{ key: string; context: ContentRelationshipContext | null } | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const canonicalHydrationKeys = useRef<Set<string>>(new Set());
-  const initialPlayerSeedKeys = useRef<Set<string>>(new Set());
   const lastPlaybackSelectionKey = useRef(discoveryItemKey(activePlaybackItem));
 
   useEffect(() => {
@@ -986,7 +986,7 @@ function StandardWatch({
   const playContentItem = useCallback((nextItem: DiscoverableItem, queue: DiscoverableItem[]) => {
     const nextQueue = queue.length ? queue : [nextItem];
     selectContentItem(nextItem);
-    void playItem(nextItem, { queue: nextQueue });
+    void playItem(nextItem, { queue: nextQueue, queueSource: 'watch' });
   }, [playItem, selectContentItem]);
 
   useEffect(() => {
@@ -1017,7 +1017,7 @@ function StandardWatch({
   const canRestoreAccess = Boolean(item && Number(item.priceSats || 0) > 0 && displayStateFromItem(item).state === 'preview');
   const buyWithReturnUrl = item ? buyUrlWithFanReturnUrl(item.buyUrl, item) : '#';
   const selectedBuyUrl = item?.buyUrl && item.buyUrl !== '#' ? item.buyUrl : '';
-  const currentWorkKey = item ? `${item.publicOrigin}::${item.contentId}` : '';
+  const currentWorkKey = item ? itemIdFromDiscoverable(item) : '';
   const currentCreator = item ? creatorFromItem(item) : null;
   const isCurrentSaved = Boolean(currentWorkKey && savedWorkKeys.has(currentWorkKey));
   const isCurrentFollowed = Boolean(currentCreator?.key && followedCreatorKeys.has(currentCreator.key));
@@ -1097,21 +1097,9 @@ function StandardWatch({
     : themeVars;
   const watchContextQueue = useMemo(() => {
     if (!item) return [];
-    const related = dedupeDiscoveryItems(explorationRails.flatMap((rail) => rail.items || []));
-    return dedupeDiscoveryItems([item, ...related]);
+    const moreFromCreator = explorationRails.find((rail) => rail.key === 'more-from-creator')?.items || [];
+    return dedupeDiscoveryItems([item, ...moreFromCreator]);
   }, [explorationRails, item]);
-
-  useEffect(() => {
-    if (!item || activePlaybackItem) return;
-    const key = discoveryItemKey(item);
-    if (!key || initialPlayerSeedKeys.current.has(key)) return;
-    initialPlayerSeedKeys.current.add(key);
-    void playItem(item, {
-      queue: watchContextQueue.length ? watchContextQueue : [item],
-      autoPlay: false,
-      openPlayer: false,
-    });
-  }, [activePlaybackItem, item, playItem, watchContextQueue]);
 
   useEffect(() => {
     if (!item) return;
@@ -1266,7 +1254,7 @@ function StandardWatch({
                 <HeroAttributionLineage context={relationshipContext} credits={credits} />
                 <div className="watch-hero-mobile-actions">
                   <button type="button" className="watch-details-pill" onClick={toggleCurrentSaved}>
-                    {isCurrentSaved ? 'Saved' : 'Save Work'}
+                    {isCurrentSaved ? 'Remove from Library' : 'Add to Library'}
                   </button>
                   <button type="button" className="watch-details-pill" onClick={() => void shareCurrent()}>
                     Share

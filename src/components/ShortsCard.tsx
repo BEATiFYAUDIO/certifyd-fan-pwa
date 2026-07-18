@@ -4,7 +4,7 @@ import type { DiscoverableItem } from '../lib/types';
 import { displayStateFromItem } from '../lib/playbackDisplay';
 import { getCardThemeVars } from '../lib/profileTheme';
 import { canonicalCreatorProfileUrlForItem } from '../lib/destinations';
-import { useStage1APlayer } from './stage1APlayerContext';
+import { useStage1APlayer, type Stage1AQueueSource } from './stage1APlayerContext';
 
 function avatarInitials(handle: string | null): string {
   const raw = String(handle || '').replace(/^@+/, '').trim();
@@ -18,7 +18,7 @@ function shouldOpenMobilePlayerOnly(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches;
 }
 
-export const ShortsCard = memo(function ShortsCard({ item, watchParams, queue }: { item: DiscoverableItem; watchParams?: string; queue?: DiscoverableItem[] }) {
+export const ShortsCard = memo(function ShortsCard({ item, watchParams, queue, queueSource = 'board' }: { item: DiscoverableItem; watchParams?: string; queue?: DiscoverableItem[]; queueSource?: Stage1AQueueSource }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const { playItem, setMobilePlayerOpen } = useStage1APlayer();
   const [imageFailed, setImageFailed] = useState(false);
@@ -56,7 +56,7 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams, queue }:
     event.preventDefault();
     event.stopPropagation();
     if (shouldOpenMobilePlayerOnly()) setMobilePlayerOpen(true);
-    void playItem(item, { muted: true, mediaAspect: 'portrait', ...(queue?.length ? { queue } : {}) });
+    void playItem(item, { muted: true, mediaAspect: 'portrait', queueSource, ...(queue?.length ? { queue } : {}) });
   };
 
   return (

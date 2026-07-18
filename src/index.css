@@ -2315,6 +2315,20 @@ body.has-shorts-mode .certifyd-player-center {
   background: linear-gradient(90deg, rgba(120, 136, 160, 0.46), rgba(205, 168, 93, 0.5));
 }
 
+@media (min-width: 768px) {
+  .shorts-card-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+
+  .shorts-card-layout > article {
+    width: 100%;
+    max-width: none;
+  }
+}
+
 body.has-stage1a-player {
   padding-bottom: 68px;
 }

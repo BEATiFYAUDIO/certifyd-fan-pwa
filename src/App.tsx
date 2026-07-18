@@ -3,6 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { HomePage } from './routes/HomePage';
 import { ShortsPage } from './routes/ShortsPage';
 import { WatchPage } from './routes/WatchPage';
+import { BundlePage, SharedBundlePage } from './routes/BundlePage';
 import { Stage1APlayerProvider } from './components/Stage1APlayerDock';
 
 function ScrollToTop() {
@@ -53,7 +54,7 @@ function PlayerSidebar() {
       items: [
         { label: 'Following', href: contextHref('#following'), active: location.hash === '#following' },
         { label: 'Recently Played', href: contextHref('#recently-played'), active: location.hash === '#recently-played' },
-        { label: 'Saved', href: contextHref('#saved'), active: location.hash === '#saved' },
+        { label: 'My Library', href: contextHref('#saved'), active: location.hash === '#saved' },
       ],
     },
   ];
@@ -109,6 +110,8 @@ function PlayerShell() {
           <Route path="/shorts" element={<ShortsPage />} />
           <Route path="/shorts/:contentId" element={<ShortsPage />} />
           <Route path="/watch/:contentId" element={<WatchPage />} />
+          <Route path="/bundles/shared" element={<SharedBundlePage />} />
+          <Route path="/bundles/:bundleId" element={<BundlePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

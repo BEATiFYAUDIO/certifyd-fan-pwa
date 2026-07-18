@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent, type TouchEvent } from 'react';
 import { fetchContentContext } from '../lib/api';
+import { loadDiscoverableById, loadDiscoveryItems } from '../lib/contentRuntime/discovery';
 import type { ContentContextWork, DiscoverableItem } from '../lib/types';
 import { resolveAccessFromOffer, type CanonicalOffer, type ResolvedPlayback } from '../lib/accessResolver';
 import { fetchCanonicalOfferPayload } from '../lib/offerFetch';
@@ -12,7 +13,8 @@ import { canonicalCreatorProfileUrl, canonicalCreatorProfileUrlForItem } from '.
 import { normalizeCanonicalOrigin } from '../lib/origin';
 import { openExternalNavigation } from '../lib/externalNavigation';
 import { rememberUnlockedAccessForItem } from '../lib/accessCache';
-import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerOptions, type Stage1APlayerSnapshot, type Stage1APlayerState } from './stage1APlayerContext';
+import { itemIdFromDiscoverable } from '../lib/libraryStore';
+import { Stage1APlayerContext, type Stage1APlayerDrawerContent, type Stage1APlayerDrawerPanel, type Stage1APlayerItem, type Stage1APlayerMediaAspect, type Stage1APlayerOptions, type Stage1APlayerSnapshot, type Stage1APlayerState, type Stage1AQueueSource } from './stage1APlayerContext';
 
 type MediaKind = 'audio' | 'video';
 type MediaAspect = Stage1APlayerMediaAspect;
@@ -20,7 +22,15 @@ type DetailPanel = Stage1APlayerDrawerPanel;
 
 const RECENT_ITEMS_STORAGE_KEY = 'certifyd-player:recent-items:v1';
 const AUTOPLAY_STORAGE_KEY = 'certifyd-player:autoplay-next:v1';
+const QUEUE_STORAGE_KEY = 'certifyd-player:queue:v1';
 const MAX_RECENT_ITEMS = 24;
+
+type PersistentQueueState = {
+  queueItemIds: string[];
+  currentQueueIndex: number;
+  queueSource: Stage1AQueueSource;
+  queueSourceId?: string | null;
+};
 
 function normalizeOffer(payload: unknown): CanonicalOffer | null {
   if (!payload || typeof payload !== 'object') return null;
@@ -294,6 +304,57 @@ function queueItemKey(item: Pick<DiscoverableItem, 'contentId' | 'publicOrigin'>
   return `${normalizeCanonicalOrigin(item.publicOrigin) || item.publicOrigin}::${item.contentId}`;
 }
 
+function parseQueueItemKey(value: string): { publicOrigin: string; contentId: string } | null {
+  const separatorIndex = value.indexOf('::');
+  if (separatorIndex <= 0 || separatorIndex === value.length - 2) return null;
+  const publicOrigin = normalizeCanonicalOrigin(value.slice(0, separatorIndex));
+  const contentId = value.slice(separatorIndex + 2).trim();
+  if (!publicOrigin || !contentId) return null;
+  return { publicOrigin, contentId };
+}
+
+function safeQueueStateFromStorage(): PersistentQueueState {
+  if (typeof window === 'undefined') return { queueItemIds: [], currentQueueIndex: -1, queueSource: 'manual' };
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(QUEUE_STORAGE_KEY) || '{}') as Partial<PersistentQueueState>;
+    const queueItemIds = Array.isArray(parsed.queueItemIds)
+      ? parsed.queueItemIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      : [];
+    const hasMalformedIds = queueItemIds.some((id) => !parseQueueItemKey(id));
+    const currentQueueIndex = Number.isInteger(parsed.currentQueueIndex) ? Number(parsed.currentQueueIndex) : -1;
+    const hasValidSource = parsed.queueSource === 'board' || parsed.queueSource === 'creator' || parsed.queueSource === 'watch' || parsed.queueSource === 'search' || parsed.queueSource === 'manual' || parsed.queueSource === 'library' || parsed.queueSource === 'bundle';
+    const queueSource = hasValidSource ? parsed.queueSource as Stage1AQueueSource : 'manual';
+    const queueSourceId = typeof parsed.queueSourceId === 'string' && parsed.queueSourceId.trim() ? parsed.queueSourceId.trim() : null;
+    if (hasMalformedIds || !Array.isArray(parsed.queueItemIds) || !hasValidSource || (queueItemIds.length > 0 && currentQueueIndex < 0)) {
+      window.localStorage.removeItem(QUEUE_STORAGE_KEY);
+      return { queueItemIds: [], currentQueueIndex: -1, queueSource: 'manual' };
+    }
+    return {
+      queueItemIds,
+      currentQueueIndex: queueItemIds.length ? Math.min(Math.max(currentQueueIndex, 0), queueItemIds.length - 1) : -1,
+      queueSource,
+      queueSourceId,
+    };
+  } catch {
+    window.localStorage.removeItem(QUEUE_STORAGE_KEY);
+    return { queueItemIds: [], currentQueueIndex: -1, queueSource: 'manual' };
+  }
+}
+
+function writeQueueStateToStorage(state: PersistentQueueState) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify({
+      queueItemIds: state.queueItemIds,
+      currentQueueIndex: state.currentQueueIndex,
+      queueSource: state.queueSource,
+      queueSourceId: state.queueSourceId || null,
+    }));
+  } catch {
+    /* ignore storage failures */
+  }
+}
+
 function queueContainsItem(queue: DiscoverableItem[], item: DiscoverableItem | Stage1APlayerItem): boolean {
   const activeKey = queueItemKey(item);
   return queue.some((queueItem) => queueItemKey(queueItem) === activeKey);
@@ -367,6 +428,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const [duration, setDuration] = useState(0);
   const [mediaAspect, setMediaAspect] = useState<MediaAspect>('square');
   const [freeDropQueue, setFreeDropQueueState] = useState<DiscoverableItem[]>([]);
+  const [persistentQueueState, setPersistentQueueState] = useState<PersistentQueueState>(() => safeQueueStateFromStorage());
   const [recentItems, setRecentItems] = useState<DiscoverableItem[]>(() => safeRecentItemsFromStorage());
   const [detailPanel, setDetailPanel] = useState<DetailPanel>(null);
   const [drawerContent, setDrawerContent] = useState<Stage1APlayerDrawerContent | null>(null);
@@ -385,13 +447,63 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const mediaAspectHintRef = useRef<MediaAspect | null>(null);
   const mutedAutoplayRef = useRef(false);
   const autoPlayAfterLoadRef = useRef(false);
+  const transportIntentRef = useRef(false);
+  const transportDirectionRef = useRef<1 | -1>(1);
   const endingRef = useRef(false);
   const restoreMediaStateRef = useRef<{ currentTime: number; volume: number; muted: boolean } | null>(null);
+
+  const updatePersistentQueueState = useCallback((nextState: PersistentQueueState) => {
+    setPersistentQueueState(nextState);
+    writeQueueStateToStorage(nextState);
+  }, []);
 
   useEffect(() => {
     document.body.classList.add('has-stage1a-player');
     return () => document.body.classList.remove('has-stage1a-player');
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (freeDropQueue.length || !persistentQueueState.queueItemIds.length) {
+      return () => {
+        active = false;
+      };
+    }
+    const recentByKey = new Map(recentItems.map((recentItem) => [queueItemKey(recentItem), recentItem]));
+    const restore = async () => {
+      const restoredQueue: DiscoverableItem[] = [];
+      for (const queueItemId of persistentQueueState.queueItemIds) {
+        const parsed = parseQueueItemKey(queueItemId);
+        if (!parsed) continue;
+        const recentItem = recentByKey.get(queueItemId);
+        if (recentItem) {
+          restoredQueue.push(recentItem);
+          continue;
+        }
+        const resolved = await loadDiscoverableById(parsed.contentId, parsed.publicOrigin);
+        if (!active) return;
+        if (resolved) restoredQueue.push(resolved);
+      }
+      if (!active) return;
+      const nextQueue = dedupeDrawerItems(restoredQueue);
+      if (!nextQueue.length) {
+        updatePersistentQueueState({ queueItemIds: [], currentQueueIndex: -1, queueSource: persistentQueueState.queueSource, queueSourceId: persistentQueueState.queueSourceId || null });
+        return;
+      }
+      const nextIndex = Math.min(Math.max(persistentQueueState.currentQueueIndex, 0), nextQueue.length - 1);
+      setFreeDropQueueState(nextQueue);
+      updatePersistentQueueState({
+        queueItemIds: nextQueue.map(queueItemKey),
+        currentQueueIndex: nextIndex,
+        queueSource: persistentQueueState.queueSource,
+        queueSourceId: persistentQueueState.queueSourceId || null,
+      });
+    };
+    void restore();
+    return () => {
+      active = false;
+    };
+  }, [freeDropQueue.length, persistentQueueState, recentItems, updatePersistentQueueState]);
 
   useEffect(() => {
     let active = true;
@@ -432,6 +544,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const playItem = useCallback(async (nextItem: DiscoverableItem, options?: Stage1APlayerOptions) => {
+    transportIntentRef.current = options?.transportIntent === true;
     setDetailPanel(options?.drawer ?? null);
     setDrawerContent({
       moreFromCreator: [],
@@ -446,16 +559,18 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     mediaAspectHintRef.current = options?.mediaAspect && options.mediaAspect !== 'unknown' ? options.mediaAspect : null;
     setMediaMuted(options?.muted === true);
     if (options?.openPlayer !== false) setMobileSheetOpen(true);
-    if (options?.queue) {
-      const requestedQueue = dedupeDrawerItems(options.queue);
-      const itemIsInQueue = queueContainsItem(requestedQueue, nextItem);
-      setFreeDropQueueState(itemIsInQueue ? requestedQueue : dedupeDrawerItems([...requestedQueue, nextItem]));
-    } else {
-      setFreeDropQueueState((currentQueue) => {
-        if (queueContainsItem(currentQueue, nextItem)) return currentQueue;
-        return currentQueue.length ? dedupeDrawerItems([...currentQueue, nextItem]) : [nextItem];
-      });
-    }
+    const queueSource = options?.queueSource || 'manual';
+    const queueSourceId = options?.queueSourceId || null;
+    const requestedQueue = options?.queue?.length ? dedupeDrawerItems(options.queue) : [nextItem];
+    const nextQueue = queueContainsItem(requestedQueue, nextItem) ? requestedQueue : dedupeDrawerItems([nextItem, ...requestedQueue]);
+    const nextIndex = Math.max(0, nextQueue.findIndex((queueItem) => queueItemKey(queueItem) === queueItemKey(nextItem)));
+    setFreeDropQueueState(nextQueue);
+    updatePersistentQueueState({
+      queueItemIds: nextQueue.map(queueItemKey),
+      currentQueueIndex: nextIndex,
+      queueSource,
+      queueSourceId,
+    });
     setRecentItems((current) => {
       const next = [nextItem, ...current.filter((row) => row.contentId !== nextItem.contentId || row.publicOrigin !== nextItem.publicOrigin)].slice(0, MAX_RECENT_ITEMS);
       writeRecentItemsToStorage(next);
@@ -539,7 +654,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
         });
         setState('error');
         setMessage('Playback is not available for this item.');
-        return;
+        return false;
       }
 
       const nextMediaKind = mediaKind(offer, nextItem, streamUrl);
@@ -566,13 +681,15 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       });
       setState('loading');
       setMessage('Loading');
+      return true;
     } catch {
       setState('error');
       setMessage('Could not load playback. Open the support page.');
+      return false;
     }
-  }, [clearActiveMedia]);
+  }, [clearActiveMedia, updatePersistentQueueState]);
 
-  const setFreeDropQueue = useCallback((items: DiscoverableItem[]) => {
+  const setFreeDropQueue = useCallback((items: DiscoverableItem[], queueSource: Stage1AQueueSource = 'manual') => {
     const seen = new Set<string>();
     const nextQueue = items.filter((queueItem) => {
       const key = `${queueItem.publicOrigin}::${queueItem.contentId}`;
@@ -581,7 +698,13 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       return true;
     });
     setFreeDropQueueState(nextQueue);
-  }, []);
+    updatePersistentQueueState({
+      queueItemIds: nextQueue.map(queueItemKey),
+      currentQueueIndex: -1,
+      queueSource,
+      queueSourceId: null,
+    });
+  }, [updatePersistentQueueState]);
 
   const activePlayerQueue = useMemo(() => {
     if (!item?.sourceItem) return freeDropQueue;
@@ -641,23 +764,32 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [item, state]);
 
-  const playNextQueuedItem = useCallback((fromItem: Stage1APlayerItem | null = item) => {
+  const playNextQueuedItem = useCallback(async (fromItem: Stage1APlayerItem | null = item, queueOverride?: DiscoverableItem[]) => {
     if (!fromItem) return false;
+    const queue = queueOverride || activePlayerQueue;
+    transportDirectionRef.current = 1;
     const activeKey = queueItemKey(fromItem);
-    const currentIndex = activePlayerQueue.findIndex((queueItem) => queueItemKey(queueItem) === activeKey);
-    if (currentIndex < 0 || currentIndex >= activePlayerQueue.length - 1) return false;
-    void playItem(activePlayerQueue[currentIndex + 1], { queue: activePlayerQueue });
-    return true;
-  }, [activePlayerQueue, item, playItem]);
+    const currentIndex = queue.findIndex((queueItem) => queueItemKey(queueItem) === activeKey);
+    if (currentIndex < 0 || currentIndex >= queue.length - 1) return false;
+    for (let index = currentIndex + 1; index < queue.length; index += 1) {
+      const started = await playItem(queue[index], { queue, queueSource: persistentQueueState.queueSource, queueSourceId: persistentQueueState.queueSourceId || null, transportIntent: true });
+      if (started) return true;
+    }
+    return false;
+  }, [activePlayerQueue, item, persistentQueueState.queueSource, persistentQueueState.queueSourceId, playItem]);
 
-  const playPreviousQueuedItem = useCallback((fromItem: Stage1APlayerItem | null = item) => {
+  const playPreviousQueuedItem = useCallback(async (fromItem: Stage1APlayerItem | null = item) => {
     if (!fromItem) return false;
+    transportDirectionRef.current = -1;
     const activeKey = queueItemKey(fromItem);
     const currentIndex = activePlayerQueue.findIndex((queueItem) => queueItemKey(queueItem) === activeKey);
     if (currentIndex <= 0) return false;
-    void playItem(activePlayerQueue[currentIndex - 1], { queue: activePlayerQueue });
-    return true;
-  }, [activePlayerQueue, item, playItem]);
+    for (let index = currentIndex - 1; index >= 0; index -= 1) {
+      const started = await playItem(activePlayerQueue[index], { queue: activePlayerQueue, queueSource: persistentQueueState.queueSource, queueSourceId: persistentQueueState.queueSourceId || null, transportIntent: true });
+      if (started) return true;
+    }
+    return false;
+  }, [activePlayerQueue, item, persistentQueueState.queueSource, persistentQueueState.queueSourceId, playItem]);
 
   const onTimeUpdate = useCallback((event: SyntheticEvent<HTMLMediaElement>) => {
     const media = event.currentTarget;
@@ -670,8 +802,10 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     try { media.currentTime = Math.max(0, limit); } catch { /* ignore */ }
     setState('ended');
     setMessage('Preview ended. Support the creator for full access.');
-    if (autoplayNext && playNextQueuedItem(item)) {
-      setMessage('Preview ended. Playing next.');
+    if (autoplayNext) {
+      void playNextQueuedItem(item).then((started) => {
+        if (started) setMessage('Preview ended. Playing next.');
+      });
     }
   }, [autoplayNext, item, playNextQueuedItem]);
 
@@ -715,9 +849,21 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
         readyState: media.readyState,
       });
     }
+    if (transportIntentRef.current && item) {
+      setMessage('Skipping unavailable queue item.');
+      const advance = transportDirectionRef.current > 0 ? playNextQueuedItem : playPreviousQueuedItem;
+      void advance(item).then((started) => {
+        if (!started) {
+          transportIntentRef.current = false;
+          setState('error');
+          setMessage(mediaErrorMessage(error));
+        }
+      });
+      return;
+    }
     setState('error');
     setMessage(mediaErrorMessage(error));
-  }, [item]);
+  }, [item, playNextQueuedItem, playPreviousQueuedItem]);
 
   const togglePlay = useCallback(() => {
     const media = activeMediaRef.current;
@@ -761,11 +907,13 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     };
     await playItem(snapshot.item, {
       queue: snapshot.queue.length ? snapshot.queue : [snapshot.item],
+      queueSource: persistentQueueState.queueSource,
+      queueSourceId: persistentQueueState.queueSourceId || null,
       autoPlay: false,
       openPlayer: false,
       muted: snapshot.muted,
     });
-  }, [playItem]);
+  }, [persistentQueueState.queueSource, persistentQueueState.queueSourceId, playItem]);
 
   const toggleMute = useCallback(() => {
     const media = activeMediaRef.current;
@@ -792,8 +940,13 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const seek = useCallback((value: number) => {
     const media = activeMediaRef.current;
     if (!media || !Number.isFinite(media.duration) || media.duration <= 0) return;
-    try { media.currentTime = value; } catch { /* ignore */ }
-  }, []);
+    const previewLimit = item?.playback.mode === 'preview' && item.playback.previewLimitSeconds
+      ? item.playback.previewLimitSeconds
+      : null;
+    const maxTime = Math.max(0, Math.min(media.duration, previewLimit || media.duration));
+    const nextTime = Math.min(Math.max(value, 0), maxTime);
+    try { media.currentTime = nextTime; } catch { /* ignore */ }
+  }, [item?.playback.mode, item?.playback.previewLimitSeconds]);
 
   const resetIdle = useCallback(() => {
     clearActiveMedia();
@@ -812,17 +965,68 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
   const canPlayNextFreeDrop = currentFreeDropIndex >= 0 && currentFreeDropIndex < activePlayerQueue.length - 1;
   const canPlayPreviousFreeDrop = currentFreeDropIndex > 0;
+  const nextQueueExpansionCandidates = useMemo(() => {
+    const activeKeys = new Set(activePlayerQueue.map(queueItemKey));
+    return dedupeDrawerItems([
+      ...(drawerContent?.moreFromCreator || []),
+      ...(drawerContent?.relatedWorks || []),
+      ...(drawerContent?.moreTheyWorkedOn || []),
+    ]).filter((candidate) => !activeKeys.has(queueItemKey(candidate)));
+  }, [activePlayerQueue, drawerContent]);
+  const canExpandNextQueue = currentFreeDropIndex >= 0 && nextQueueExpansionCandidates.length > 0;
+  const canNavigateNextFreeDrop = currentFreeDropIndex >= 0 && (canPlayNextFreeDrop || canExpandNextQueue || Boolean(item?.sourceItem));
+
+  const extendQueueForNext = useCallback(async () => {
+    const existingKeys = new Set(activePlayerQueue.map(queueItemKey));
+    let catalogCandidates: DiscoverableItem[] = [];
+    if (!nextQueueExpansionCandidates.length && item?.sourceItem) {
+      const sourceTopic = item.sourceItem.primaryTopic || 'all';
+      const topicItems = await loadDiscoveryItems(sourceTopic);
+      const topicHasNewItems = topicItems.some((candidate) => !existingKeys.has(queueItemKey(candidate)));
+      const allItems = sourceTopic === 'all' || topicHasNewItems ? [] : await loadDiscoveryItems('all');
+      const catalogItems = dedupeDrawerItems([...topicItems, ...allItems]).filter((candidate) => !existingKeys.has(queueItemKey(candidate)));
+      const sameCreator = catalogItems.filter((candidate) => candidate.creatorHandle && candidate.creatorHandle === item.sourceItem?.creatorHandle);
+      const sameTopic = catalogItems.filter((candidate) => candidate.primaryTopic && candidate.primaryTopic === item.sourceItem?.primaryTopic);
+      const general = catalogItems.filter((candidate) => !sameCreator.includes(candidate) && !sameTopic.includes(candidate));
+      catalogCandidates = [...sameCreator, ...sameTopic, ...general];
+    }
+    const recentCandidates = recentItems.filter((candidate) => !existingKeys.has(queueItemKey(candidate)));
+    const nextQueue = dedupeDrawerItems([...activePlayerQueue, ...nextQueueExpansionCandidates, ...catalogCandidates, ...recentCandidates]);
+    if (nextQueue.length === activePlayerQueue.length) return activePlayerQueue;
+    const nextIndex = item
+      ? nextQueue.findIndex((queueItem) => queueItemKey(queueItem) === queueItemKey(item))
+      : persistentQueueState.currentQueueIndex;
+    setFreeDropQueueState(nextQueue);
+    updatePersistentQueueState({
+      queueItemIds: nextQueue.map(queueItemKey),
+      currentQueueIndex: Math.min(Math.max(nextIndex, 0), nextQueue.length - 1),
+      queueSource: persistentQueueState.queueSource,
+      queueSourceId: persistentQueueState.queueSourceId || null,
+    });
+    return nextQueue;
+  }, [activePlayerQueue, item, nextQueueExpansionCandidates, persistentQueueState.currentQueueIndex, persistentQueueState.queueSource, persistentQueueState.queueSourceId, recentItems, updatePersistentQueueState]);
 
   const playNextFreeDrop = useCallback(() => {
-    playNextQueuedItem();
-  }, [playNextQueuedItem]);
+    void (async () => {
+      const startedQueuedItem = await playNextQueuedItem();
+      if (startedQueuedItem) return;
+      const extendedQueue = await extendQueueForNext();
+      if (extendedQueue.length > activePlayerQueue.length) {
+        const startedExpandedItem = await playNextQueuedItem(item, extendedQueue);
+        if (startedExpandedItem) return;
+      }
+      setMessage('No more queued works yet.');
+    })();
+  }, [activePlayerQueue.length, extendQueueForNext, item, playNextQueuedItem]);
 
   const playPreviousFreeDrop = useCallback(() => {
-    playPreviousQueuedItem();
+    void playPreviousQueuedItem().then((started) => {
+      if (!started) setMessage('No previous queued work yet.');
+    });
   }, [playPreviousQueuedItem]);
 
   const currentSourceItem = item?.sourceItem || null;
-  const currentWorkKey = currentSourceItem ? `${currentSourceItem.publicOrigin}::${currentSourceItem.contentId}` : '';
+  const currentWorkKey = currentSourceItem ? itemIdFromDiscoverable(currentSourceItem) : '';
   const currentCreator = currentSourceItem ? creatorFromItem(currentSourceItem) : null;
   const currentCreatorKey = currentCreator?.key || '';
   const isCurrentSaved = Boolean(currentWorkKey && savedWorkKeys.has(currentWorkKey));
@@ -953,7 +1157,9 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     setState('ended');
     setMessage('Ended');
     if (!autoplayNext) return;
-    if (playNextQueuedItem(item)) setMessage('Ended. Playing next.');
+    void playNextQueuedItem(item).then((started) => {
+      if (started) setMessage('Ended. Playing next.');
+    });
   }, [autoplayNext, item, playNextQueuedItem]);
   const toggleAutoplayNext = useCallback(() => {
     setAutoplayNext((current) => {
@@ -985,9 +1191,9 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     message,
     progress,
     duration,
-    canPlayNextFreeDrop,
+    canPlayNextFreeDrop: canNavigateNextFreeDrop,
     canPlayPreviousFreeDrop,
-  }), [activePlayerQueue, canPlayNextFreeDrop, canPlayPreviousFreeDrop, duration, getPlayerSnapshot, item, message, pausePlayback, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, restorePlayerSnapshot, seek, setFreeDropQueue, state, togglePlay]);
+  }), [activePlayerQueue, canNavigateNextFreeDrop, canPlayPreviousFreeDrop, duration, getPlayerSnapshot, item, message, pausePlayback, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, restorePlayerSnapshot, seek, setFreeDropQueue, state, togglePlay]);
   const isIdle = state === 'idle';
   const isPlaying = state === 'playing';
   const canControl = Boolean(item?.playback.streamUrl);
@@ -995,6 +1201,8 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const displayedMeta = isIdle ? 'Tap Play to start listening' : `${item?.playbackLabel || 'READY'} · ${message === state ? item?.creator || 'Creator' : message}`;
   const progressMax = Math.max(duration || 0, progress || 0, 1);
   const progressValue = Math.min(progress, Math.max(duration || progress || 1, 1));
+  const previousControlLabel = 'Previous queued work';
+  const nextControlLabel = 'Next queued work';
   const visualAspectClass = `stage1a-rich-visual-${mediaAspect}`;
   const detailPanelTitle =
     detailPanel === 'details' ? 'Details'
@@ -1065,7 +1273,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
               muted={mediaMuted}
               poster={item.artwork || undefined}
               playsInline
-              onPlay={() => { endingRef.current = false; setState('playing'); setMessage('Playing'); }}
+              onPlay={() => { transportIntentRef.current = false; endingRef.current = false; setState('playing'); setMessage('Playing'); }}
               onPause={() => { if (!endingRef.current && state !== 'ended' && activeMediaRef.current?.currentTime) { setState('paused'); setMessage('Paused'); } }}
               onLoadedMetadata={(event) => {
                 setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0);
@@ -1094,7 +1302,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
             <audio
               ref={audioRef}
               className="stage1a-player-audio"
-              onPlay={() => { endingRef.current = false; setState('playing'); setMessage('Playing'); }}
+              onPlay={() => { transportIntentRef.current = false; endingRef.current = false; setState('playing'); setMessage('Playing'); }}
               onPause={() => { if (!endingRef.current && state !== 'ended' && activeMediaRef.current?.currentTime) { setState('paused'); setMessage('Paused'); } }}
               onLoadedMetadata={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
               onTimeUpdate={onTimeUpdate}
@@ -1114,13 +1322,13 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
         {!isIdle ? (
           <>
             <div className="stage1a-rich-controls">
-              <button type="button" className="stage1a-rich-nav stage1a-rich-nav-previous" onClick={playPreviousFreeDrop} disabled={!canPlayPreviousFreeDrop} aria-label="Previous Free Drop">
+              <button type="button" className="stage1a-rich-nav stage1a-rich-nav-previous" onClick={playPreviousFreeDrop} disabled={!canPlayPreviousFreeDrop} aria-label={previousControlLabel}>
                 <TransportIcon icon="previous" />
               </button>
               <button type="button" className="stage1a-rich-play" onClick={togglePlay} disabled={!canControl} aria-label="Play or pause">
                 <PlayIcon playing={isPlaying} />
               </button>
-              <button type="button" className="stage1a-rich-nav stage1a-rich-nav-next" onClick={playNextFreeDrop} disabled={!canPlayNextFreeDrop} aria-label="Next Free Drop">
+              <button type="button" className="stage1a-rich-nav stage1a-rich-nav-next" onClick={playNextFreeDrop} disabled={!canNavigateNextFreeDrop} aria-label={nextControlLabel}>
                 <TransportIcon icon="next" />
               </button>
               <button type="button" className="stage1a-rich-nav stage1a-rich-fullscreen" onClick={toggleFullscreen} disabled={!canControl} aria-label="Fullscreen">
@@ -1168,7 +1376,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
             ) : null}
             <div className="stage1a-rich-overlay-actions" aria-label="Secondary work actions">
               <button type="button" onClick={toggleCurrentSaved} disabled={!currentSourceItem}>
-                {isCurrentSaved ? 'Saved' : 'Save Work'}
+                {isCurrentSaved ? 'Remove from Library' : 'Add to Library'}
               </button>
               <button type="button" onClick={shareCurrent}>
                 Share
@@ -1226,7 +1434,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                         type="button"
                         key={`${drawerItem.publicOrigin}:${drawerItem.contentId}`}
                         className="stage1a-rich-drawer-card"
-                        onClick={() => void playItem(drawerItem, { queue: detailPanelItems })}
+                        onClick={() => void playItem(drawerItem, { queue: detailPanelItems, queueSource: detailPanel === 'more' ? 'creator' : 'watch' })}
                       >
                         {drawerItem.coverUrl ? <img src={drawerItem.coverUrl} alt="" referrerPolicy="no-referrer" /> : <span aria-hidden="true">♪</span>}
                         <span>

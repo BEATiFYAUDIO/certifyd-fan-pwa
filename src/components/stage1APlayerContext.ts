@@ -6,6 +6,7 @@ export type Stage1APlayerState = 'idle' | 'loading' | 'playing' | 'paused' | 'en
 export type Stage1APlaybackMode = 'full' | 'preview' | 'none';
 export type Stage1APlayerDrawerPanel = 'details' | 'creator' | 'more' | 'worked' | 'lineage' | 'connections' | 'proofs' | null;
 export type Stage1APlayerMediaAspect = 'landscape' | 'portrait' | 'square' | 'unknown';
+export type Stage1AQueueSource = 'board' | 'creator' | 'watch' | 'search' | 'manual' | 'library' | 'bundle';
 
 export type Stage1APlayerItem = {
   sourceItem?: DiscoverableItem;
@@ -50,6 +51,9 @@ export type Stage1APlayerOptions = {
   drawer?: Stage1APlayerDrawerPanel;
   mediaAspect?: Stage1APlayerMediaAspect;
   queue?: DiscoverableItem[];
+  queueSource?: Stage1AQueueSource;
+  queueSourceId?: string | null;
+  transportIntent?: boolean;
 };
 
 export type Stage1APlayerSnapshot = {
@@ -62,13 +66,13 @@ export type Stage1APlayerSnapshot = {
 };
 
 export type Stage1APlayerContextValue = {
-  playItem: (item: DiscoverableItem, options?: Stage1APlayerOptions) => Promise<void>;
+  playItem: (item: DiscoverableItem, options?: Stage1APlayerOptions) => Promise<boolean>;
   setMobilePlayerOpen: (open: boolean) => void;
   setPlayerChromeHidden: (hidden: boolean) => void;
   pausePlayback: () => void;
   getPlayerSnapshot: () => Stage1APlayerSnapshot;
   restorePlayerSnapshot: (snapshot: Stage1APlayerSnapshot | null) => Promise<void>;
-  setFreeDropQueue: (items: DiscoverableItem[]) => void;
+  setFreeDropQueue: (items: DiscoverableItem[], queueSource?: Stage1AQueueSource) => void;
   setDrawerContent: (content: Stage1APlayerDrawerContent | null) => void;
   openDrawer: (panel: Stage1APlayerDrawerPanel) => void;
   togglePlay: () => void;
@@ -92,7 +96,7 @@ export const Stage1APlayerContext = createContext<Stage1APlayerContextValue | nu
 export function useStage1APlayer() {
   const value = useContext(Stage1APlayerContext);
   return value || {
-    playItem: async () => undefined,
+    playItem: async () => false,
     setMobilePlayerOpen: () => undefined,
     setPlayerChromeHidden: () => undefined,
     pausePlayback: () => undefined,

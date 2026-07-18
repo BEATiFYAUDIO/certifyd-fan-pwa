@@ -20,6 +20,9 @@ import { creatorKey, useLocalLibrary, type LocalCreator } from '../lib/localLibr
 import { getCardThemeVars } from '../lib/profileTheme';
 import { contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
 import { canonicalCreatorProfileUrl, canonicalCreatorProfileUrlForItem } from '../lib/destinations';
+import { BUNDLES_EVENT, createBundle, encodeSharedBundle, listBundles, sharedBundleUrl, type Bundle, type BundleVisibility } from '../lib/bundleStore';
+import { itemIdFromDiscoverable, parseItemId } from '../lib/libraryStore';
+import { loadDiscoverableById } from '../lib/contentRuntime/discovery';
 
 const INITIAL_PAGE_LIMIT = 8;
 const NEXT_PAGE_LIMIT = 18;
@@ -655,6 +658,7 @@ function RankingRow({
   scoreLabel,
   showPrice = false,
   queue,
+  queueSource = 'board',
 }: {
   item: DiscoverableItem;
   rank: number;
@@ -662,6 +666,7 @@ function RankingRow({
   scoreLabel?: string;
   showPrice?: boolean;
   queue?: DiscoverableItem[];
+  queueSource?: 'board' | 'search' | 'manual' | 'library';
 }) {
   const { playItem } = useStage1APlayer();
   const creator = String(item.creatorHandle || 'creator').replace(/^@+/, '');
@@ -707,7 +712,7 @@ function RankingRow({
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              void playItem(item, queue ? { queue } : undefined);
+              void playItem(item, queue ? { queue, queueSource } : { queueSource });
             }}
             aria-label={`Play ${item.title || 'work'} in Certifyd`}
           >
@@ -742,9 +747,10 @@ function RankingRow({
   );
 }
 
-function RankedSurfaceCard({ surface, id }: { surface: RankedSurface; id?: string }) {
+function RankedSurfaceCard({ surface, id, queueSource = 'board' }: { surface: RankedSurface; id?: string; queueSource?: 'board' | 'search' | 'manual' | 'library' }) {
   if (surface.items.length === 0) return null;
   const showPrice = surface.key === 'unlockable-works';
+  const visibleItems = surface.items.slice(0, 5);
   return (
     <section id={id || surface.key} className="signal-surface-card min-w-0 scroll-mt-40 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">
@@ -756,7 +762,7 @@ function RankedSurfaceCard({ surface, id }: { surface: RankedSurface; id?: strin
       </div>
 
       <div className="mt-2.5 space-y-1.5 sm:mt-3 sm:space-y-2">
-        {surface.items.slice(0, 5).map((item, index) => (
+        {visibleItems.map((item, index) => (
           <RankingRow
             key={`${surface.key}:${itemKey(item)}`}
             item={item}
@@ -764,7 +770,8 @@ function RankedSurfaceCard({ surface, id }: { surface: RankedSurface; id?: strin
             score={surface.scoreFor?.(item)}
             scoreLabel={surface.scoreLabel}
             showPrice={showPrice}
-            queue={surface.items}
+            queue={visibleItems}
+            queueSource={queueSource}
           />
         ))}
       </div>
@@ -772,9 +779,10 @@ function RankedSurfaceCard({ surface, id }: { surface: RankedSurface; id?: strin
   );
 }
 
-function ExpandedRankedSurface({ surface, id }: { surface: RankedSurface; id: string }) {
+function ExpandedRankedSurface({ surface, id, queueSource = 'board' }: { surface: RankedSurface; id: string; queueSource?: 'board' | 'search' | 'manual' | 'library' }) {
   if (surface.items.length === 0) return null;
   const showPrice = surface.key === 'unlockable-works';
+  const visibleItems = surface.items.slice(0, 12);
   return (
     <section id={id} className="signal-surface-card min-w-0 scroll-mt-40 overflow-hidden rounded-3xl border border-zinc-800/90 bg-zinc-950/75 p-3 shadow-2xl shadow-black/30 sm:p-5">
       <div className="flex min-w-0 items-start justify-between gap-4">
@@ -787,7 +795,7 @@ function ExpandedRankedSurface({ surface, id }: { surface: RankedSurface; id: st
       </div>
 
       <div className="mt-5 grid min-w-0 grid-cols-1 gap-2.5 lg:grid-cols-2">
-        {surface.items.slice(0, 12).map((item, index) => (
+        {visibleItems.map((item, index) => (
           <RankingRow
             key={`${surface.key}:expanded:${itemKey(item)}`}
             item={item}
@@ -795,7 +803,8 @@ function ExpandedRankedSurface({ surface, id }: { surface: RankedSurface; id: st
             score={surface.scoreFor?.(item)}
             scoreLabel={surface.scoreLabel}
             showPrice={showPrice}
-            queue={surface.items}
+            queue={visibleItems}
+            queueSource={queueSource}
           />
         ))}
       </div>
@@ -981,21 +990,212 @@ function LocalCreatorSection({ id, title, subtitle, creators, actionLabel, onAct
 }
 
 function SavedLibrarySection({ works, creators }: { works: DiscoverableItem[]; creators: LocalCreator[] }) {
+  const navigate = useNavigate();
+  const { playItem } = useStage1APlayer();
+  const [bundles, setBundles] = useState<Bundle[]>(() => listBundles());
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [bundleTitle, setBundleTitle] = useState('');
+  const [bundleDescription, setBundleDescription] = useState('');
+  const [bundleVisibility, setBundleVisibility] = useState<BundleVisibility>('private');
+  const [bundleMessage, setBundleMessage] = useState('');
+
+  useEffect(() => {
+    const refresh = () => setBundles(listBundles());
+    window.addEventListener(BUNDLES_EVENT, refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener(BUNDLES_EVENT, refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+
+  const displayedWorks = works.slice(0, 24);
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  const startQueue = useCallback((queue: DiscoverableItem[]) => {
+    const first = queue[0];
+    if (!first) {
+      setBundleMessage('No Library works are available to play yet.');
+      return;
+    }
+    void playItem(first, { queue, queueSource: 'library' });
+  }, [playItem]);
+
+  const toggleSelected = useCallback((work: DiscoverableItem) => {
+    const id = itemIdFromDiscoverable(work);
+    if (!id) return;
+    setSelectedIds((current) => current.includes(id) ? current.filter((row) => row !== id) : [...current, id]);
+  }, []);
+
+  const resetCreateFlow = useCallback(() => {
+    setSelecting(false);
+    setShowCreateForm(false);
+    setSelectedIds([]);
+    setBundleTitle('');
+    setBundleDescription('');
+    setBundleVisibility('private');
+  }, []);
+
+  const submitBundle = useCallback(() => {
+    try {
+      const created = createBundle({
+        title: bundleTitle,
+        description: bundleDescription,
+        visibility: bundleVisibility,
+        itemIds: selectedIds,
+      });
+      resetCreateFlow();
+      setBundles(listBundles());
+      navigate(`/bundles/${encodeURIComponent(created.id)}`);
+    } catch (error) {
+      setBundleMessage(error instanceof Error ? error.message : 'Could not create Bundle.');
+    }
+  }, [bundleDescription, bundleTitle, bundleVisibility, navigate, resetCreateFlow, selectedIds]);
+
+  const shareBundle = useCallback(async (bundle: Bundle) => {
+    if (bundle.visibility === 'private') {
+      setBundleMessage('Private Bundles cannot be shared. Open the Bundle and change visibility to Unlisted or Public first.');
+      return;
+    }
+    const url = sharedBundleUrl(encodeSharedBundle(bundle));
+    try {
+      await navigator.clipboard.writeText(url);
+      setBundleMessage('Share link copied to clipboard. This link contains a snapshot of the Bundle.');
+    } catch {
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: bundle.title, url });
+          setBundleMessage('Share sheet opened. This link contains a snapshot of the Bundle.');
+          return;
+        }
+      } catch {
+        /* fall through */
+      }
+      setBundleMessage('Could not copy the share link. Open the Bundle and try again.');
+    }
+  }, []);
+
+  const playBundle = useCallback(async (bundle: Bundle) => {
+    const queue: DiscoverableItem[] = [];
+    for (const itemId of bundle.itemIds) {
+      const parsed = parseItemId(itemId);
+      if (!parsed) continue;
+      const item = await loadDiscoverableById(parsed.contentId, parsed.publicOrigin);
+      if (item) queue.push(item);
+    }
+    const first = queue[0];
+    if (!first) {
+      setBundleMessage('No playable works are available in this Bundle yet.');
+      return;
+    }
+    void playItem(first, { queue, queueSource: 'bundle', queueSourceId: bundle.id });
+  }, [playItem]);
+
   return (
     <section id="saved" className="min-w-0 scroll-mt-40 space-y-4">
-      {works.length > 0 ? (
-        <ExpandedRankedSurface
-          id="saved"
-          surface={{
-            key: 'saved',
-            title: 'Saved Works',
-            subtitle: 'Works saved locally on this device',
-            items: works,
-          }}
-        />
-      ) : (
-        <EmptyDiscoveryContext id="saved" title="Saved Works" />
-      )}
+      <section className="signal-surface-card min-w-0 overflow-hidden rounded-3xl border border-zinc-800/90 bg-zinc-950/75 p-3 shadow-2xl shadow-black/30 sm:p-5">
+        <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-200/80">Your World</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">My Library</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">{works.length} works added to your Library on this device.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="rounded-full bg-amber-300 px-4 py-2.5 text-xs font-black text-black disabled:opacity-40" disabled={!displayedWorks.length} onClick={() => startQueue(displayedWorks)}>Play All</button>
+            <button type="button" className="rounded-full border border-zinc-700 px-4 py-2.5 text-xs font-bold text-zinc-100 disabled:opacity-40" disabled={!displayedWorks.length} onClick={() => startQueue(sortStableRandom(displayedWorks, `${Date.now()}:library-shuffle`))}>Shuffle</button>
+            <button type="button" className="rounded-full border border-zinc-700 px-4 py-2.5 text-xs font-bold text-zinc-100 disabled:opacity-40" disabled={!displayedWorks.length} onClick={() => { setSelecting(true); setBundleMessage(''); }}>Create Bundle</button>
+          </div>
+        </div>
+
+        {bundleMessage ? <p className="mt-4 rounded-2xl border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-300">{bundleMessage}</p> : null}
+
+        {selecting ? (
+          <div className="mt-4 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-bold text-amber-100">{selectedIds.length} selected</p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="rounded-full border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-100" onClick={resetCreateFlow}>Cancel</button>
+                <button type="button" className="rounded-full bg-white px-4 py-2 text-xs font-black text-black disabled:opacity-40" disabled={!selectedIds.length} onClick={() => setShowCreateForm(true)}>Continue</button>
+              </div>
+            </div>
+            {showCreateForm ? (
+              <div className="mt-3 grid gap-2">
+                <input className="rounded-xl border border-zinc-700 bg-black/45 px-3 py-3 text-sm text-white outline-none focus:border-amber-300" value={bundleTitle} onChange={(event) => setBundleTitle(event.target.value)} placeholder="Bundle title" />
+                <textarea className="min-h-20 rounded-xl border border-zinc-700 bg-black/45 px-3 py-3 text-sm text-white outline-none focus:border-amber-300" value={bundleDescription} onChange={(event) => setBundleDescription(event.target.value)} placeholder="Description optional" />
+                <select className="rounded-xl border border-zinc-700 bg-black/45 px-3 py-3 text-sm text-white outline-none focus:border-amber-300" value={bundleVisibility} onChange={(event) => setBundleVisibility(event.target.value as BundleVisibility)}>
+                  <option value="private">Private</option>
+                  <option value="unlisted">Unlisted</option>
+                  <option value="public">Public</option>
+                </select>
+                <button type="button" className="rounded-full bg-amber-300 px-5 py-3 text-sm font-black text-black" onClick={submitBundle}>Create Bundle</button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {displayedWorks.length > 0 ? (
+          <div className="mt-5 grid min-w-0 grid-cols-1 gap-2.5 lg:grid-cols-2">
+            {displayedWorks.map((work, index) => {
+              const id = itemIdFromDiscoverable(work);
+              const selected = selectedSet.has(id);
+              return selecting ? (
+                <button
+                  key={`library-select:${id}`}
+                  type="button"
+                  className={`creator-themed-card flex min-w-0 items-center gap-3 rounded-2xl border p-3 text-left ${selected ? 'border-amber-300 bg-amber-300/15' : 'border-zinc-800 bg-black/25'}`}
+                  style={getCardThemeVars(work.profileTheme)}
+                  onClick={() => toggleSelected(work)}
+                >
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-xs font-black ${selected ? 'border-amber-200 bg-amber-300 text-black' : 'border-zinc-700 text-zinc-300'}`}>{selected ? '✓' : index + 1}</span>
+                  {work.coverUrl ? <img src={work.coverUrl} alt="" className="h-14 w-20 shrink-0 rounded-xl object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : null}
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-bold text-white">{work.title || 'Untitled'}</span>
+                    <span className="block truncate text-xs text-zinc-400">@{work.creatorHandle || 'creator'}</span>
+                  </span>
+                </button>
+              ) : (
+                <RankingRow key={`library:${id}`} item={work} rank={index + 1} queue={displayedWorks} queueSource="library" />
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-5 rounded-2xl border border-zinc-800 bg-black/30 p-4 text-sm text-zinc-400">Your library is empty.</p>
+        )}
+      </section>
+
+      <section className="min-w-0 overflow-hidden rounded-3xl border border-zinc-800/90 bg-zinc-950/75 p-3 shadow-2xl shadow-black/30 sm:p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-200/80">Bundles</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-50">My Bundles</h2>
+          </div>
+          <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs font-bold text-zinc-300">{bundles.length}</span>
+        </div>
+        {bundles.length ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {bundles.map((bundle) => (
+              <article key={bundle.id} className="rounded-2xl border border-zinc-800 bg-black/30 p-4">
+                <h3 className="break-words text-lg font-black text-white">{bundle.title}</h3>
+                {bundle.description ? <p className="mt-1 line-clamp-2 text-sm text-zinc-400">{bundle.description}</p> : null}
+                <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                  <span className="rounded-full border border-zinc-700 px-2 py-1">{bundle.itemIds.length} items</span>
+                  <span className="rounded-full border border-zinc-700 px-2 py-1">{bundle.visibility}</span>
+                  <span className="rounded-full border border-zinc-700 px-2 py-1">Updated {new Date(bundle.updatedAt).toLocaleDateString()}</span>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link className="rounded-full bg-white px-4 py-2 text-xs font-black text-black shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-200 hover:shadow-lg hover:shadow-amber-300/20 active:translate-y-0" to={`/bundles/${encodeURIComponent(bundle.id)}`}>Open</Link>
+                  <button type="button" className="rounded-full border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300/70 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0" onClick={() => void playBundle(bundle)}>Play</button>
+                  <button type="button" className="rounded-full border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300/70 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:border-zinc-700 disabled:hover:bg-transparent disabled:hover:text-zinc-100" disabled={bundle.visibility === 'private'} title={bundle.visibility === 'private' ? 'Change visibility to Unlisted or Public to share' : 'Copy share URL'} onClick={() => void shareBundle(bundle)}>Share</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 rounded-2xl border border-zinc-800 bg-black/30 p-4 text-sm text-zinc-400">No Bundles yet. Select works from My Library to create one.</p>
+        )}
+      </section>
       <LocalCreatorSection id="saved" title="Saved Creators" subtitle="Creators saved locally on this device" creators={creators} />
     </section>
   );
@@ -1812,11 +2012,11 @@ export function HomePage() {
           <SavedLibrarySection works={savedWorks} creators={hydratedSavedCreators} />
         ) : null}
 
-        {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && selectedSurface ? (
-          <ExpandedRankedSurface surface={selectedSurface} id={discoveryContext} />
+        {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && discoveryContext !== 'premium-works' && selectedSurface ? (
+          <ExpandedRankedSurface surface={selectedSurface} id={discoveryContext} queueSource={query.trim() ? 'search' : 'board'} />
         ) : null}
 
-        {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && selectedSurface && selectedSurface.items.length === 0 ? (
+        {!showOverview && !showFallbackBoard && !showSaved && !showFollowing && discoveryContext !== 'premium-works' && selectedSurface && selectedSurface.items.length === 0 ? (
           <EmptyDiscoveryContext id={discoveryContext} title={selectedContextLabel} />
         ) : null}
 
@@ -1828,7 +2028,7 @@ export function HomePage() {
           {discoveryContext === 'free-drops' && freeItems.length > 0 ? (
             <section id="free-drops" className="space-y-3 scroll-mt-40">
               <RailHeader title="Free Drops" subtitle="Open works fans can play while exploring creators" badge="Open" />
-              <div className="rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+              <div className="shorts-card-layout rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
                 {freeItems.slice(0, 12).map((item) => {
                   const shortsQueue = freeItems.slice(0, 12);
                   const watchParams = new URLSearchParams({
@@ -1846,6 +2046,29 @@ export function HomePage() {
 
           {discoveryContext === 'free-drops' && freeItems.length === 0 ? (
             <EmptyDiscoveryContext id="free-drops" title="Free Drops" />
+          ) : null}
+
+          {discoveryContext === 'premium-works' && boardUnlockableItems.length > 0 ? (
+            <section id="premium-works" className="space-y-3 scroll-mt-40">
+              <RailHeader title="Premium Works" subtitle="Premium works to preview here and unlock on creator pages" badge="Preview" />
+              <div className="shorts-card-layout rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+                {boardUnlockableItems.slice(0, 12).map((item) => {
+                  const premiumQueue = boardUnlockableItems.slice(0, 12);
+                  const watchParams = new URLSearchParams({
+                    origin: item.publicOrigin,
+                    topic,
+                    premium: '1',
+                  }).toString();
+                  return (
+                    <ShortsCard key={`premium-shorts:${item.publicOrigin}:${item.contentId}`} item={item} watchParams={watchParams} queue={premiumQueue} />
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {discoveryContext === 'premium-works' && boardUnlockableItems.length === 0 ? (
+            <EmptyDiscoveryContext id="premium-works" title="Premium Works" />
           ) : null}
 
           {discoveryContext === 'creator-ecosystems' && homepageCreators.length > 0 ? (
