@@ -1425,7 +1425,6 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
                   Visit Work
                 </a>
               ) : null}
-              <button type="button" onClick={() => setDetailPanel((current) => (current === 'details' ? null : 'details'))}>Details</button>
             </div>
             {bundlePickerOpen ? (
               <div className="stage1a-rich-bundle-picker" role="region" aria-label="Add this work to a Bundle">
