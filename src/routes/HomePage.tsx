@@ -696,9 +696,9 @@ function RankingRow({
               src={item.coverUrl}
               alt=""
               className="h-full w-full object-cover opacity-90"
-              loading={rank === 1 ? 'eager' : 'lazy'}
+              loading="lazy"
               decoding="async"
-              fetchPriority={rank === 1 ? 'high' : 'auto'}
+              fetchPriority="low"
               referrerPolicy="no-referrer"
               onError={() => setImageFailed(true)}
             />

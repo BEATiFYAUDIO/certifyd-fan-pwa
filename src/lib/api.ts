@@ -258,105 +258,6 @@ function normalizeContextArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
-const creatorAvatarIndexCache = new Map<string, Promise<Map<string, string>>>();
-const creatorProfileAvatarCache = new Map<string, Promise<string>>();
-
-function normalizeHandle(value: string | null | undefined): string {
-  return String(value || '').trim().replace(/^@+/, '').toLowerCase();
-}
-
-async function fetchPublicCreatorAvatar(origin: string | null | undefined, handle: string | null | undefined): Promise<string> {
-  const normalizedOrigin = String(origin || '').trim();
-  const normalizedHandle = normalizeHandle(handle);
-  if (!normalizedOrigin || !normalizedHandle) return '';
-
-  let indexed = creatorAvatarIndexCache.get(normalizedOrigin);
-  if (!indexed) {
-    indexed = fetchDiscoverablePage({
-      origin: normalizedOrigin,
-      topic: 'all',
-      limit: 48,
-      timeoutMs: 3000,
-    })
-      .then((page) => {
-        const byHandle = new Map<string, string>();
-        for (const item of page.items) {
-          const itemHandle = normalizeHandle(item.creatorHandle);
-          if (!itemHandle || byHandle.has(itemHandle)) continue;
-          const avatarUrl = item.creatorAvatarUrl || item.creatorProfileImageUrl || item.profileImageUrl || item.avatarUrl || '';
-          if (avatarUrl) byHandle.set(itemHandle, avatarUrl);
-        }
-        return byHandle;
-      })
-      .catch(() => new Map<string, string>());
-    creatorAvatarIndexCache.set(normalizedOrigin, indexed);
-  }
-
-  const byHandle = await indexed;
-  return byHandle.get(normalizedHandle) || '';
-}
-
-function extractProfileAvatarUrl(html: string, profileUrl: string): string {
-  const candidates = new Set<string>();
-  const avatarPathMatches = html.matchAll(/["']([^"']*\/public\/avatars\/[^"']+)["']/gi);
-  for (const match of avatarPathMatches) {
-    if (match[1]) candidates.add(match[1]);
-  }
-
-  const imageMatches = html.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi);
-  for (const match of imageMatches) {
-    const candidate = match[1] || '';
-    if (/avatar|profile|\/public\/avatars\//i.test(candidate)) candidates.add(candidate);
-  }
-
-  for (const candidate of candidates) {
-    if (!candidate || candidate.startsWith('data:')) continue;
-    try {
-      return new URL(candidate, profileUrl).toString();
-    } catch {
-      // Ignore malformed image references from remote profile HTML.
-    }
-  }
-  return '';
-}
-
-async function fetchPublicProfileAvatar(profileUrl: string | null | undefined): Promise<string> {
-  const normalizedProfileUrl = String(profileUrl || '').trim();
-  if (!normalizedProfileUrl) return '';
-
-  let cached = creatorProfileAvatarCache.get(normalizedProfileUrl);
-  if (!cached) {
-    cached = (async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-      try {
-        const res = await fetch(normalizedProfileUrl, { signal: controller.signal });
-        if (!res.ok) return '';
-        const html = await res.text();
-        return extractProfileAvatarUrl(html, normalizedProfileUrl);
-      } catch {
-        return '';
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    })();
-    creatorProfileAvatarCache.set(normalizedProfileUrl, cached);
-  }
-
-  return cached;
-}
-
-async function enrichContextCreatorAvatar<T extends ContentContextCreator | null>(creator: T): Promise<T> {
-  if (!creator || creator.avatarUrl) return creator;
-  const avatarUrl = await fetchPublicCreatorAvatar(creator.publicOrigin, creator.handle)
-    || await fetchPublicProfileAvatar(creator.profileUrl);
-  if (!avatarUrl) return creator;
-  return {
-    ...creator,
-    avatarUrl,
-  } as T;
-}
-
 export async function fetchContentContext(input: {
   origin: string;
   contentId: string;
@@ -377,22 +278,22 @@ export async function fetchContentContext(input: {
       const res = await fetch(endpoint, { signal: controller.signal });
       if (!res.ok) return null;
       const data = (await res.json()) as ContentRelationshipContext;
-      const creator = await enrichContextCreatorAvatar(await normalizeContextCreator(data.creator, origin));
+      const creator = await normalizeContextCreator(data.creator, origin);
       const peopleBehindThis = await Promise.all(
         normalizeContextArray<ContentContextPerson>(data.peopleBehindThis)
-          .map(async (person) => enrichContextCreatorAvatar(await normalizeContextPerson(person, origin))),
+          .map((person) => normalizeContextPerson(person, origin)),
       );
       const featuring = await Promise.all(
         normalizeContextArray<ContentContextPerson>(data.featuring)
-          .map(async (person) => enrichContextCreatorAvatar(await normalizeContextPerson(person, origin))),
+          .map((person) => normalizeContextPerson(person, origin)),
       );
       const createdWith = await Promise.all(
         normalizeContextArray<ContentContextPerson>(data.createdWith)
-          .map(async (person) => enrichContextCreatorAvatar(await normalizeContextPerson(person, origin))),
+          .map((person) => normalizeContextPerson(person, origin)),
       );
       const connectedCreators = (await Promise.all(
         normalizeContextArray<ContentContextCreator>(data.connectedCreators)
-          .map(async (row) => enrichContextCreatorAvatar(await normalizeContextCreator(row, origin))),
+          .map((row) => normalizeContextCreator(row, origin)),
       )).filter((row): row is ContentContextCreator => Boolean(row));
       const builtFrom = await Promise.all(normalizeContextArray<ContentContextWork>(data.builtFrom).map((work) => normalizeContextWork(work, origin)));
       const derivedFrom = await Promise.all(normalizeContextArray<ContentContextWork>(data.derivedFrom).map((work) => normalizeContextWork(work, origin)));
