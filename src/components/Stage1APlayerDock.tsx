@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent, type TouchEvent } from 'react';
+import type Hls from 'hls.js';
 import { fetchContentContext } from '../lib/api';
 import { loadDiscoverableById, loadDiscoveryItems } from '../lib/contentRuntime/discovery';
 import type { ContentContextWork, DiscoverableItem } from '../lib/types';
@@ -25,6 +26,22 @@ const RECENT_ITEMS_STORAGE_KEY = 'certifyd-player:recent-items:v1';
 const AUTOPLAY_STORAGE_KEY = 'certifyd-player:autoplay-next:v1';
 const QUEUE_STORAGE_KEY = 'certifyd-player:queue:v1';
 const MAX_RECENT_ITEMS = 24;
+
+function isHlsStreamUrl(value: string): boolean {
+  try {
+    const url = new URL(value, typeof window !== 'undefined' ? window.location.href : 'https://fan.certifyd.me/');
+    return url.pathname.toLowerCase().endsWith('.m3u8');
+  } catch {
+    return value.toLowerCase().includes('.m3u8');
+  }
+}
+
+function canPlayNativeHls(media: HTMLMediaElement): boolean {
+  return Boolean(
+    media.canPlayType('application/vnd.apple.mpegurl') ||
+    media.canPlayType('application/x-mpegURL')
+  );
+}
 
 type PersistentQueueState = {
   queueItemIds: string[];
@@ -446,6 +463,8 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const visualRef = useRef<HTMLDivElement | null>(null);
   const activeMediaRef = useRef<HTMLMediaElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
+  const hlsLoadIdRef = useRef(0);
   const touchStartYRef = useRef<number | null>(null);
   const mediaAspectHintRef = useRef<MediaAspect | null>(null);
   const mutedAutoplayRef = useRef(false);
@@ -462,7 +481,11 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.body.classList.add('has-stage1a-player');
-    return () => document.body.classList.remove('has-stage1a-player');
+    return () => {
+      document.body.classList.remove('has-stage1a-player');
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -719,8 +742,14 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     if (!item?.playback.streamUrl || state !== 'loading') return;
     const media = item.mediaKind === 'video' ? videoRef.current : audioRef.current;
     if (!media) return;
+    const streamUrl = item.playback.streamUrl;
+    hlsLoadIdRef.current += 1;
+    const hlsLoadId = hlsLoadIdRef.current;
+    hlsRef.current?.destroy();
+    hlsRef.current = null;
+    media.removeAttribute('src');
+    media.load();
     activeMediaRef.current = media;
-    media.src = item.playback.streamUrl;
     media.preload = 'metadata';
     media.muted = mutedAutoplayRef.current;
     const restoreMediaState = restoreMediaStateRef.current;
@@ -729,7 +758,36 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       media.volume = Math.min(1, Math.max(0, restoreMediaState.volume));
     }
     setMediaMuted(media.muted);
-    try { media.load(); } catch { /* ignore */ }
+    const mediaReady = async () => {
+      if (!isHlsStreamUrl(streamUrl) || canPlayNativeHls(media)) {
+        media.src = streamUrl;
+        try { media.load(); } catch { /* ignore */ }
+        return;
+      }
+      const { default: HlsRuntime } = await import('hls.js');
+      if (hlsLoadIdRef.current !== hlsLoadId) return;
+      if (!HlsRuntime.isSupported()) {
+        media.src = streamUrl;
+        try { media.load(); } catch { /* ignore */ }
+        return;
+      }
+      await new Promise<void>((resolve) => {
+        const hls = new HlsRuntime({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 30,
+        });
+        const finish = () => resolve();
+        hlsRef.current = hls;
+        hls.on(HlsRuntime.Events.MEDIA_ATTACHED, () => hls.loadSource(streamUrl));
+        hls.on(HlsRuntime.Events.MANIFEST_PARSED, finish);
+        hls.on(HlsRuntime.Events.ERROR, (_event, data) => {
+          if (data?.fatal) finish();
+        });
+        hls.attachMedia(media);
+      });
+    };
+    const mediaReadyPromise = mediaReady();
     if (restoreMediaState && restoreMediaState.currentTime > 0) {
       const restoreTime = () => {
         try { media.currentTime = restoreMediaState.currentTime; } catch { /* ignore */ }
@@ -743,9 +801,11 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       return;
     }
     autoPlayAfterLoadRef.current = false;
-    const promise = media.play();
-    if (promise && typeof promise.catch === 'function') {
-      promise.catch((error: unknown) => {
+    mediaReadyPromise.then(() => {
+      if (hlsLoadIdRef.current !== hlsLoadId) return;
+      const promise = media.play();
+      if (promise && typeof promise.catch === 'function') {
+        promise.catch((error: unknown) => {
         const errorName = error instanceof DOMException ? error.name : error instanceof Error ? error.name : '';
         const blockedByGesture = errorName === 'NotAllowedError';
         if (!blockedByGesture && item.mediaKind === 'video' && !media.muted && mutedAutoplayRef.current) {
@@ -763,8 +823,13 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
         }
         setState('paused');
         setMessage(blockedByGesture ? 'Tap Play to start playback.' : 'Tap play to start. Your browser blocked automatic playback.');
-      });
-    }
+        });
+      }
+    }).catch(() => {
+      if (hlsLoadIdRef.current !== hlsLoadId) return;
+      setState('paused');
+      setMessage('Playback could not start.');
+    });
   }, [item, state]);
 
   const playNextQueuedItem = useCallback(async (fromItem: Stage1APlayerItem | null = item, queueOverride?: DiscoverableItem[]) => {
