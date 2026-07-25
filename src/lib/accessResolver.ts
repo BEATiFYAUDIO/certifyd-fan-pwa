@@ -93,8 +93,11 @@ export function resolveAccessFromOffer(item: DiscoverableItem, offer: CanonicalO
     || hasPositiveEntitlement(offer?.paymentAccessProof);
   const canonicalPreviewStreamUrl = requestedMode === 'preview' ? playback?.streamUrl : null;
   const previewStreamUrl = firstText([playback?.previewUrl, canonicalPreviewStreamUrl, offer?.previewUrl, item.previewUrl]);
-  const offerFullStreamUrl = firstText([(requestedMode === 'full' || canPlayFull) ? playback?.streamUrl : null, offer?.fullMediaUrl, offer?.fullContentUrl, offer?.mediaUrl, offer?.contentUrl]);
-  const itemFullStreamUrl = receiptUnlocked || isFree ? firstText([item.fullMediaUrl, item.fullContentUrl, item.mediaUrl, item.contentUrl, isFree ? item.previewUrl : null]) : null;
+  const canonicalFullStreamUrl = requestedMode === 'full' && canPlayFull ? playback?.streamUrl : null;
+  const offerFullStreamUrl = isFree
+    ? firstText([canonicalFullStreamUrl, offer?.fullMediaUrl, offer?.fullContentUrl, offer?.mediaUrl, offer?.contentUrl])
+    : firstText([canonicalFullStreamUrl]);
+  const itemFullStreamUrl = isFree ? firstText([item.fullMediaUrl, item.fullContentUrl, item.mediaUrl, item.contentUrl, item.previewUrl]) : null;
   const fullStreamUrl = offerFullStreamUrl || itemFullStreamUrl;
   const previewLimitSeconds = positiveNumber(playback?.previewLimitSeconds)
     || positiveNumber(offer?.previewSeconds)

@@ -78,7 +78,7 @@ export function runAccessResolverRegressionChecks() {
 
   const receiptUnlocked = resolveAccessFromOffer(item, lockedOffer, paidReceipt);
   assert(!receiptUnlocked.isLocked, 'offer locked but receipt paid/unlocked resolves unlocked');
-  assert(receiptUnlocked.playback.mode === 'full', 'receipt-unlocked paid content receives full playback when offer has full URL');
+  assert(receiptUnlocked.playback.mode === 'preview', 'receipt-unlocked paid content does not use non-canonical full URL fallback');
   assert(receiptUnlocked.hasViewerAccess && receiptUnlocked.owned && receiptUnlocked.accessMode === 'owned', 'receipt-unlocked paid content is full access and owned');
 
   const itemFullMedia = resolveAccessFromOffer(
@@ -86,7 +86,7 @@ export function runAccessResolverRegressionChecks() {
     paidOffer({ fullMediaUrl: '', fullContentUrl: '', mediaUrl: '', contentUrl: '', playback: { mode: 'preview', streamUrl: '/preview.mp3', canPlayFull: false } }),
     paidReceipt,
   );
-  assert(itemFullMedia.playback.mode === 'full' && itemFullMedia.playback.streamUrl === 'https://creator.test/full-from-item.mp3', 'receipt-proven access may use item full media fallback');
+  assert(itemFullMedia.playback.mode === 'preview' && itemFullMedia.playback.streamUrl === '/preview.mp3', 'receipt-proven access does not use item full media fallback');
 
   const wrongContentReceipt = receiptStatus({ contentId: 'other-content', access: 'unlocked', status: 'paid', paymentStatus: 'paid', canFulfill: true, unlocked: true });
   const wrongContent = resolveAccessFromOffer(item, lockedOffer, wrongContentReceipt);
@@ -129,6 +129,13 @@ export function runAccessResolverRegressionChecks() {
     paidOffer({ accessMode: 'owned', owned: true, hasFullAccess: true, playback: { mode: 'full', streamUrl: '/canonical-full.mp3', canPlayFull: true } }),
   );
   assert(canonicalOwned.owned && canonicalOwned.playback.mode === 'full' && canonicalOwned.playback.streamUrl === '/canonical-full.mp3', 'paid owned canonical offer plays full');
+
+  const receiptCanonicalFull = resolveAccessFromOffer(
+    item,
+    paidOffer({ accessMode: 'locked', playback: { mode: 'full', streamUrl: '/signed-full.mp3', canPlayFull: true } }),
+    paidReceipt,
+  );
+  assert(receiptCanonicalFull.owned && receiptCanonicalFull.playback.mode === 'full' && receiptCanonicalFull.playback.streamUrl === '/signed-full.mp3', 'receipt-unlocked paid content uses canonical full playback stream');
 
   const staleReceipt = receiptStatus({ access: 'locked', status: 'open', paymentStatus: 'requires_payment_method', canFulfill: false, unlocked: false });
   assert(!isReceiptStatusUnlocked(staleReceipt), 'receipt helper does not unlock stale/failed status');

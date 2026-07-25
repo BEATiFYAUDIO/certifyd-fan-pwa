@@ -303,16 +303,34 @@ function safeRecentItemsFromStorage(): DiscoverableItem[] {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(RECENT_ITEMS_STORAGE_KEY) || '[]');
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((row): row is DiscoverableItem => Boolean(row?.contentId && row?.publicOrigin)).slice(0, MAX_RECENT_ITEMS);
+    const items = parsed
+      .filter((row): row is DiscoverableItem => Boolean(row?.contentId && row?.publicOrigin))
+      .map(sanitizeRecentItemForStorage)
+      .slice(0, MAX_RECENT_ITEMS);
+    if (JSON.stringify(parsed.slice(0, MAX_RECENT_ITEMS)) !== JSON.stringify(items)) {
+      writeRecentItemsToStorage(items);
+    }
+    return items;
   } catch {
     return [];
   }
 }
 
+function sanitizeRecentItemForStorage(item: DiscoverableItem): DiscoverableItem {
+  return {
+    ...item,
+    fullMediaUrl: null,
+    fullContentUrl: null,
+    mediaUrl: null,
+    contentUrl: null,
+    paymentAccessProof: null,
+  };
+}
+
 function writeRecentItemsToStorage(items: DiscoverableItem[]) {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(RECENT_ITEMS_STORAGE_KEY, JSON.stringify(items.slice(0, MAX_RECENT_ITEMS)));
+    window.localStorage.setItem(RECENT_ITEMS_STORAGE_KEY, JSON.stringify(items.slice(0, MAX_RECENT_ITEMS).map(sanitizeRecentItemForStorage)));
   } catch {
     /* ignore storage failures */
   }
