@@ -524,6 +524,46 @@ function signalWorkToDiscoverableItem(work: DiscoverySignalWork): DiscoverableIt
   };
 }
 
+function contributorIdentityKeys(contributor: NonNullable<DiscoverableItem['contributors']>[number]): string[] {
+  return [
+    contributor.handle,
+    contributor.displayName,
+    contributor.profileUrl,
+  ]
+    .map(normalizeRelationshipIdentity)
+    .filter(Boolean);
+}
+
+function visibleCollaboratorCountForCreator(
+  creator: DiscoverySignalCreator,
+  works: DiscoverableItem[],
+  fallbackCount: number,
+): number {
+  const selfKeys = [
+    creator.creatorHandle,
+    creator.displayName,
+    creator.profileUrl,
+  ]
+    .map(normalizeRelationshipIdentity)
+    .filter(Boolean);
+  const self = new Set(selfKeys);
+  const collaborators = new Set<string>();
+  let hasContributorData = false;
+
+  for (const work of works) {
+    const contributors = Array.isArray(work.contributors) ? work.contributors : [];
+    if (contributors.length > 0) hasContributorData = true;
+    for (const contributor of contributors) {
+      const keys = contributorIdentityKeys(contributor);
+      if (keys.length === 0) continue;
+      if (keys.some((key) => self.has(key))) continue;
+      collaborators.add(keys[0]);
+    }
+  }
+
+  return hasContributorData ? collaborators.size : fallbackCount;
+}
+
 function connectedSignalWorks(signals: DiscoverySignalsResponse[]): DiscoverySignalWork[] {
   const all = dedupeSignalWorks(signals.flatMap((signal) => [
     ...(signal.works?.collaborativeReleases || []),
@@ -570,6 +610,11 @@ function signalCreatorToSpotlight(creator: DiscoverySignalCreator): CreatorSpotl
   const labels = Array.isArray(creator.labels) ? creator.labels : [];
   const topics = [...new Set(works.map((item) => String(item.primaryTopic || '').trim()).filter(Boolean))].slice(0, 2);
   const types = [...new Set(works.map((item) => String(item.contentType || '').trim()).filter(Boolean))].slice(0, 2);
+  const collaboratorCount = visibleCollaboratorCountForCreator(
+    creator,
+    works,
+    signalNumber(creator.signals?.collaborators),
+  );
   return {
     key: `signals:${publicOrigin}:${handle}`,
     handle,
@@ -595,7 +640,7 @@ function signalCreatorToSpotlight(creator: DiscoverySignalCreator): CreatorSpotl
     supportBucket: creator.signals?.support || null,
     unlockBucket: creator.signals?.unlocks || null,
     viewBucket: creator.signals?.views || null,
-    collaboratorCount: signalNumber(creator.signals?.collaborators),
+    collaboratorCount,
     connectedWorkCount: signalNumber(creator.signals?.connectedWorks),
     unlockableWorkCount: Number(creator.unlockableWorkCount || 0),
     latestTitle: works[0]?.title || `${creator.workCount || 0} works`,
