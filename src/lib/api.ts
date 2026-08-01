@@ -41,6 +41,16 @@ function normalizeProfileThemeUrls(theme: ProfileTheme | null | undefined, origi
   };
 }
 
+function resolveAvatarUrl(value: Partial<ContentContextCreator> | null | undefined, origin: string): string {
+  if (!value) return '';
+  return (
+    resolveUrl(value.avatarUrl, origin) ||
+    resolveUrl(value.profileImageUrl, origin) ||
+    resolveUrl(value.creatorAvatarUrl, origin) ||
+    resolveUrl(value.creatorProfileImageUrl, origin)
+  );
+}
+
 async function normalizeDiscoverableItem(item: DiscoverableItem, origin: string): Promise<DiscoverableItem> {
   const publicOrigin = item.publicOrigin || origin;
   const normalized = {
@@ -218,9 +228,13 @@ export async function fetchDiscoverySignals(input: {
 async function normalizeContextCreator(value: ContentContextCreator | null | undefined, origin: string): Promise<ContentContextCreator | null> {
   if (!value) return null;
   const publicOrigin = value.publicOrigin || origin;
+  const avatarUrl = resolveAvatarUrl(value, publicOrigin);
   return {
     ...value,
-    avatarUrl: resolveUrl(value.avatarUrl, publicOrigin),
+    avatarUrl,
+    profileImageUrl: resolveUrl(value.profileImageUrl, publicOrigin) || avatarUrl || null,
+    creatorAvatarUrl: resolveUrl(value.creatorAvatarUrl, publicOrigin) || null,
+    creatorProfileImageUrl: resolveUrl(value.creatorProfileImageUrl, publicOrigin) || null,
     profileUrl: resolveUrl(value.profileUrl, publicOrigin),
     publicOrigin,
     profileTheme: normalizeProfileThemeUrls(value.profileTheme, publicOrigin) || null,

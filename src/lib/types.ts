@@ -113,6 +113,9 @@ export type ContentContextCreator = {
   handle: string | null;
   displayName: string | null;
   avatarUrl: string | null;
+  profileImageUrl?: string | null;
+  creatorAvatarUrl?: string | null;
+  creatorProfileImageUrl?: string | null;
   profileUrl: string | null;
   publicOrigin: string | null;
   profileTheme?: ProfileTheme | null;
