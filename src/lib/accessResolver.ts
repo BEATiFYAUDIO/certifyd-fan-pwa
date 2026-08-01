@@ -42,9 +42,31 @@ function numberFrom(values: unknown[], fallback = 0): number {
   return fallback;
 }
 
+function hasExplicitZeroPrice(values: unknown[]): boolean {
+  return values.some((value) => {
+    if (value === null || value === undefined || value === '') return false;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed === 0;
+  });
+}
+
 function positiveNumber(value: unknown): number | null {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function isCommerceUnavailablePaidOffer(offer: CanonicalOffer | null, item: DiscoverableItem): boolean {
+  if (offer?.commerceAuthorityAvailable !== false) return false;
+  const accessMode = normalizedAccessMode(offer?.accessMode) || item.accessMode;
+  const proof = offer?.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
+    ? offer.paymentAccessProof as Record<string, unknown>
+    : null;
+  const paymentState = lower(proof?.paymentState);
+  const entitlementState = lower(proof?.entitlementState);
+  return accessMode === 'locked' ||
+    paymentState === 'payment_required' ||
+    entitlementState === 'locked' ||
+    Number(item.priceSats || 0) > 0;
 }
 
 function firstText(values: unknown[]): string | null {
@@ -78,9 +100,11 @@ export function resolveAccessFromOffer(item: DiscoverableItem, offer: CanonicalO
   const playback = playbackRecord(offer);
   const offerAccessMode = normalizedAccessMode(offer?.accessMode);
   const accessMode = offerAccessMode || item.accessMode;
-  const priceSats = numberFrom([offer?.priceSats, offer?.price_sat, offer?.unlockPriceSats, offer?.amountSats, offer?.price, item.priceSats]);
+  const priceValues = [offer?.priceSats, offer?.price_sat, offer?.unlockPriceSats, offer?.amountSats, offer?.price, item.priceSats];
+  const commerceUnavailablePaid = isCommerceUnavailablePaidOffer(offer, item);
+  const priceSats = numberFrom(priceValues, commerceUnavailablePaid ? 1 : 0);
   const isPaid = priceSats > 0;
-  const isFree = explicitTrue(offer?.isFree) || (!isPaid && accessMode !== 'locked');
+  const isFree = hasExplicitZeroPrice(priceValues) && !isPaid && accessMode !== 'locked';
   const canPlayFull = playback?.canPlayFull === true;
   const requestedMode = playback?.mode === 'full' || playback?.mode === 'preview' || playback?.mode === 'none'
     ? playback.mode

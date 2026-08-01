@@ -146,8 +146,42 @@ export function runAccessResolverRegressionChecks() {
   const freePlayback = resolveAccessFromOffer(freeItem, { priceSats: 0, isFree: true, fullMediaUrl: '/free.mp3', accessMode: 'unlocked' });
   assert(!freePlayback.isLocked && freePlayback.playback.mode === 'full', 'free content still plays full');
 
+  const legacyFreeMarkerWithoutZeroPrice = resolveAccessFromOffer(
+    fixtureItem({ priceSats: 0, accessMode: 'locked', previewUrl: '/preview.mp3' }),
+    {
+      isFree: true,
+      priceSats: null,
+      accessMode: 'locked',
+      previewUrl: '/preview.mp3',
+      fullMediaUrl: '/full.mp3',
+      playback: { mode: 'preview', streamUrl: '/preview.mp3', canPlayFull: false },
+    },
+  );
+  assert(legacyFreeMarkerWithoutZeroPrice.isLocked, 'legacy free marker does not unlock without explicit zero price');
+  assert(!legacyFreeMarkerWithoutZeroPrice.isFree, 'legacy free marker is not free without explicit zero price');
+
   const paidFullFallback = resolveAccessFromOffer(item, paidOffer({ previewUrl: '', playback: null }));
   assert(paidFullFallback.playback.mode !== 'full', 'paid locked never plays full fallback URL');
+
+  const commerceUnavailablePreview = resolveAccessFromOffer(
+    fixtureItem({ priceSats: 0, accessMode: 'locked', previewUrl: 'https://creator.test/preview.mp3' }),
+    {
+      priceSats: null,
+      accessMode: 'locked',
+      commerceAuthorityAvailable: false,
+      previewUrl: '/preview.mp3',
+      fullMediaUrl: '/full.mp3',
+      playback: { mode: 'preview', streamUrl: '/preview.mp3', canPlayFull: false },
+      paymentAccessProof: {
+        paymentState: 'payment_required',
+        entitlementState: 'locked',
+      },
+    },
+  );
+  assert(commerceUnavailablePreview.isLocked, 'commerce-unavailable paid offer remains locked');
+  assert(!commerceUnavailablePreview.isFree, 'commerce-unavailable paid offer is not treated as free');
+  assert(commerceUnavailablePreview.playback.mode === 'preview', 'commerce-unavailable paid offer resolves to preview');
+  assert(commerceUnavailablePreview.playback.streamUrl === '/preview.mp3', 'commerce-unavailable paid offer does not use full media fallback');
 
   const unavailableNoPreview = resolveAccessFromOffer(
     fixtureItem({ previewUrl: '', fullMediaUrl: 'https://creator.test/full-from-discovery.mp3' }),
