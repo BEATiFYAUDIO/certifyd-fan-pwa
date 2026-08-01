@@ -202,6 +202,19 @@ export function runAccessResolverRegressionChecks() {
   const durableAccessStatusUrl = accessStatusUrlsForItem(item)[0] || '';
   assert(durableAccessStatusUrl === 'https://creator.test/buy/content/content-1/access-status?receiptId=rct_durable', 'rct_ durable proof is sent as receiptId to access-status');
 
+  installMockWindow('');
+  const itemReceipt = fixtureItem({
+    paymentAccessProof: {
+      paymentState: 'paid',
+      entitlementState: 'owned',
+      paymentReceiptId: 'rcpt_item_owned',
+    },
+  });
+  const itemReceiptProofs = receiptProofsForItem(itemReceipt);
+  assert(itemReceiptProofs[0]?.receiptId === 'rcpt_item_owned', 'item-carried receipt proof is used when URL proof is absent');
+  const itemReceiptAccessUrl = accessStatusUrlsForItem(itemReceipt)[0] || '';
+  assert(itemReceiptAccessUrl === 'https://creator.test/buy/content/content-1/access-status?receiptId=rcpt_item_owned', 'existing item receipt is sent to access-status before bare status');
+
   const wrongContentStore = installMockWindow('');
   wrongContentStore.set('certifyd-player:receipt-proofs:v1', JSON.stringify([{
     contentId: 'other-content',

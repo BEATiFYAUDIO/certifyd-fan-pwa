@@ -14,6 +14,7 @@ import { getCardThemeVars } from '../lib/profileTheme';
 import { openExternalNavigation } from '../lib/externalNavigation';
 import { creatorFromItem, useLocalLibrary } from '../lib/localLibrary';
 import { itemIdFromDiscoverable } from '../lib/libraryStore';
+import { captureReceiptProofFromLocation } from '../lib/receiptProofs';
 
 function ctaLabel(item: DiscoverableItem) {
   return displayStateFromItem(item).ctaLabel;
@@ -1330,6 +1331,10 @@ export function WatchPage() {
   const rawStateItem = (location.state as { item?: DiscoverableItem } | null)?.item || null;
   const contentId = String(params.contentId || '').trim();
   const originHint = normalizeCanonicalOrigin(search.get('origin')) || null;
+  useEffect(() => {
+    if (!contentId || !originHint) return;
+    captureReceiptProofFromLocation({ contentId, publicOrigin: originHint });
+  }, [contentId, originHint, location.search]);
   const stateItem = originHint && rawStateItem?.contentId === contentId
     ? {
       ...rawStateItem,

@@ -173,9 +173,9 @@ export function resolveAccessFromOffer(item: DiscoverableItem, offer: CanonicalO
     priceSats,
     isPaid,
     isFree,
-    isLocked: !isFree,
+    isLocked: isPaid ? !hasViewerAccess : !isFree,
     hasViewerAccess: isFree || hasViewerAccess,
-    accessMode: isFree ? 'unlocked' : accessMode,
+    accessMode: isPaid && hasViewerAccess ? 'owned' : isFree ? 'unlocked' : accessMode,
     owned: isPaid && hasViewerAccess,
     playback: {
       mode: previewStreamUrl ? 'preview' : 'none',

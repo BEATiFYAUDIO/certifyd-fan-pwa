@@ -63,6 +63,18 @@ function normalizeProofFields(proof: ReceiptProof): ReceiptProof {
   };
 }
 
+function itemReceiptProof(item: DiscoverableItem): ReceiptProof | null {
+  const paymentAccessProof = item.paymentAccessProof;
+  if (!paymentAccessProof || typeof paymentAccessProof !== 'object') return null;
+  const receiptId = clean(paymentAccessProof.paymentReceiptId);
+  if (!receiptId) return null;
+  return normalizeProofFields({
+    contentId: clean(item.contentId),
+    publicOrigin: normalizeCanonicalOrigin(item.publicOrigin),
+    receiptId,
+  });
+}
+
 function dedupeProofs(proofs: ReceiptProof[]): ReceiptProof[] {
   const next: ReceiptProof[] = [];
   for (const proof of proofs.map(normalizeProofFields).sort(compareProofPriority)) {
@@ -159,7 +171,8 @@ export function receiptProofsForItem(item: DiscoverableItem): ReceiptProof[] {
   captureReceiptProofFromLocation(item);
   const contentId = clean(item.contentId);
   const publicOrigin = normalizeCanonicalOrigin(item.publicOrigin);
-  const allProofs = readProofs();
+  const itemProof = itemReceiptProof(item);
+  const allProofs = dedupeProofs([...(itemProof ? [itemProof] : []), ...readProofs()]);
   const matchingProofs = allProofs.filter((proof) => {
     const proofContentId = clean(proof.contentId);
     const proofOrigin = normalizeCanonicalOrigin(proof.publicOrigin);
