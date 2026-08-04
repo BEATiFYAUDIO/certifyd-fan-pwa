@@ -143,6 +143,8 @@ function ShortsSlide({
 
   const ensureMediaSourceReady = useCallback(async (media: HTMLMediaElement) => {
     if (!activeMediaSrc) return false;
+    media.defaultMuted = muted;
+    media.muted = muted;
     const hasExpectedSource = media.currentSrc === activeMediaSrc || media.getAttribute('src') === activeMediaSrc;
     if (!hasExpectedSource) {
       media.src = activeMediaSrc;
@@ -168,7 +170,27 @@ function ShortsSlide({
       window.setTimeout(onReady, 1500);
     });
     return media.readyState >= HTMLMediaElement.HAVE_METADATA;
-  }, [activeMediaSrc]);
+  }, [activeMediaSrc, muted]);
+
+  const requestPlayback = useCallback((media: HTMLMediaElement, generation: number, playAttempt: number) => {
+    media.defaultMuted = muted;
+    media.muted = muted;
+    setPaused(false);
+    void ensureMediaSourceReady(media)
+      .then(() => media.play())
+      .then(() => {
+        if (generationRef.current !== generation || playAttemptRef.current !== playAttempt) return;
+        setPaused(false);
+      })
+      .catch(() => {
+        if (generationRef.current !== generation || playAttemptRef.current !== playAttempt) return;
+        if (media.error && activeMediaSrc && mediaErrorRefreshRef.current !== activeMediaSrc) {
+          onMediaError();
+          return;
+        }
+        setPaused(media.paused);
+      });
+  }, [activeMediaSrc, ensureMediaSourceReady, muted]);
 
   useEffect(() => {
     const media = mediaRef.current;
@@ -194,22 +216,12 @@ function ShortsSlide({
     });
     const playAttempt = playAttemptRef.current + 1;
     playAttemptRef.current = playAttempt;
-    setPaused(false);
-    void ensureMediaSourceReady(media)
-      .then(() => media.play())
-      .then(() => {
-        if (generationRef.current !== generation || playAttemptRef.current !== playAttempt) return;
-        setPaused(false);
-      })
-      .catch(() => {
-        if (generationRef.current !== generation || playAttemptRef.current !== playAttempt) return;
-        setPaused(true);
-      });
+    requestPlayback(media, generation, playAttempt);
     return () => {
       if (generationRef.current === generation) playAttemptRef.current += 1;
       try { media.pause(); } catch { /* ignore */ }
     };
-  }, [active, activeGeneration, ensureMediaSourceReady, muted, playbackState.streamUrl]);
+  }, [active, activeGeneration, muted, playbackState.streamUrl, requestPlayback]);
 
   const togglePlayback = () => {
     const media = mediaRef.current;
@@ -224,9 +236,7 @@ function ShortsSlide({
       }
       setPaused(false);
       setEnded(false);
-      void ensureMediaSourceReady(media).then(() => media.play()).catch(() => {
-        if (generationRef.current === generation && playAttemptRef.current === playAttempt) setPaused(true);
-      });
+      requestPlayback(media, generation, playAttempt);
       return;
     }
     media.pause();
@@ -319,6 +329,12 @@ function ShortsSlide({
           }}
           onPlay={() => { if (isCurrentGeneration()) { setPaused(false); setEnded(false); } }}
           onPause={() => { if (isCurrentGeneration()) setPaused(true); }}
+          onCanPlay={(event) => {
+            if (!isCurrentGeneration() || !active || !event.currentTarget.paused) return;
+            const playAttempt = playAttemptRef.current + 1;
+            playAttemptRef.current = playAttempt;
+            requestPlayback(event.currentTarget, activeGeneration, playAttempt);
+          }}
           onEnded={() => { if (isCurrentGeneration()) { setPaused(true); setEnded(true); } }}
           onError={onMediaError}
           onTimeUpdate={onTimeUpdate}
@@ -339,6 +355,12 @@ function ShortsSlide({
             onLoadedMetadata={(event) => onLoadedMetadata(event.currentTarget)}
             onPlay={() => { if (isCurrentGeneration()) { setPaused(false); setEnded(false); } }}
             onPause={() => { if (isCurrentGeneration()) setPaused(true); }}
+            onCanPlay={(event) => {
+              if (!isCurrentGeneration() || !active || !event.currentTarget.paused) return;
+              const playAttempt = playAttemptRef.current + 1;
+              playAttemptRef.current = playAttempt;
+              requestPlayback(event.currentTarget, activeGeneration, playAttempt);
+            }}
             onEnded={() => { if (isCurrentGeneration()) { setPaused(true); setEnded(true); } }}
             onError={onMediaError}
             onTimeUpdate={onTimeUpdate}
@@ -383,7 +405,6 @@ function ShortsSlide({
         <div className="shorts-meta">
           <div className="mb-2 flex flex-wrap gap-2">
             <span className="watch-pill watch-pill-inline">{playbackState.label}</span>
-            {paused ? <span className="watch-pill watch-pill-inline">Paused</span> : null}
             {ended && playbackState.playback.mode === 'preview' ? <span className="watch-pill watch-pill-inline">Preview ended</span> : null}
           </div>
           <h1 className="line-clamp-2 text-2xl font-bold">{item.title || 'Untitled'}</h1>
