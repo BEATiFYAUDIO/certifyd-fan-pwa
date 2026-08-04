@@ -486,6 +486,9 @@ export function ShortsPage() {
         hydratedKeys.current.add(activeKey);
         if (!active) return;
         setItems((current) => current.map((item) => (contentRuntimeItemKey(item) === activeKey ? hydrated : item)));
+        if (activeIndexRef.current === activeIndex) {
+          setActiveGeneration((current) => current + 1);
+        }
       })
       .catch(() => {
         pendingHydrationKeys.current.delete(activeKey);
@@ -493,7 +496,7 @@ export function ShortsPage() {
     return () => {
       active = false;
     };
-  }, [activeItem, activeKey]);
+  }, [activeIndex, activeItem, activeKey]);
 
   const exploreWork = useCallback((item: DiscoverableItem) => {
     navigate(watchHrefForItem(item), { state: { item } });
