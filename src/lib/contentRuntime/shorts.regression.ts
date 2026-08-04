@@ -47,6 +47,12 @@ function run() {
   assertEqual(locked.playback.mode, 'preview');
   assertEqual(locked.streamUrl, 'https://node.test/preview.mp4');
 
+  const barePremiumPreview = resolveRuntimePlayback(item({
+    previewUrl: 'https://node.test/public/content/work-1/preview-file',
+  }));
+  assertEqual(barePremiumPreview.playback.mode, 'none');
+  assertEqual(barePremiumPreview.streamUrl, '');
+
   const rawOwnedWithoutCanonicalPlayback = resolveRuntimePlayback(item({ accessMode: 'owned', owned: true, hasFullAccess: true, isLocked: false }));
   assertEqual(rawOwnedWithoutCanonicalPlayback.playback.mode, 'preview');
   assertEqual(rawOwnedWithoutCanonicalPlayback.streamUrl, 'https://node.test/preview.mp4');

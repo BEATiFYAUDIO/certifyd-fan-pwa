@@ -37,14 +37,14 @@ export async function loadShortsRuntimeQueue(
       const selected = queue[selectedIndex];
       queue = [selected, ...queue.slice(0, selectedIndex), ...queue.slice(selectedIndex + 1)];
     }
-    if (queue[0]) {
-      try {
-        const hydrated = await hydrateCanonicalOfferForItem(queue[0]);
-        const hydratedKey = contentRuntimeItemKey(hydrated);
-        queue = [hydrated, ...queue.slice(1).map((item) => (contentRuntimeItemKey(item) === hydratedKey ? hydrated : item))];
-      } catch {
-        // Keep the discovery item if the source cannot be reached.
-      }
+  }
+  if ((contentId || options.premiumOnly) && queue[0]) {
+    try {
+      const hydrated = await hydrateCanonicalOfferForItem(queue[0]);
+      const hydratedKey = contentRuntimeItemKey(hydrated);
+      queue = [hydrated, ...queue.slice(1).map((item) => (contentRuntimeItemKey(item) === hydratedKey ? hydrated : item))];
+    } catch {
+      // Keep the discovery item if the source cannot be reached.
     }
   }
   return queue;
