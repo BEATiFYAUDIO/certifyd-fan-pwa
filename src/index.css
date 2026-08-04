@@ -1225,8 +1225,8 @@ body.has-shorts-mode .certifyd-player-center {
   position: relative;
   z-index: 2;
   display: grid;
-  width: min(92vw, 86vmin, 900px);
-  max-height: min(86dvh, 900px);
+  width: min(86vw, 72dvh, 720px);
+  max-height: min(72dvh, 720px);
   place-items: center;
 }
 
@@ -1234,7 +1234,8 @@ body.has-shorts-mode .certifyd-player-center {
 .shorts-audio-artwork > div {
   aspect-ratio: 1;
   width: 100%;
-  max-height: min(86dvh, 900px);
+  max-width: min(86vw, 72dvh, 720px);
+  max-height: min(72dvh, 720px);
   border-radius: 28px;
   object-fit: contain;
   background: rgba(255, 255, 255, 0.055);

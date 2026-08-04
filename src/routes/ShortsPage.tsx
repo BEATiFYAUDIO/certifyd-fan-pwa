@@ -254,6 +254,7 @@ function ShortsSlide({
     if (playbackState.renderKind === 'video' && playbackState.streamUrl) {
       return (
         <video
+          key={activeMediaSrc}
           ref={(node) => { mediaRef.current = node; }}
           className={`shorts-media shorts-media-${mediaAspect}`}
           src={activeMediaSrc || undefined}
@@ -279,6 +280,7 @@ function ShortsSlide({
         <div className="shorts-audio-artwork">
           {item.coverUrl ? <img src={item.coverUrl} alt={item.title || 'Artwork'} referrerPolicy="no-referrer" /> : <div>CERTIFYD</div>}
           <audio
+            key={activeMediaSrc}
             ref={(node) => { mediaRef.current = node; }}
             src={activeMediaSrc || undefined}
             muted={muted}
