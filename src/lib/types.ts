@@ -68,6 +68,14 @@ export type DiscoverableItem = {
     entitlementState?: string | null;
     paymentReceiptId?: string | null;
   } | null;
+  canonicalPlayback?: {
+    mode?: 'full' | 'preview' | 'none' | string | null;
+    streamUrl?: string | null;
+    previewUrl?: string | null;
+    previewLimitSeconds?: number | string | null;
+    canPlayFull?: boolean | null;
+    reason?: string | null;
+  } | null;
   canonicalOfferHydrated?: boolean;
   publicOrigin: string;
   creatorAvatarUrl?: string | null;

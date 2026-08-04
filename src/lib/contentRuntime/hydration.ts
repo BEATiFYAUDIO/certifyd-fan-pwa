@@ -48,6 +48,7 @@ export function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffe
     isFree: access.isFree,
     hasFullAccess: access.owned,
     owned: access.owned,
+    canonicalPlayback: access.playback,
     canonicalOfferHydrated: true,
     previewSeconds: previewSecondsValue(access.playback.previewLimitSeconds, offer.previewSeconds, offer.previewDurationSeconds, offer.previewLimitSeconds, item.previewSeconds),
     primaryFileMime: typeof offer.primaryFileMime === 'string' ? offer.primaryFileMime : item.primaryFileMime,

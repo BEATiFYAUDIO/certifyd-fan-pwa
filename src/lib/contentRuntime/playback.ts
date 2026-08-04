@@ -28,6 +28,7 @@ export function resolveRuntimePlayback(item: DiscoverableItem): RuntimePlaybackS
     contentUrl: item.contentUrl,
     previewSeconds: item.previewSeconds,
     paymentAccessProof: item.paymentAccessProof,
+    playback: item.canonicalPlayback && typeof item.canonicalPlayback === 'object' ? item.canonicalPlayback : undefined,
   };
   const access = resolveAccessFromOffer(item, pseudoOffer);
   const streamUrl = resolveAbsoluteUrl(access.playback.streamUrl, item.publicOrigin);

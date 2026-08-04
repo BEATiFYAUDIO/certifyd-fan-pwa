@@ -1,3 +1,4 @@
+import { mergeCanonicalOffer } from './hydration';
 import { resolveRuntimePlayback } from './playback';
 import { inferRuntimeRenderKind } from './render';
 import { contentRuntimeItemKey } from './shorts';
@@ -46,12 +47,47 @@ function run() {
   assertEqual(locked.playback.mode, 'preview');
   assertEqual(locked.streamUrl, 'https://node.test/preview.mp4');
 
-  const owned = resolveRuntimePlayback(item({ accessMode: 'owned', owned: true, hasFullAccess: true, isLocked: false }));
-  assertEqual(owned.playback.mode, 'full');
-  assertEqual(owned.streamUrl, 'https://node.test/full.mp4');
+  const rawOwnedWithoutCanonicalPlayback = resolveRuntimePlayback(item({ accessMode: 'owned', owned: true, hasFullAccess: true, isLocked: false }));
+  assertEqual(rawOwnedWithoutCanonicalPlayback.playback.mode, 'preview');
+  assertEqual(rawOwnedWithoutCanonicalPlayback.streamUrl, 'https://node.test/preview.mp4');
 
   const free = resolveRuntimePlayback(item({ priceSats: 0, accessMode: 'unlocked', isFree: true, isLocked: false, owned: false, hasFullAccess: false }));
   assertEqual(free.playback.mode, 'full');
+
+
+  const hydratedOwned = mergeCanonicalOffer(item({
+    fullMediaUrl: null,
+    fullContentUrl: null,
+    mediaUrl: null,
+    contentUrl: null,
+  }), {
+    priceSats: 1000,
+    accessMode: 'owned',
+    owned: true,
+    playback: {
+      mode: 'full',
+      streamUrl: 'https://node.test/signed-full.mp4',
+      canPlayFull: true,
+      previewLimitSeconds: null,
+    },
+    previewUrl: 'https://node.test/signed-preview.mp4',
+  }, {
+    contentId: 'work-1',
+    receiptToken: 'receipt-token',
+    receiptId: 'receipt-1',
+    paymentIntentId: null,
+    paidAt: '2026-08-04T00:00:00.000Z',
+    paymentMethod: 'bitcoin',
+    invoiceProviderNodeId: 'node-1',
+    access: 'unlocked',
+    status: 'paid',
+    paymentStatus: 'paid',
+    canFulfill: true,
+    unlocked: true,
+  });
+  const hydratedPlayback = resolveRuntimePlayback(hydratedOwned);
+  assertEqual(hydratedPlayback.playback.mode, 'full');
+  assertEqual(hydratedPlayback.streamUrl, 'https://node.test/signed-full.mp4');
 
   const freePreviewOnly = resolveRuntimePlayback(item({
     priceSats: 0,

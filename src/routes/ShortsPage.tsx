@@ -405,6 +405,7 @@ export function ShortsPage() {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Array<HTMLElement | null>>([]);
   const hydratedKeys = useRef<Set<string>>(new Set());
+  const pendingHydrationKeys = useRef<Set<string>>(new Set());
 
   useShortsSession();
 
@@ -475,14 +476,18 @@ export function ShortsPage() {
 
   useEffect(() => {
     let active = true;
-    if (!activeItem || !activeKey || hydratedKeys.current.has(activeKey)) return;
-    hydratedKeys.current.add(activeKey);
+    if (!activeItem || !activeKey || hydratedKeys.current.has(activeKey) || pendingHydrationKeys.current.has(activeKey)) return;
+    pendingHydrationKeys.current.add(activeKey);
     void hydrateCanonicalOfferForItem(activeItem)
       .then((hydrated) => {
+        pendingHydrationKeys.current.delete(activeKey);
+        hydratedKeys.current.add(activeKey);
         if (!active) return;
         setItems((current) => current.map((item) => (contentRuntimeItemKey(item) === activeKey ? hydrated : item)));
       })
-      .catch(() => undefined)
+      .catch(() => {
+        pendingHydrationKeys.current.delete(activeKey);
+      });
     return () => {
       active = false;
     };
