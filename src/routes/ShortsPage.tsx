@@ -455,7 +455,6 @@ export function ShortsPage() {
   const [muted, setMuted] = useState(true);
   const [activeGeneration, setActiveGeneration] = useState(1);
   const activeIndexRef = useRef(0);
-  const activationAttemptRef = useRef(0);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Array<HTMLElement | null>>([]);
   const hydratedKeys = useRef<Set<string>>(new Set());
@@ -561,45 +560,26 @@ export function ShortsPage() {
     navigate('/');
   }, [navigate]);
 
-  const replaceShortItem = useCallback((hydrated: DiscoverableItem) => {
-    const hydratedKey = contentRuntimeItemKey(hydrated);
-    if (!hydratedKey) return false;
-    hydratedKeys.current.add(hydratedKey);
-    setItems((current) => current.map((item) => (contentRuntimeItemKey(item) === hydratedKey ? hydrated : item)));
-    return true;
-  }, []);
-
   const activateIndex = useCallback((nextIndex: number) => {
     if (nextIndex < 0 || nextIndex >= items.length || nextIndex === activeIndexRef.current) return;
-    const activationAttempt = activationAttemptRef.current + 1;
-    activationAttemptRef.current = activationAttempt;
-    const target = items[nextIndex];
-    setMuted(true);
-    void (async () => {
-      if (target) {
-        try {
-          replaceShortItem(await hydrateCanonicalOfferForItem(target));
-        } catch {
-          // Keep the existing discovery item if its node cannot be reached.
-        }
-      }
-      if (activationAttemptRef.current !== activationAttempt) return;
-      activeIndexRef.current = nextIndex;
-      setActiveGeneration((current) => current + 1);
-      setActiveIndex(nextIndex);
-      sectionRefs.current[nextIndex]?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    })();
-  }, [items, replaceShortItem]);
+    activeIndexRef.current = nextIndex;
+    setActiveGeneration((current) => current + 1);
+    setActiveIndex(nextIndex);
+    sectionRefs.current[nextIndex]?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [items.length]);
 
   const playPreviousShort = useCallback(() => activateIndex(activeIndexRef.current - 1), [activateIndex]);
   const playNextShort = useCallback(() => activateIndex(activeIndexRef.current + 1), [activateIndex]);
   const refreshShortItem = useCallback((hydrated: DiscoverableItem) => {
     const hydratedKey = contentRuntimeItemKey(hydrated);
     if (!hydratedKey) return;
-    replaceShortItem(hydrated);
-    setMuted(true);
-    setActiveGeneration((current) => current + 1);
-  }, [replaceShortItem]);
+    hydratedKeys.current.add(hydratedKey);
+    setItems((current) => current.map((item) => (contentRuntimeItemKey(item) === hydratedKey ? hydrated : item)));
+    const currentActive = items[activeIndexRef.current];
+    if (currentActive && contentRuntimeItemKey(currentActive) === hydratedKey) {
+      setActiveGeneration((current) => current + 1);
+    }
+  }, [items]);
 
   return (
     <main className="shorts-page bg-black text-white">
