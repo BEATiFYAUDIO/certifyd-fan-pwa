@@ -9,6 +9,20 @@ export function contentRuntimeItemKey(item: Pick<DiscoverableItem, 'contentId' |
   return `${normalizeCanonicalOrigin(item.publicOrigin) || item.publicOrigin}::${item.contentId}`;
 }
 
+async function hydrateShortsQueue(queue: DiscoverableItem[], limit: number): Promise<DiscoverableItem[]> {
+  const hydratedItems = await Promise.all(
+    queue.slice(0, limit).map(async (item) => {
+      try {
+        return await hydrateCanonicalOfferForItem(item);
+      } catch {
+        return item;
+      }
+    }),
+  );
+  const hydratedByKey = new Map(hydratedItems.map((item) => [contentRuntimeItemKey(item), item]));
+  return queue.map((item) => hydratedByKey.get(contentRuntimeItemKey(item)) || item);
+}
+
 export async function loadShortsRuntimeQueue(
   topic: Topic,
   contentId: string | null,
@@ -39,13 +53,7 @@ export async function loadShortsRuntimeQueue(
     }
   }
   if ((contentId || options.premiumOnly) && queue[0]) {
-    try {
-      const hydrated = await hydrateCanonicalOfferForItem(queue[0]);
-      const hydratedKey = contentRuntimeItemKey(hydrated);
-      queue = [hydrated, ...queue.slice(1).map((item) => (contentRuntimeItemKey(item) === hydratedKey ? hydrated : item))];
-    } catch {
-      // Keep the discovery item if the source cannot be reached.
-    }
+    queue = await hydrateShortsQueue(queue, Math.min(queue.length, 12));
   }
   return queue;
 }

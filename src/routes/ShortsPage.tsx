@@ -191,23 +191,22 @@ function ShortsSlide({
     });
     const playAttempt = playAttemptRef.current + 1;
     playAttemptRef.current = playAttempt;
-    const playPromise = media.play();
-    if (playPromise && typeof playPromise.then === 'function') {
-      playPromise
-        .then(() => {
-          if (generationRef.current !== generation || playAttemptRef.current !== playAttempt) return;
-          setPaused(false);
-        })
-        .catch(() => {
-          if (generationRef.current !== generation || playAttemptRef.current !== playAttempt) return;
-          setPaused(true);
-        });
-    }
+    setPaused(false);
+    void ensureMediaSourceReady(media)
+      .then(() => media.play())
+      .then(() => {
+        if (generationRef.current !== generation || playAttemptRef.current !== playAttempt) return;
+        setPaused(false);
+      })
+      .catch(() => {
+        if (generationRef.current !== generation || playAttemptRef.current !== playAttempt) return;
+        setPaused(true);
+      });
     return () => {
       if (generationRef.current === generation) playAttemptRef.current += 1;
       try { media.pause(); } catch { /* ignore */ }
     };
-  }, [active, activeGeneration, muted, playbackState.streamUrl]);
+  }, [active, activeGeneration, ensureMediaSourceReady, muted, playbackState.streamUrl]);
 
   const togglePlayback = () => {
     const media = mediaRef.current;
@@ -431,7 +430,7 @@ export function ShortsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [activeGeneration, setActiveGeneration] = useState(1);
   const activeIndexRef = useRef(0);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
