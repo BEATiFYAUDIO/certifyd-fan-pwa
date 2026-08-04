@@ -53,7 +53,7 @@ export async function loadShortsRuntimeQueue(
     }
   }
   if ((contentId || options.premiumOnly) && queue[0]) {
-    queue = await hydrateShortsQueue(queue, Math.min(queue.length, 12));
+    queue = await hydrateShortsQueue(queue, Math.min(queue.length, 3));
   }
   return queue;
 }

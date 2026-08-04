@@ -42,6 +42,7 @@ function ShortsSlide({
   muted,
   onMutedChange,
   onExplore,
+  onRefreshItem,
   onBack,
   onPrevious,
   onNext,
@@ -57,6 +58,7 @@ function ShortsSlide({
   muted: boolean;
   onMutedChange: (muted: boolean) => void;
   onExplore: (item: DiscoverableItem) => void;
+  onRefreshItem: (item: DiscoverableItem) => void;
   onBack: () => void;
   onPrevious: () => void;
   onNext: () => void;
@@ -69,6 +71,7 @@ function ShortsSlide({
   const activeRef = useRef(false);
   const generationRef = useRef(0);
   const playAttemptRef = useRef(0);
+  const mediaErrorRefreshRef = useRef('');
   const [paused, setPaused] = useState(true);
   const [ended, setEnded] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -244,9 +247,26 @@ function ShortsSlide({
 
   const onLoadedMetadata = (media: HTMLMediaElement) => {
     if (!isCurrentGeneration()) return;
+    mediaErrorRefreshRef.current = '';
     const limit = playbackState.playback.mode === 'preview' ? playbackState.playback.previewLimitSeconds : null;
     const mediaDuration = Number.isFinite(media.duration) ? media.duration : 0;
     setDuration(limit && mediaDuration ? Math.min(mediaDuration, limit) : limit || mediaDuration || 0);
+  };
+
+  const onMediaError = () => {
+    if (!active || !activeMediaSrc || mediaErrorRefreshRef.current === activeMediaSrc) {
+      if (isCurrentGeneration()) setPaused(true);
+      return;
+    }
+    mediaErrorRefreshRef.current = activeMediaSrc;
+    void hydrateCanonicalOfferForItem(item)
+      .then((hydrated) => {
+        if (!isCurrentGeneration()) return;
+        onRefreshItem(hydrated);
+      })
+      .catch(() => {
+        if (isCurrentGeneration()) setPaused(true);
+      });
   };
 
   const onTimeUpdate = () => {
@@ -300,6 +320,7 @@ function ShortsSlide({
           onPlay={() => { if (isCurrentGeneration()) { setPaused(false); setEnded(false); } }}
           onPause={() => { if (isCurrentGeneration()) setPaused(true); }}
           onEnded={() => { if (isCurrentGeneration()) { setPaused(true); setEnded(true); } }}
+          onError={onMediaError}
           onTimeUpdate={onTimeUpdate}
         />
       );
@@ -319,6 +340,7 @@ function ShortsSlide({
             onPlay={() => { if (isCurrentGeneration()) { setPaused(false); setEnded(false); } }}
             onPause={() => { if (isCurrentGeneration()) setPaused(true); }}
             onEnded={() => { if (isCurrentGeneration()) { setPaused(true); setEnded(true); } }}
+            onError={onMediaError}
             onTimeUpdate={onTimeUpdate}
           />
         </div>
@@ -548,6 +570,16 @@ export function ShortsPage() {
 
   const playPreviousShort = useCallback(() => activateIndex(activeIndexRef.current - 1), [activateIndex]);
   const playNextShort = useCallback(() => activateIndex(activeIndexRef.current + 1), [activateIndex]);
+  const refreshShortItem = useCallback((hydrated: DiscoverableItem) => {
+    const hydratedKey = contentRuntimeItemKey(hydrated);
+    if (!hydratedKey) return;
+    hydratedKeys.current.add(hydratedKey);
+    setItems((current) => current.map((item) => (contentRuntimeItemKey(item) === hydratedKey ? hydrated : item)));
+    const currentActive = items[activeIndexRef.current];
+    if (currentActive && contentRuntimeItemKey(currentActive) === hydratedKey) {
+      setActiveGeneration((current) => current + 1);
+    }
+  }, [items]);
 
   return (
     <main className="shorts-page bg-black text-white">
@@ -565,6 +597,7 @@ export function ShortsPage() {
               muted={muted}
               onMutedChange={setMuted}
               onExplore={exploreWork}
+              onRefreshItem={refreshShortItem}
               onBack={leaveShorts}
               onPrevious={playPreviousShort}
               onNext={playNextShort}
