@@ -41,6 +41,25 @@ export function isReceiptStatusUnlocked(status: ReceiptAccessStatus | null | und
     lower(status.paymentStatus) === 'paid';
 }
 
+function receiptStatusHasPaymentProof(status: ReceiptAccessStatus | null | undefined): boolean {
+  if (!status) return false;
+  return Boolean(clean(status.receiptId) || clean(status.receiptToken) || clean(status.paymentIntentId));
+}
+
+function itemRequiresPaymentProof(item: DiscoverableItem): boolean {
+  const price = Number(item.priceSats || 0);
+  return (Number.isFinite(price) && price > 0) || lower(item.accessMode) === 'locked';
+}
+
+function urlCarriesPaymentProof(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return Boolean(clean(parsed.searchParams.get('receiptId')) || clean(parsed.searchParams.get('receiptToken')) || clean(parsed.searchParams.get('paymentIntentId')));
+  } catch {
+    return /[?&](receiptId|receiptToken|paymentIntentId)=/i.test(url);
+  }
+}
+
 export function receiptStatusMatchesItem(status: ReceiptAccessStatus | null | undefined, item: Pick<DiscoverableItem, 'contentId'>): boolean {
   if (!status) return false;
   const statusContentId = clean(status.contentId);
@@ -177,7 +196,7 @@ async function hydrateNodeAccessStatusForItem(item: DiscoverableItem): Promise<R
         receiptToken: status.receiptToken,
         unlocked: isReceiptStatusUnlocked(status),
       });
-      if (isReceiptStatusUnlocked(status)) {
+      if (isReceiptStatusUnlocked(status) && (!itemRequiresPaymentProof(item) || receiptStatusHasPaymentProof(status) || urlCarriesPaymentProof(url))) {
         rememberUnlockedAccessForItem(item);
         return status;
       }

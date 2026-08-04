@@ -15,17 +15,18 @@ export async function fetchCanonicalOfferPayload(offerUrls: string[]): Promise<R
 
   for (const offerUrl of urls) {
     try {
-      const response = await fetch(offerUrl, { credentials: 'include' });
+      const response = await fetch(offerUrl, { credentials: 'omit' });
       if (response.ok) {
         const offer = normalizeCanonicalOffer(await response.json());
         if (offer) return offer;
       }
+      lastError = new Error(`Offer unavailable: ${response.status}`);
     } catch {
-      // Anonymous fallback below keeps public preview playback working when credentialed CORS is unavailable.
+      // Credentialed fallback below keeps same-site/local node previews available when anonymous CORS is unavailable.
     }
 
     try {
-      const response = await fetch(offerUrl, { credentials: 'omit' });
+      const response = await fetch(offerUrl, { credentials: 'include' });
       if (response.ok) {
         const offer = normalizeCanonicalOffer(await response.json());
         if (offer) return offer;
