@@ -124,11 +124,27 @@ export function runAccessResolverRegressionChecks() {
   );
   assert(discoveryOwnedWithoutProof.isLocked && discoveryOwnedWithoutProof.playback.mode === 'preview', 'paid content does not infer ownership from discovery metadata');
 
-  const canonicalOwned = resolveAccessFromOffer(
+  const canonicalOwnedWithoutProof = resolveAccessFromOffer(
     item,
     paidOffer({ accessMode: 'owned', owned: true, hasFullAccess: true, playback: { mode: 'full', streamUrl: '/canonical-full.mp3', canPlayFull: true } }),
   );
-  assert(canonicalOwned.owned && canonicalOwned.playback.mode === 'full' && canonicalOwned.playback.streamUrl === '/canonical-full.mp3', 'paid owned canonical offer plays full');
+  assert(canonicalOwnedWithoutProof.isLocked && canonicalOwnedWithoutProof.playback.mode === 'preview', 'paid owned canonical offer does not unlock without receipt-backed proof');
+
+  const proofBackedCanonicalOwned = resolveAccessFromOffer(
+    item,
+    paidOffer({
+      accessMode: 'owned',
+      owned: true,
+      hasFullAccess: true,
+      playback: { mode: 'full', streamUrl: '/canonical-full.mp3', canPlayFull: true },
+      paymentAccessProof: {
+        paymentReceiptId: 'rct_offer_1',
+        paymentState: 'paid',
+        entitlementState: 'owned',
+      },
+    }),
+  );
+  assert(proofBackedCanonicalOwned.owned && proofBackedCanonicalOwned.playback.mode === 'full' && proofBackedCanonicalOwned.playback.streamUrl === '/canonical-full.mp3', 'proof-backed paid canonical offer plays full');
 
   const receiptCanonicalFull = resolveAccessFromOffer(
     item,

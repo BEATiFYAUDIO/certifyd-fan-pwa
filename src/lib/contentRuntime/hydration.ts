@@ -12,6 +12,27 @@ function previewSecondsValue(...values: unknown[]): DiscoverableItem['previewSec
   return null;
 }
 
+function text(value: unknown): string {
+  return String(value || '').trim();
+}
+
+function receiptPaymentAccessProof(receiptStatus: ReceiptAccessStatus | null): DiscoverableItem['paymentAccessProof'] {
+  if (!receiptStatus) return null;
+  const receiptId = text(receiptStatus.receiptId);
+  const receiptToken = text(receiptStatus.receiptToken);
+  const paymentIntentId = text(receiptStatus.paymentIntentId);
+  if (!receiptId && !receiptToken && !paymentIntentId) return null;
+  return {
+    paymentState: receiptStatus.paymentStatus || receiptStatus.status || 'paid',
+    entitlementState: receiptStatus.access || (receiptStatus.unlocked || receiptStatus.canFulfill ? 'owned' : null),
+    paymentReceiptId: receiptId || receiptToken || null,
+    receiptId: receiptId || null,
+    receiptToken: receiptToken || null,
+    paymentIntentId: paymentIntentId || null,
+    paidAt: receiptStatus.paidAt || null,
+  };
+}
+
 export function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer, receiptStatus: ReceiptAccessStatus | null): DiscoverableItem {
   const origin = item.publicOrigin;
   const access = resolveAccessFromOffer(item, offer, receiptStatus);
@@ -54,7 +75,7 @@ export function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffe
     primaryFileMime: typeof offer.primaryFileMime === 'string' ? offer.primaryFileMime : item.primaryFileMime,
     paymentAccessProof: offer.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
       ? offer.paymentAccessProof as DiscoverableItem['paymentAccessProof']
-      : item.paymentAccessProof,
+      : receiptPaymentAccessProof(receiptStatus) || item.paymentAccessProof,
   };
 }
 

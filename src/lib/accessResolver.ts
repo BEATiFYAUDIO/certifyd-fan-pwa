@@ -86,6 +86,31 @@ function hasPositiveEntitlement(proof: unknown): boolean {
     || ['paid', 'settled', 'succeeded', 'complete', 'completed'].includes(paymentState);
 }
 
+function hasPaymentProofValue(...values: unknown[]): boolean {
+  return values.some((value) => Boolean(text(value)));
+}
+
+function receiptStatusHasPaymentProof(status: ReceiptAccessStatus | null | undefined): boolean {
+  return hasPaymentProofValue(status?.receiptId, status?.receiptToken, status?.paymentIntentId);
+}
+
+function hasProofBackedOfferEntitlement(offer: CanonicalOffer | null): boolean {
+  if (!offer) return false;
+  const proof = offer.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
+    ? offer.paymentAccessProof as Record<string, unknown>
+    : null;
+  const hasProof = hasPaymentProofValue(
+    offer.receiptId,
+    offer.receiptToken,
+    offer.paymentIntentId,
+    proof?.paymentReceiptId,
+    proof?.receiptId,
+    proof?.receiptToken,
+    proof?.paymentIntentId,
+  );
+  return hasProof && hasPositiveEntitlement(proof || offer);
+}
+
 function normalizedAccessMode(value: unknown): DiscoverableItem['accessMode'] | null {
   const mode = lower(value);
   if (mode === 'owned' || mode === 'unlocked' || mode === 'locked') return mode;
@@ -109,12 +134,15 @@ export function resolveAccessFromOffer(item: DiscoverableItem, offer: CanonicalO
   const requestedMode = playback?.mode === 'full' || playback?.mode === 'preview' || playback?.mode === 'none'
     ? playback.mode
     : null;
-  const receiptUnlocked = receiptStatusMatchesItem(receiptStatus, item) && isReceiptStatusUnlocked(receiptStatus);
-  const hasViewerAccess = receiptUnlocked
-    || explicitTrue(offer?.hasFullAccess)
-    || explicitTrue(offer?.owned)
-    || offerAccessMode === 'owned'
-    || hasPositiveEntitlement(offer?.paymentAccessProof);
+  const receiptUnlocked = receiptStatusMatchesItem(receiptStatus, item) && isReceiptStatusUnlocked(receiptStatus) && (!isPaid || receiptStatusHasPaymentProof(receiptStatus));
+  const offerEntitlement = hasProofBackedOfferEntitlement(offer);
+  const hasViewerAccess = isPaid
+    ? receiptUnlocked || offerEntitlement
+    : receiptUnlocked
+      || explicitTrue(offer?.hasFullAccess)
+      || explicitTrue(offer?.owned)
+      || offerAccessMode === 'owned'
+      || hasPositiveEntitlement(offer?.paymentAccessProof);
   const canonicalPreviewStreamUrl = requestedMode === 'preview' ? playback?.streamUrl : null;
   const previewStreamUrl = firstText([playback?.previewUrl, canonicalPreviewStreamUrl, offer?.previewUrl, item.previewUrl]);
   const canonicalFullStreamUrl = requestedMode === 'full' && canPlayFull ? playback?.streamUrl : null;

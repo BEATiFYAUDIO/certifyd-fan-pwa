@@ -67,6 +67,10 @@ export type DiscoverableItem = {
     paymentState?: string | null;
     entitlementState?: string | null;
     paymentReceiptId?: string | null;
+    receiptId?: string | null;
+    receiptToken?: string | null;
+    paymentIntentId?: string | null;
+    paidAt?: string | null;
   } | null;
   canonicalPlayback?: {
     mode?: 'full' | 'preview' | 'none' | string | null;
