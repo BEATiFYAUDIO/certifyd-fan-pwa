@@ -138,6 +138,35 @@ function ShortsSlide({
     media.muted = muted;
   }, [muted]);
 
+  const ensureMediaSourceReady = useCallback(async (media: HTMLMediaElement) => {
+    if (!activeMediaSrc) return false;
+    const hasExpectedSource = media.currentSrc === activeMediaSrc || media.getAttribute('src') === activeMediaSrc;
+    if (!hasExpectedSource) {
+      media.src = activeMediaSrc;
+      try { media.load(); } catch { /* ignore */ }
+    }
+    if (media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return true;
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const cleanup = () => {
+        media.removeEventListener('loadeddata', onReady);
+        media.removeEventListener('canplay', onReady);
+        media.removeEventListener('error', onReady);
+      };
+      const onReady = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve();
+      };
+      media.addEventListener('loadeddata', onReady, { once: true });
+      media.addEventListener('canplay', onReady, { once: true });
+      media.addEventListener('error', onReady, { once: true });
+      window.setTimeout(onReady, 1500);
+    });
+    return media.readyState >= HTMLMediaElement.HAVE_METADATA;
+  }, [activeMediaSrc]);
+
   useEffect(() => {
     const media = mediaRef.current;
     const generation = activeGeneration;
@@ -187,14 +216,15 @@ function ShortsSlide({
       const playAttempt = playAttemptRef.current + 1;
       playAttemptRef.current = playAttempt;
       const generation = activeGeneration;
-      const playPromise = media.play();
+      if (ended && playbackState.playback.mode === 'preview') {
+        try { media.currentTime = 0; } catch { /* ignore */ }
+        setProgress(0);
+      }
       setPaused(false);
       setEnded(false);
-      if (playPromise && typeof playPromise.catch === 'function') {
-        playPromise.catch(() => {
-          if (generationRef.current === generation && playAttemptRef.current === playAttempt) setPaused(true);
-        });
-      }
+      void ensureMediaSourceReady(media).then(() => media.play()).catch(() => {
+        if (generationRef.current === generation && playAttemptRef.current === playAttempt) setPaused(true);
+      });
       return;
     }
     media.pause();

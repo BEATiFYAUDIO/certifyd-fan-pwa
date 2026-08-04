@@ -25,8 +25,30 @@ async function cleanupLegacyServiceWorkers() {
   }
 }
 
+if ('serviceWorker' in navigator) {
+  let reloadingForServiceWorkerUpdate = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloadingForServiceWorkerUpdate) return;
+    reloadingForServiceWorkerUpdate = true;
+    window.location.reload();
+  });
+}
+
 void cleanupLegacyServiceWorkers().finally(() => {
-  registerSW({ immediate: true });
+  let applyServiceWorkerUpdate: ((reloadPage?: boolean) => Promise<void>) | undefined;
+  applyServiceWorkerUpdate = registerSW({
+    immediate: true,
+    onNeedRefresh() {
+      void applyServiceWorkerUpdate?.(true);
+    },
+    onRegisteredSW(_scriptUrl, registration) {
+      if (!registration) return;
+      void registration.update();
+      window.setInterval(() => {
+        void registration.update();
+      }, 15 * 60 * 1000);
+    },
+  });
 });
 
 createRoot(document.getElementById('root')!).render(

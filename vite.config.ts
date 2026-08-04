@@ -15,6 +15,20 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'favicon-16.png', 'favicon-32.png', 'favicon-64.png', 'apple-touch-icon.png'],
       workbox: {
         navigateFallback: `${BASE}index.html`,
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) =>
+              url.pathname.startsWith('/api/') ||
+              url.pathname.startsWith('/public/content/') ||
+              url.pathname.startsWith('/buy/') ||
+              url.pathname.startsWith('/content/'),
+            handler: 'NetworkOnly',
+            method: 'GET',
+          },
+        ],
       },
       manifest: {
         name: 'Certifyd',
