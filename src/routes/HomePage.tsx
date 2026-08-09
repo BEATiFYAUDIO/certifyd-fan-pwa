@@ -24,6 +24,7 @@ import { BUNDLES_EVENT, createBundle, encodeSharedBundle, listBundles, sharedBun
 import { itemIdFromDiscoverable, parseItemId } from '../lib/libraryStore';
 import { loadDiscoverableById } from '../lib/contentRuntime/discovery';
 import { hydrateCanonicalOfferForItem } from '../lib/contentRuntime/hydration';
+import { selectFastestMovingItems } from '../lib/fastestMoving';
 
 const INITIAL_PAGE_LIMIT = 8;
 const NEXT_PAGE_LIMIT = 18;
@@ -352,7 +353,7 @@ function signalNumber(value: unknown): number {
 }
 
 function signalWorkKey(work: DiscoverySignalWork): string {
-  return `${work.publicOrigin || ''}::${work.contentId}`;
+  return `${normalizeOriginKey(work.publicOrigin || '')}::${work.contentId}`;
 }
 
 function hasExplicitRelationshipSummary(work: DiscoverySignalWork): boolean {
@@ -1853,7 +1854,12 @@ export function HomePage() {
 
     const connectedScoped = signalWorks.connectedItems.filter(inActiveScope);
     const topSellingScoped = signalWorks.topSellingItems.filter(inActiveScope);
-    const movingScoped = signalWorks.fastestMovingItems.filter(inActiveScope);
+    const movingScoped = selectFastestMovingItems({
+      signals,
+      topic,
+      query,
+      canonicalItems: localCreatorHydrationItems,
+    });
 
     const connected = connectedScoped.length > 0 ? connectedScoped.slice(0, 12) : [];
     const topSelling = topSellingScoped.slice(0, 12);
@@ -1894,7 +1900,7 @@ export function HomePage() {
       });
     }
     return surfaces.slice(0, 3);
-  }, [inActiveScope, signalScoreByWork, signalWorks]);
+  }, [inActiveScope, localCreatorHydrationItems, query, signalScoreByWork, signalWorks, signals, topic]);
   const boardRecentItems = useMemo(() => {
     const signalRecent = [
       ...signalWorks.recentlyAddedItems,
