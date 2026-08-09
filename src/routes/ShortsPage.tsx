@@ -4,7 +4,7 @@ import { useStage1APlayer, type Stage1APlayerSnapshot } from '../components/stag
 import { canonicalCreatorProfileUrlForItem } from '../lib/destinations';
 import { canOpenCreator, isRenderableDiscoveryItem } from '../lib/discoveryGuard';
 import { buyUrlWithFanReturnUrl } from '../lib/fanReturnUrl';
-import { contentRuntimeItemKey, hydrateCanonicalOfferForItem, loadShortsRuntimeQueue, normalizeTopic, resolveRuntimePlayback } from '../lib/contentRuntime';
+import { contentRuntimeItemKey, hydrateCanonicalOfferForItem, loadShortsRuntimeQueue, normalizeTopic, resolveRuntimePlayback, shouldAttemptShortsPlayback, shortsPlaybackAttemptKey } from '../lib/contentRuntime';
 import { normalizeCanonicalOrigin } from '../lib/origin';
 import { getCardThemeVars } from '../lib/profileTheme';
 import type { DiscoverableItem, Topic } from '../lib/types';
@@ -50,6 +50,7 @@ function ShortsSlide({
   canNext,
   slideRef,
   index,
+  premiumOnly,
 }: {
   item: DiscoverableItem;
   active: boolean;
@@ -66,12 +67,15 @@ function ShortsSlide({
   canNext: boolean;
   slideRef: (node: HTMLElement | null) => void;
   index: number;
+  premiumOnly: boolean;
 }) {
   const mediaRef = useRef<HTMLMediaElement | null>(null);
   const activeRef = useRef(false);
   const generationRef = useRef(0);
   const playAttemptRef = useRef(0);
   const mediaErrorRefreshRef = useRef('');
+  const loadedMediaSrcRef = useRef('');
+  const lastAutoPlaybackKeyRef = useRef('');
   const [paused, setPaused] = useState(true);
   const [ended, setEnded] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -172,6 +176,22 @@ function ShortsSlide({
     return media.readyState >= HTMLMediaElement.HAVE_METADATA;
   }, [activeMediaSrc, muted]);
 
+  const onMediaError = useCallback(() => {
+    if (!active || !activeMediaSrc || mediaErrorRefreshRef.current === activeMediaSrc) {
+      if (isCurrentGeneration()) setPaused(true);
+      return;
+    }
+    mediaErrorRefreshRef.current = activeMediaSrc;
+    void hydrateCanonicalOfferForItem(item, { trustCanonicalFullPlayback: premiumOnly })
+      .then((hydrated) => {
+        if (!isCurrentGeneration()) return;
+        onRefreshItem(hydrated);
+      })
+      .catch(() => {
+        if (isCurrentGeneration()) setPaused(true);
+      });
+  }, [active, activeMediaSrc, isCurrentGeneration, item, onRefreshItem, premiumOnly]);
+
   const requestPlayback = useCallback((media: HTMLMediaElement, generation: number, playAttempt: number) => {
     media.defaultMuted = muted;
     media.muted = muted;
@@ -190,7 +210,7 @@ function ShortsSlide({
         }
         setPaused(media.paused);
       });
-  }, [activeMediaSrc, ensureMediaSourceReady, muted]);
+  }, [activeMediaSrc, ensureMediaSourceReady, muted, onMediaError]);
 
   useEffect(() => {
     const media = mediaRef.current;
@@ -211,9 +231,21 @@ function ShortsSlide({
     }
     media.setAttribute('playsinline', 'true');
     media.preload = 'auto';
+    if (loadedMediaSrcRef.current !== playbackState.streamUrl) {
+      loadedMediaSrcRef.current = playbackState.streamUrl;
+      mediaErrorRefreshRef.current = '';
+      setProgress(0);
+      setDuration(0);
+      setEnded(false);
+      if (media.getAttribute('src') !== playbackState.streamUrl) media.src = playbackState.streamUrl;
+      try { media.load(); } catch { /* ignore */ }
+    }
     queueMicrotask(() => {
       if (generationRef.current === generation) setEnded(false);
     });
+    const autoplayKey = shortsPlaybackAttemptKey(active, generation, playbackState.streamUrl);
+    if (!shouldAttemptShortsPlayback(lastAutoPlaybackKeyRef.current, autoplayKey)) return undefined;
+    lastAutoPlaybackKeyRef.current = autoplayKey;
     const playAttempt = playAttemptRef.current + 1;
     playAttemptRef.current = playAttempt;
     requestPlayback(media, generation, playAttempt);
@@ -261,22 +293,6 @@ function ShortsSlide({
     const limit = playbackState.playback.mode === 'preview' ? playbackState.playback.previewLimitSeconds : null;
     const mediaDuration = Number.isFinite(media.duration) ? media.duration : 0;
     setDuration(limit && mediaDuration ? Math.min(mediaDuration, limit) : limit || mediaDuration || 0);
-  };
-
-  const onMediaError = () => {
-    if (!active || !activeMediaSrc || mediaErrorRefreshRef.current === activeMediaSrc) {
-      if (isCurrentGeneration()) setPaused(true);
-      return;
-    }
-    mediaErrorRefreshRef.current = activeMediaSrc;
-    void hydrateCanonicalOfferForItem(item)
-      .then((hydrated) => {
-        if (!isCurrentGeneration()) return;
-        onRefreshItem(hydrated);
-      })
-      .catch(() => {
-        if (isCurrentGeneration()) setPaused(true);
-      });
   };
 
   const onTimeUpdate = () => {
@@ -552,7 +568,7 @@ export function ShortsPage() {
     let active = true;
     if (!activeItem || !activeKey || hydratedKeys.current.has(activeKey) || pendingHydrationKeys.current.has(activeKey)) return;
     pendingHydrationKeys.current.add(activeKey);
-    void hydrateCanonicalOfferForItem(activeItem)
+    void hydrateCanonicalOfferForItem(activeItem, { trustCanonicalFullPlayback: premiumOnly })
       .then((hydrated) => {
         pendingHydrationKeys.current.delete(activeKey);
         hydratedKeys.current.add(activeKey);
@@ -568,7 +584,7 @@ export function ShortsPage() {
     return () => {
       active = false;
     };
-  }, [activeIndex, activeItem, activeKey]);
+  }, [activeIndex, activeItem, activeKey, premiumOnly]);
 
   const exploreWork = useCallback((item: DiscoverableItem) => {
     navigate(watchHrefForItem(item), { state: { item } });
@@ -587,6 +603,9 @@ export function ShortsPage() {
     setActiveGeneration((current) => current + 1);
     setActiveIndex(nextIndex);
     sectionRefs.current[nextIndex]?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    window.setTimeout(() => {
+      if (activeIndexRef.current === nextIndex) setActiveGeneration((current) => current + 1);
+    }, 350);
   }, [items.length]);
 
   const playPreviousShort = useCallback(() => activateIndex(activeIndexRef.current - 1), [activateIndex]);
@@ -625,6 +644,7 @@ export function ShortsPage() {
               canPrevious={activeIndex > 0}
               canNext={activeIndex < items.length - 1}
               index={index}
+              premiumOnly={premiumOnly}
               slideRef={(node) => {
                 sectionRefs.current[index] = node;
               }}

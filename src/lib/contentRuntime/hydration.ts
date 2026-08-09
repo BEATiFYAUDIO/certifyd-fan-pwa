@@ -5,6 +5,10 @@ import type { DiscoverableItem } from '../types';
 import { fetchCanonicalOfferForItem } from './offers';
 import { resolveAbsoluteUrl } from './urls';
 
+export type CanonicalHydrationOptions = {
+  trustCanonicalFullPlayback?: boolean;
+};
+
 function previewSecondsValue(...values: unknown[]): DiscoverableItem['previewSeconds'] {
   for (const value of values) {
     if (typeof value === 'number' || typeof value === 'string' || value === null) return value;
@@ -33,10 +37,23 @@ function receiptPaymentAccessProof(receiptStatus: ReceiptAccessStatus | null): D
   };
 }
 
-export function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffer, receiptStatus: ReceiptAccessStatus | null): DiscoverableItem {
+export function mergeCanonicalOffer(
+  item: DiscoverableItem,
+  offer: CanonicalOffer,
+  receiptStatus: ReceiptAccessStatus | null,
+  options: CanonicalHydrationOptions = {},
+): DiscoverableItem {
   const origin = item.publicOrigin;
-  const access = resolveAccessFromOffer(item, offer, receiptStatus);
+  const access = resolveAccessFromOffer(item, offer, receiptStatus, {
+    trustCanonicalFullPlayback: options.trustCanonicalFullPlayback,
+  });
   if (access.owned) rememberUnlockedAccessForItem(item);
+  const canonicalPlaybackAuthorized = Boolean(
+    options.trustCanonicalFullPlayback &&
+    access.playback.mode === 'full' &&
+    access.playback.canPlayFull &&
+    access.playback.streamUrl,
+  );
   return {
     ...item,
     title: typeof offer.title === 'string' && offer.title.trim() ? offer.title : item.title,
@@ -71,6 +88,7 @@ export function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffe
     owned: access.owned,
     canonicalPlayback: access.playback,
     canonicalOfferHydrated: true,
+    canonicalPlaybackAuthorized,
     previewSeconds: previewSecondsValue(access.playback.previewLimitSeconds, offer.previewSeconds, offer.previewDurationSeconds, offer.previewLimitSeconds, item.previewSeconds),
     primaryFileMime: typeof offer.primaryFileMime === 'string' ? offer.primaryFileMime : item.primaryFileMime,
     paymentAccessProof: offer.paymentAccessProof && typeof offer.paymentAccessProof === 'object'
@@ -79,7 +97,7 @@ export function mergeCanonicalOffer(item: DiscoverableItem, offer: CanonicalOffe
   };
 }
 
-export async function hydrateCanonicalOfferForItem(item: DiscoverableItem): Promise<DiscoverableItem> {
+export async function hydrateCanonicalOfferForItem(item: DiscoverableItem, options: CanonicalHydrationOptions = {}): Promise<DiscoverableItem> {
   const { offer, receiptStatus } = await fetchCanonicalOfferForItem(item);
-  return offer ? mergeCanonicalOffer(item, offer, receiptStatus) : item;
+  return offer ? mergeCanonicalOffer(item, offer, receiptStatus, options) : item;
 }

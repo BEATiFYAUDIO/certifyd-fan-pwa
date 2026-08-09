@@ -4,5 +4,6 @@ export * from './offers';
 export * from './urls';
 export * from './playback';
 export * from './shorts';
+export * from './shortsPlayback';
 export * from './render';
 export * from './surface';

@@ -9,11 +9,13 @@ export function contentRuntimeItemKey(item: Pick<DiscoverableItem, 'contentId' |
   return `${normalizeCanonicalOrigin(item.publicOrigin) || item.publicOrigin}::${item.contentId}`;
 }
 
-async function hydrateShortsQueue(queue: DiscoverableItem[], limit: number): Promise<DiscoverableItem[]> {
+async function hydrateShortsQueue(queue: DiscoverableItem[], limit: number, options: { premiumOnly?: boolean } = {}): Promise<DiscoverableItem[]> {
   const hydratedItems = await Promise.all(
     queue.slice(0, limit).map(async (item) => {
       try {
-        return await hydrateCanonicalOfferForItem(item);
+        return await hydrateCanonicalOfferForItem(item, {
+          trustCanonicalFullPlayback: options.premiumOnly === true,
+        });
       } catch {
         return item;
       }
@@ -53,7 +55,7 @@ export async function loadShortsRuntimeQueue(
     }
   }
   if ((contentId || options.premiumOnly) && queue[0]) {
-    queue = await hydrateShortsQueue(queue, Math.min(queue.length, 3));
+    queue = await hydrateShortsQueue(queue, Math.min(queue.length, 3), { premiumOnly: options.premiumOnly });
   }
   return queue;
 }

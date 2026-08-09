@@ -81,6 +81,7 @@ export type DiscoverableItem = {
     reason?: string | null;
   } | null;
   canonicalOfferHydrated?: boolean;
+  canonicalPlaybackAuthorized?: boolean;
   publicOrigin: string;
   creatorAvatarUrl?: string | null;
   creatorProfileImageUrl?: string | null;

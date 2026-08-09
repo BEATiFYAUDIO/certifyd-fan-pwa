@@ -13,7 +13,11 @@ export type RuntimePlaybackState = {
   renderKind: RuntimeRenderKind;
 };
 
-export function resolveRuntimePlayback(item: DiscoverableItem): RuntimePlaybackState {
+export type RuntimePlaybackOptions = {
+  trustCanonicalFullPlayback?: boolean;
+};
+
+export function resolveRuntimePlayback(item: DiscoverableItem, options: RuntimePlaybackOptions = {}): RuntimePlaybackState {
   const display = displayStateFromItem(item);
   const pseudoOffer: CanonicalOffer = {
     priceSats: item.priceSats,
@@ -30,7 +34,9 @@ export function resolveRuntimePlayback(item: DiscoverableItem): RuntimePlaybackS
     paymentAccessProof: item.paymentAccessProof,
     playback: item.canonicalPlayback && typeof item.canonicalPlayback === 'object' ? item.canonicalPlayback : undefined,
   };
-  const access = resolveAccessFromOffer(item, pseudoOffer);
+  const access = resolveAccessFromOffer(item, pseudoOffer, null, {
+    trustCanonicalFullPlayback: options.trustCanonicalFullPlayback || item.canonicalPlaybackAuthorized === true,
+  });
   const streamUrl = resolveAbsoluteUrl(access.playback.streamUrl, item.publicOrigin);
   const playbackDisplay = displayStateFromPlayback(access.playback, {
     priceSats: access.priceSats,

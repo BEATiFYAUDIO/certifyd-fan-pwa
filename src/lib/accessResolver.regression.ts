@@ -130,6 +130,25 @@ export function runAccessResolverRegressionChecks() {
   );
   assert(canonicalOwnedWithoutProof.isLocked && canonicalOwnedWithoutProof.playback.mode === 'preview', 'paid owned canonical offer does not unlock without receipt-backed proof');
 
+  const premiumDropTrustedCanonicalFull = resolveAccessFromOffer(
+    item,
+    paidOffer({ accessMode: 'locked', playback: { mode: 'full', streamUrl: '/premium-drop-full.mp3', canPlayFull: true } }),
+    null,
+    { trustCanonicalFullPlayback: true },
+  );
+  assert(!premiumDropTrustedCanonicalFull.isLocked, 'premium drops trust freshly hydrated canonical full playback');
+  assert(premiumDropTrustedCanonicalFull.owned && premiumDropTrustedCanonicalFull.accessMode === 'owned', 'premium drops canonical full playback resolves owned state');
+  assert(premiumDropTrustedCanonicalFull.playback.mode === 'full', 'premium drops canonical full playback resolves full mode');
+  assert(premiumDropTrustedCanonicalFull.playback.streamUrl === '/premium-drop-full.mp3', 'premium drops canonical full playback uses canonical full stream');
+
+  const premiumDropCanonicalPreview = resolveAccessFromOffer(
+    item,
+    paidOffer({ accessMode: 'owned', owned: true, hasFullAccess: true, playback: { mode: 'preview', streamUrl: '/premium-drop-preview.mp3', canPlayFull: false } }),
+    null,
+    { trustCanonicalFullPlayback: true },
+  );
+  assert(premiumDropCanonicalPreview.isLocked && premiumDropCanonicalPreview.playback.mode === 'preview', 'premium drops do not unlock when canonical offer only authorizes preview');
+
   const proofBackedCanonicalOwned = resolveAccessFromOffer(
     item,
     paidOffer({

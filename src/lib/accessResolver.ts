@@ -22,6 +22,10 @@ export type ResolvedAccess = {
   playback: ResolvedPlayback;
 };
 
+export type ResolveAccessOptions = {
+  trustCanonicalFullPlayback?: boolean;
+};
+
 function text(value: unknown): string {
   return String(value || '').trim();
 }
@@ -121,7 +125,12 @@ function playbackRecord(offer: CanonicalOffer | null): Record<string, unknown> |
   return offer?.playback && typeof offer.playback === 'object' ? offer.playback as Record<string, unknown> : null;
 }
 
-export function resolveAccessFromOffer(item: DiscoverableItem, offer: CanonicalOffer | null, receiptStatus?: ReceiptAccessStatus | null): ResolvedAccess {
+export function resolveAccessFromOffer(
+  item: DiscoverableItem,
+  offer: CanonicalOffer | null,
+  receiptStatus?: ReceiptAccessStatus | null,
+  options: ResolveAccessOptions = {},
+): ResolvedAccess {
   const playback = playbackRecord(offer);
   const offerAccessMode = normalizedAccessMode(offer?.accessMode);
   const accessMode = offerAccessMode || item.accessMode;
@@ -134,10 +143,16 @@ export function resolveAccessFromOffer(item: DiscoverableItem, offer: CanonicalO
   const requestedMode = playback?.mode === 'full' || playback?.mode === 'preview' || playback?.mode === 'none'
     ? playback.mode
     : null;
+  const canonicalFullPlaybackAuthorized = Boolean(
+    options.trustCanonicalFullPlayback &&
+    requestedMode === 'full' &&
+    canPlayFull &&
+    text(playback?.streamUrl),
+  );
   const receiptUnlocked = receiptStatusMatchesItem(receiptStatus, item) && isReceiptStatusUnlocked(receiptStatus) && (!isPaid || receiptStatusHasPaymentProof(receiptStatus));
   const offerEntitlement = hasProofBackedOfferEntitlement(offer);
   const hasViewerAccess = isPaid
-    ? receiptUnlocked || offerEntitlement
+    ? canonicalFullPlaybackAuthorized || receiptUnlocked || offerEntitlement
     : receiptUnlocked
       || explicitTrue(offer?.hasFullAccess)
       || explicitTrue(offer?.owned)
