@@ -27,6 +27,10 @@ const AUTOPLAY_STORAGE_KEY = 'certifyd-player:autoplay-next:v1';
 const QUEUE_STORAGE_KEY = 'certifyd-player:queue:v1';
 const MAX_RECENT_ITEMS = 24;
 
+function shouldDebugReceipts(): boolean {
+  return typeof window !== 'undefined' && window.localStorage.getItem('certifyd:debug:receipts') === 'true';
+}
+
 function isHlsStreamUrl(value: string): boolean {
   try {
     const url = new URL(value, typeof window !== 'undefined' ? window.location.href : 'https://fan.certifyd.me/');
@@ -107,7 +111,7 @@ async function fetchCanonicalOffer(item: DiscoverableItem): Promise<CanonicalOff
     paidAt: typeof paymentAccessProof?.paidAt === 'string' ? paymentAccessProof.paidAt : typeof offer?.paidAt === 'string' ? offer.paidAt : undefined,
   });
   if (!receiptStatus) receiptStatus = await hydrateReceiptStatusForItem(item);
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+  if (shouldDebugReceipts()) {
     console.debug('[Certifyd receipt propagation]', 'Player offer hydration result', {
       item: { contentId: item.contentId, publicOrigin: item.publicOrigin },
       receiptStatus,
@@ -651,7 +655,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
       const access = resolveAccessFromOffer(nextItem, offer, receiptStatus);
       if (access.owned) rememberUnlockedAccessForItem(nextItem);
       const playback = access.playback;
-      if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      if (shouldDebugReceipts()) {
         console.debug('[Certifyd receipt propagation]', 'Player resolved access and final playback', {
           item: { contentId: nextItem.contentId, publicOrigin: nextItem.publicOrigin },
           receiptStatus,
@@ -906,7 +910,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     const isAbort = error?.code === MediaError.MEDIA_ERR_ABORTED;
 
     if (isStaleMedia || isStaleSource || isAbort) {
-      if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      if (shouldDebugReceipts()) {
         console.debug('[Certifyd media error ignored]', {
           isStaleMedia,
           isStaleSource,

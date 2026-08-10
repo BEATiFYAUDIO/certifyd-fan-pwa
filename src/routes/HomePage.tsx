@@ -33,7 +33,7 @@ const RETRY_BASE_MS = 4000;
 const RETRY_MAX_MS = 60000;
 const ORIGIN_SOFT_DISABLE_AFTER_FAILS = 3;
 const ORIGIN_SOFT_DISABLE_MS = 5 * 60 * 1000;
-const MAX_ORIGINS_PER_PASS = 6;
+const MAX_ORIGINS_PER_PASS = 3;
 const HOME_REFRESH_INTERVAL_MS = 90_000;
 const HOME_RANDOM_SEED = `all:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
 
@@ -1538,7 +1538,7 @@ export function HomePage() {
     const isFirstPagePass = currentItems.length === 0 || currentFeeds.every((feed) => feed.cursor === null && !feed.done);
     const startOffset = pendingIndexes.length > 0 ? originPassOffsetRef.current % pendingIndexes.length : 0;
     const rotated = pendingIndexes.slice(startOffset).concat(pendingIndexes.slice(0, startOffset));
-    const selectedIndexes = isFirstPagePass ? rotated : rotated.slice(0, MAX_ORIGINS_PER_PASS);
+    const selectedIndexes = rotated.slice(0, MAX_ORIGINS_PER_PASS);
     originPassOffsetRef.current += 1;
 
     const requestId = ++requestIdRef.current;

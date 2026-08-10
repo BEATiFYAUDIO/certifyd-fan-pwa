@@ -24,7 +24,7 @@ function clean(value: unknown): string {
 
 function debugReceiptPropagation(...args: unknown[]) {
   if (typeof window === 'undefined') return;
-  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') return;
+  if (window.localStorage.getItem('certifyd:debug:receipts') !== 'true') return;
   console.debug('[Certifyd receipt propagation]', ...args);
 }
 
@@ -106,6 +106,7 @@ function isNewsmaxItem(item: Pick<DiscoverableItem, 'contentId' | 'publicOrigin'
 
 function debugNewsmaxAccess(...args: unknown[]) {
   if (typeof window === 'undefined') return;
+  if (window.localStorage.getItem('certifyd:debug:receipts') !== 'true') return;
   console.debug('[Certifyd Newsmax receipt proof]', ...args);
 }
 
