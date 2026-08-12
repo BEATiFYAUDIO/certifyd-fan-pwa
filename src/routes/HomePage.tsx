@@ -661,12 +661,31 @@ function dedupeSignalWorks(works: DiscoverySignalWork[]): DiscoverySignalWork[] 
 function fillDiscoveryItems(primary: DiscoverableItem[], fallback: DiscoverableItem[], limit: number): DiscoverableItem[] {
   const seen = new Set<string>();
   const merged: DiscoverableItem[] = [];
-  for (const item of [...primary, ...fallback]) {
+  const add = (item: DiscoverableItem) => {
     const key = itemKey(item);
-    if (!key || seen.has(key)) continue;
+    if (!key || seen.has(key)) return;
     seen.add(key);
     merged.push(item);
-    if (merged.length >= limit) break;
+  };
+  for (const item of primary) {
+    add(item);
+    if (merged.length >= limit) return merged;
+  }
+  const fallbackByCreator = new Map<string, DiscoverableItem[]>();
+  for (const item of fallback) {
+    const key = `${normalizeOriginKey(item.publicOrigin)}::${String(item.creatorHandle || '').replace(/^@+/, '').toLowerCase() || item.contentId}`;
+    if (!fallbackByCreator.has(key)) fallbackByCreator.set(key, []);
+    fallbackByCreator.get(key)?.push(item);
+  }
+  const groups = [...fallbackByCreator.values()];
+  let offset = 0;
+  while (merged.length < limit && groups.some((group) => group.length > offset)) {
+    for (const group of groups) {
+      const item = group[offset];
+      if (item) add(item);
+      if (merged.length >= limit) return merged;
+    }
+    offset += 1;
   }
   return merged;
 }
@@ -1871,6 +1890,7 @@ export function HomePage() {
       ...signalWorks.mostSupportedItems,
       ...signalWorks.recentlySupportedItems,
       ...signalWorks.fastestMovingItems,
+      ...lockedItems,
     ].filter(inActiveScope);
     const movingScoped = selectFastestMovingItems({
       signals,
@@ -1880,7 +1900,11 @@ export function HomePage() {
     });
 
     const connected = connectedScoped.length > 0 ? connectedScoped.slice(0, 12) : [];
-    const topSelling = fillDiscoveryItems(topSellingScoped, topSellingFallbackScoped, 12);
+    const topSellingFallback = [
+      ...topSellingFallbackScoped.filter(isLockedOrPremium),
+      ...topSellingFallbackScoped.filter((item) => !isLockedOrPremium(item)),
+    ];
+    const topSelling = fillDiscoveryItems(topSellingScoped, topSellingFallback, 12);
     const usedSignalKeys = new Set([...connected, ...topSelling].map(itemKey));
     const moving = movingScoped.length > 0
       ? movingScoped.filter((item) => !usedSignalKeys.has(itemKey(item))).slice(0, 12)
