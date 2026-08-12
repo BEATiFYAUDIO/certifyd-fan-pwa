@@ -797,7 +797,7 @@ function RankingRow({
 function RankedSurfaceCard({ surface, id, queueSource = 'board' }: { surface: RankedSurface; id?: string; queueSource?: 'board' | 'search' | 'manual' | 'library' }) {
   if (surface.items.length === 0) return null;
   const showPrice = surface.key === 'unlockable-works';
-  const visibleItems = surface.items.slice(0, 5);
+  const visibleItems = surface.items.slice(0, 4);
   return (
     <section id={id || surface.key} className="signal-surface-card min-w-0 scroll-mt-40 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">

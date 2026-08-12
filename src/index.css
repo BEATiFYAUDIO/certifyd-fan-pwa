@@ -2282,11 +2282,6 @@ body.has-shorts-mode .certifyd-player-center {
     align-items: stretch;
   }
 
-  .top-activity-grid > .signal-surface-card,
-  .top-activity-grid > .creator-network-card {
-    min-height: 25.5rem;
-  }
-
   .top-activity-grid .signal-row,
   .top-activity-grid .creator-row {
     min-height: 4.65rem;
