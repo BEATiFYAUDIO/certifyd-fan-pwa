@@ -658,6 +658,19 @@ function dedupeSignalWorks(works: DiscoverySignalWork[]): DiscoverySignalWork[] 
   return [...seen.values()];
 }
 
+function fillDiscoveryItems(primary: DiscoverableItem[], fallback: DiscoverableItem[], limit: number): DiscoverableItem[] {
+  const seen = new Set<string>();
+  const merged: DiscoverableItem[] = [];
+  for (const item of [...primary, ...fallback]) {
+    const key = itemKey(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+    if (merged.length >= limit) break;
+  }
+  return merged;
+}
+
 function normalizeRelationshipIdentity(value: string | null | undefined): string {
   return String(value || '')
     .trim()
@@ -797,7 +810,7 @@ function RankingRow({
 function RankedSurfaceCard({ surface, id, queueSource = 'board' }: { surface: RankedSurface; id?: string; queueSource?: 'board' | 'search' | 'manual' | 'library' }) {
   if (surface.items.length === 0) return null;
   const showPrice = surface.key === 'unlockable-works';
-  const visibleItems = surface.items.slice(0, 4);
+  const visibleItems = surface.items.slice(0, 5);
   return (
     <section id={id || surface.key} className="signal-surface-card min-w-0 scroll-mt-40 break-inside-avoid overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-2.5 shadow-xl shadow-black/20 sm:p-3">
       <div className="flex min-w-0 items-start justify-between gap-3 px-1">
@@ -1854,6 +1867,11 @@ export function HomePage() {
 
     const connectedScoped = signalWorks.connectedItems.filter(inActiveScope);
     const topSellingScoped = signalWorks.topSellingItems.filter(inActiveScope);
+    const topSellingFallbackScoped = [
+      ...signalWorks.mostSupportedItems,
+      ...signalWorks.recentlySupportedItems,
+      ...signalWorks.fastestMovingItems,
+    ].filter(inActiveScope);
     const movingScoped = selectFastestMovingItems({
       signals,
       topic,
@@ -1862,7 +1880,7 @@ export function HomePage() {
     });
 
     const connected = connectedScoped.length > 0 ? connectedScoped.slice(0, 12) : [];
-    const topSelling = topSellingScoped.slice(0, 12);
+    const topSelling = fillDiscoveryItems(topSellingScoped, topSellingFallbackScoped, 12);
     const usedSignalKeys = new Set([...connected, ...topSelling].map(itemKey));
     const moving = movingScoped.length > 0
       ? movingScoped.filter((item) => !usedSignalKeys.has(itemKey(item))).slice(0, 12)
