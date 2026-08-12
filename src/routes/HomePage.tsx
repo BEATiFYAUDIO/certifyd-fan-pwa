@@ -79,7 +79,7 @@ function RailHeader({ title, subtitle, badge }: { title: string; subtitle: strin
 }
 
 function itemKey(item: DiscoverableItem): string {
-  return `${item.publicOrigin}::${item.contentId}`;
+  return `${normalizeOriginKey(item.publicOrigin)}::${item.contentId}`;
 }
 
 function normalizeOriginKey(value: string | null | undefined): string {
@@ -753,6 +753,8 @@ function RankingRow({
   const relationshipBadges = Array.isArray(item.relationshipBadges) ? item.relationshipBadges.slice(0, contributors.length ? 2 : 3) : [];
   const priceLine = showPrice ? formatSatsPrice(item.priceSats) : null;
   const playbackDisplay = displayStateFromItem(item);
+  const numericScore = Number(score);
+  const hasScoreEvidence = Number.isFinite(numericScore);
   const [imageFailed, setImageFailed] = useState(false);
   const themeVars = useMemo(() => getCardThemeVars(item.profileTheme), [item.profileTheme]);
   return (
@@ -815,9 +817,9 @@ function RankingRow({
             </div>
           ) : null}
         </div>
-        {score && score > 0 ? (
+        {hasScoreEvidence ? (
           <div className="hidden w-16 shrink-0 text-right min-[380px]:block">
-            <div className="creator-themed-link text-sm font-bold">{formatCount(score)}</div>
+            <div className="creator-themed-link text-sm font-bold">{formatCount(Math.max(0, numericScore))}</div>
             <div className="text-[9px] uppercase tracking-wide text-zinc-500">{scoreLabel || 'signals'}</div>
           </div>
         ) : null}
@@ -1880,17 +1882,37 @@ export function HomePage() {
     () => (topic === 'all' ? sortStableRandom(discoveryView.lockedItems, `${randomSeed}:locked:view`) : discoveryView.lockedItems),
     [discoveryView.lockedItems, topic, randomSeed]
   );
+  const scoreEvidenceForItem = useCallback((item: DiscoverableItem): number => {
+    const scores = signalScoreByWork.get(itemKey(item));
+    const strongestSignal = Math.max(
+      Number(scores?.unlock || 0),
+      Number(scores?.support || 0),
+      Number(scores?.moving || 0),
+      Number(scores?.connected || 0),
+    );
+    if (strongestSignal > 0) return strongestSignal;
+    if (isLockedOrPremium(item)) return Math.max(1, Number(item.priceSats || 0));
+    return 0;
+  }, [signalScoreByWork]);
   const topSurfaces = useMemo(() => {
     const scoreFromSignal = (kind: 'support' | 'unlock' | 'moving' | 'connected') => (item: DiscoverableItem) =>
-      signalScoreByWork.get(itemKey(item))?.[kind] || 0;
+      signalScoreByWork.get(itemKey(item))?.[kind] || scoreEvidenceForItem(item);
 
     const connectedScoped = signalWorks.connectedItems.filter(inActiveScope);
     const topSellingScoped = signalWorks.topSellingItems.filter(inActiveScope);
-    const topSellingFallbackScoped = [
+    const topSellingPaidFallbackScoped = [
+      ...lockedItems,
       ...signalWorks.mostSupportedItems,
       ...signalWorks.recentlySupportedItems,
       ...signalWorks.fastestMovingItems,
-      ...lockedItems,
+      ...signalWorks.connectedItems,
+    ].filter((item) => inActiveScope(item) && isLockedOrPremium(item));
+    const topSellingAnyFallbackScoped = [
+      ...signalWorks.mostSupportedItems,
+      ...signalWorks.recentlySupportedItems,
+      ...signalWorks.fastestMovingItems,
+      ...signalWorks.connectedItems,
+      ...signalWorks.recentlyAddedItems,
     ].filter(inActiveScope);
     const movingScoped = selectFastestMovingItems({
       signals,
@@ -1900,10 +1922,7 @@ export function HomePage() {
     });
 
     const connected = connectedScoped.length > 0 ? connectedScoped.slice(0, 12) : [];
-    const topSellingFallback = [
-      ...topSellingFallbackScoped.filter(isLockedOrPremium),
-      ...topSellingFallbackScoped.filter((item) => !isLockedOrPremium(item)),
-    ];
+    const topSellingFallback = topSellingPaidFallbackScoped.length > 0 ? topSellingPaidFallbackScoped : topSellingAnyFallbackScoped;
     const topSelling = fillDiscoveryItems(topSellingScoped, topSellingFallback, 12);
     const usedSignalKeys = new Set([...connected, ...topSelling].map(itemKey));
     const moving = movingScoped.length > 0
@@ -1918,7 +1937,7 @@ export function HomePage() {
         subtitle: 'Works with public unlock momentum',
         items: topSelling,
         scoreFor: scoreFromSignal('unlock'),
-        scoreLabel: 'unlock',
+        scoreLabel: 'score',
       });
     }
     if (connected.length > 0) {
@@ -1942,7 +1961,7 @@ export function HomePage() {
       });
     }
     return surfaces.slice(0, 3);
-  }, [inActiveScope, localCreatorHydrationItems, query, signalScoreByWork, signalWorks, signals, topic]);
+  }, [inActiveScope, localCreatorHydrationItems, lockedItems, query, scoreEvidenceForItem, signalScoreByWork, signalWorks, signals, topic]);
   const boardRecentItems = useMemo(() => {
     const signalRecent = [
       ...signalWorks.recentlyAddedItems,
@@ -1986,13 +2005,17 @@ export function HomePage() {
     title: 'Recently Published',
     subtitle: 'Fresh public works from active creators',
     items: boardRecentItems,
-  }), [boardRecentItems]);
+    scoreFor: scoreEvidenceForItem,
+    scoreLabel: 'score',
+  }), [boardRecentItems, scoreEvidenceForItem]);
   const premiumWorksSurface = useMemo<RankedSurface>(() => ({
     key: 'unlockable-works',
     title: 'Premium Works',
     subtitle: 'Premium works to explore here and unlock on creator pages',
     items: boardUnlockableItems,
-  }), [boardUnlockableItems]);
+    scoreFor: scoreEvidenceForItem,
+    scoreLabel: 'score',
+  }), [boardUnlockableItems, scoreEvidenceForItem]);
   const recentlyPlayedSurface = useMemo<RankedSurface>(() => ({
     key: 'recently-played',
     title: 'Recently Played',
