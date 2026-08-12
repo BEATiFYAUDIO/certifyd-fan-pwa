@@ -143,11 +143,21 @@ function creatorBadges(creator: CreatorSpotlight): string[] {
   return badges.slice(0, 5);
 }
 
+function creatorScoreEvidence(creator: CreatorSpotlight): number {
+  return Math.max(
+    Number(creator.activeScore || 0),
+    Number(creator.supportScore || 0),
+    Number(creator.relationshipScore || 0),
+    Number(creator.postureScore || 0),
+  );
+}
+
 function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const [lead, ...rest] = creator.works;
   const badges = creatorBadges(creator);
+  const score = creatorScoreEvidence(creator);
   const hasCompanionWorks = rest.length > 0;
   const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
   return (
@@ -166,7 +176,13 @@ function HubCreatorCard({ creator }: { creator: CreatorSpotlight }) {
           )}
         </a>
         <div className="min-w-0 flex-1">
-          <p className="creator-themed-link text-[10px] font-semibold uppercase tracking-[0.22em]">Hub creator</p>
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <p className="creator-themed-link text-[10px] font-semibold uppercase tracking-[0.22em]">Hub creator</p>
+            <div className="shrink-0 text-right">
+              <div className="creator-themed-link text-sm font-bold">{formatCount(score)}</div>
+              <div className="text-[9px] uppercase tracking-wide text-zinc-500">score</div>
+            </div>
+          </div>
           <h3 className="mt-1 truncate text-xl font-semibold tracking-tight text-zinc-50 sm:text-2xl">{displayName}</h3>
           <p className="mt-0.5 truncate text-sm text-zinc-400">@{creator.handle}</p>
           <p className="mt-1.5 text-sm leading-5 text-zinc-300 sm:mt-2">
@@ -247,6 +263,7 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
   const displayName = creator.handle.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const badges = creatorBadges(creator).slice(0, 3);
+  const score = creatorScoreEvidence(creator);
   const themeVars = useMemo(() => getCardThemeVars(creator.profileTheme), [creator.profileTheme]);
   return (
     <article className={`creator-themed-card self-start rounded-2xl border p-3 shadow-xl shadow-black/20 ${index === 0 ? 'xl:col-span-2' : ''}`} style={themeVars}>
@@ -264,8 +281,16 @@ function CreatorClusterCard({ creator, index }: { creator: CreatorSpotlight; ind
           )}
         </a>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-base font-semibold text-zinc-100">{displayName}</div>
-          <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator.handle}</div>
+          <div className="flex min-w-0 items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="truncate text-base font-semibold text-zinc-100">{displayName}</div>
+              <div className="mt-0.5 truncate text-xs text-zinc-500">@{creator.handle}</div>
+            </div>
+            <div className="shrink-0 text-right">
+              <div className="creator-themed-link text-sm font-bold">{formatCount(score)}</div>
+              <div className="text-[9px] uppercase tracking-wide text-zinc-500">score</div>
+            </div>
+          </div>
           <div className="mt-1 text-xs text-zinc-400">
             {creator.itemCount} {creator.itemCount === 1 ? 'work' : 'works'}
           </div>
