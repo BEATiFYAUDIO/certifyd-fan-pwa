@@ -495,10 +495,17 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
   const transportDirectionRef = useRef<1 | -1>(1);
   const endingRef = useRef(false);
   const restoreMediaStateRef = useRef<{ currentTime: number; volume: number; muted: boolean } | null>(null);
+  const playerChromeHiddenRef = useRef(false);
 
   const updatePersistentQueueState = useCallback((nextState: PersistentQueueState) => {
     setPersistentQueueState(nextState);
     writeQueueStateToStorage(nextState);
+  }, []);
+
+  const updatePlayerChromeHidden = useCallback((hidden: boolean) => {
+    playerChromeHiddenRef.current = hidden;
+    setPlayerChromeHidden(hidden);
+    if (hidden) setMobileSheetOpen(false);
   }, []);
 
   useEffect(() => {
@@ -606,7 +613,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     autoPlayAfterLoadRef.current = options?.autoPlay !== false;
     mediaAspectHintRef.current = options?.mediaAspect && options.mediaAspect !== 'unknown' ? options.mediaAspect : null;
     setMediaMuted(options?.muted === true);
-    if (options?.openPlayer !== false) setMobileSheetOpen(true);
+    if (options?.openPlayer !== false && !playerChromeHiddenRef.current) setMobileSheetOpen(true);
     const queueSource = options?.queueSource || 'manual';
     const queueSourceId = options?.queueSourceId || null;
     const requestedQueue = options?.queue?.length ? dedupeDrawerItems(options.queue) : [nextItem];
@@ -1284,8 +1291,11 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
 
   const contextValue = useMemo(() => ({
     playItem,
-    setMobilePlayerOpen: setMobileSheetOpen,
-    setPlayerChromeHidden,
+    setMobilePlayerOpen: (open: boolean) => {
+      if (playerChromeHiddenRef.current && open) return;
+      setMobileSheetOpen(open);
+    },
+    setPlayerChromeHidden: updatePlayerChromeHidden,
     pausePlayback,
     getPlayerSnapshot,
     restorePlayerSnapshot,
@@ -1306,7 +1316,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
     duration,
     canPlayNextFreeDrop: canNavigateNextFreeDrop,
     canPlayPreviousFreeDrop,
-  }), [activePlayerQueue, canNavigateNextFreeDrop, canPlayPreviousFreeDrop, duration, getPlayerSnapshot, item, message, pausePlayback, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, restorePlayerSnapshot, seek, setFreeDropQueue, state, togglePlay]);
+  }), [activePlayerQueue, canNavigateNextFreeDrop, canPlayPreviousFreeDrop, duration, getPlayerSnapshot, item, message, pausePlayback, playItem, playNextFreeDrop, playPreviousFreeDrop, progress, recentItems, resetIdle, restorePlayerSnapshot, seek, setFreeDropQueue, state, togglePlay, updatePlayerChromeHidden]);
   const isIdle = state === 'idle';
   const isPlaying = state === 'playing';
   const canControl = Boolean(item?.playback.streamUrl);
@@ -1599,7 +1609,7 @@ export function Stage1APlayerProvider({ children }: { children: ReactNode }) {
           </>
         ) : null}
       </aside>
-      <div className={`stage1a-player-dock ${isIdle ? 'stage1a-player-dock-idle' : ''} ${playerChromeHidden ? 'stage1a-player-hidden-for-shorts' : ''}`} data-state={state} role="region" aria-label="Certifyd transport" onClick={() => { if (!isIdle) setMobileSheetOpen(true); }}>
+      <div className={`stage1a-player-dock ${isIdle ? 'stage1a-player-dock-idle' : ''} ${playerChromeHidden ? 'stage1a-player-hidden-for-shorts' : ''}`} data-state={state} role="region" aria-label="Certifyd transport" onClick={() => { if (!isIdle && !playerChromeHiddenRef.current) setMobileSheetOpen(true); }}>
         {item?.artwork ? (
           <img src={item.artwork} alt="" className="stage1a-player-art" referrerPolicy="no-referrer" />
         ) : !isIdle ? (

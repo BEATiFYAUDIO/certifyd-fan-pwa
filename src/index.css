@@ -1121,6 +1121,14 @@ body.has-shorts-mode .certifyd-player-center {
 
 .stage1a-player-hidden-for-shorts {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body.has-shorts-mode .stage1a-rich-player,
+body.has-shorts-mode .stage1a-player-dock {
+  display: none !important;
+  visibility: hidden !important;
   pointer-events: none !important;
 }
 
