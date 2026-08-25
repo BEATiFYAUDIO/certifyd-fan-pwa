@@ -70,6 +70,17 @@ function dominantSlideIndex(sections: Array<HTMLElement | null>, scroller: HTMLE
   return bestIndex;
 }
 
+function stopInactiveShortsMedia(sections: Array<HTMLElement | null>, activeIndex: number) {
+  sections.forEach((section, index) => {
+    if (!section || index === activeIndex) return;
+    section.querySelectorAll<HTMLMediaElement>('audio, video').forEach((media) => {
+      try { media.pause(); } catch { /* ignore */ }
+      media.removeAttribute('src');
+      try { media.load(); } catch { /* ignore */ }
+    });
+  });
+}
+
 function ShortsSlide({
   item,
   active,
@@ -255,8 +266,12 @@ function ShortsSlide({
     media.muted = muted;
     setPaused(false);
     void ensureMediaSourceReady(media)
-      .then(() => media.play())
-      .then(() => {
+      .then((ready) => {
+        if (!ready || !activeRef.current || generationRef.current !== generation || playAttemptRef.current !== playAttempt) return false;
+        return media.play().then(() => true);
+      })
+      .then((started) => {
+        if (!started) return;
         if (generationRef.current !== generation || playAttemptRef.current !== playAttempt) return;
         setPaused(false);
       })
@@ -393,7 +408,6 @@ function ShortsSlide({
           src={activeMediaSrc || undefined}
           poster={videoPosterUrl}
           muted={muted}
-          autoPlay={active}
           playsInline
           preload={active ? 'auto' : 'metadata'}
           onLoadedMetadata={(event) => {
@@ -424,7 +438,6 @@ function ShortsSlide({
             ref={(node) => { mediaRef.current = node; }}
             src={activeMediaSrc || undefined}
             muted={muted}
-            autoPlay={active}
             preload={active ? 'auto' : 'metadata'}
             onLoadedMetadata={(event) => onLoadedMetadata(event.currentTarget)}
             onPlay={() => { if (isCurrentGeneration()) { setPaused(false); setEnded(false); } }}
@@ -569,6 +582,7 @@ export function ShortsPage() {
         const nextIndex = selectedIndex > 0 ? selectedIndex : 0;
         setItems(queue);
         activeIndexRef.current = nextIndex;
+        stopInactiveShortsMedia(sectionRefs.current, nextIndex);
         setActiveGeneration((current) => current + 1);
         setActiveIndex(nextIndex);
         window.requestAnimationFrame(() => {
@@ -596,6 +610,7 @@ export function ShortsPage() {
       const nextIndex = dominantSlideIndex(sectionRefs.current, root);
       if (nextIndex < 0 || nextIndex === activeIndexRef.current) return;
       activeIndexRef.current = nextIndex;
+      stopInactiveShortsMedia(sectionRefs.current, nextIndex);
       setActiveGeneration((current) => current + 1);
       setActiveIndex(nextIndex);
     };
@@ -666,6 +681,7 @@ export function ShortsPage() {
   const activateIndex = useCallback((nextIndex: number) => {
     if (nextIndex < 0 || nextIndex >= items.length || nextIndex === activeIndexRef.current) return;
     activeIndexRef.current = nextIndex;
+    stopInactiveShortsMedia(sectionRefs.current, nextIndex);
     setActiveGeneration((current) => current + 1);
     setActiveIndex(nextIndex);
     sectionRefs.current[nextIndex]?.scrollIntoView({ block: 'start', behavior: 'smooth' });
