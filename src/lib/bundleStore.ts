@@ -319,25 +319,3 @@ export function sharedBundleUrl(data: string): string {
   const base = configuredBase || runtimeBase;
   return new URL(`bundles/shared?data=${encodeURIComponent(data)}`, base.endsWith('/') ? base : `${base}/`).toString();
 }
-
-export async function createSharedBundleUrl(bundle: Pick<Bundle, 'title' | 'description' | 'itemIds' | 'createdAt'>): Promise<string> {
-  const apiBase = String(import.meta.env.VITE_CERTIFYD_SOCIAL_API_ORIGIN || 'https://social.certifyd.me/api').replace(/\/+$/, '');
-  try {
-    const response = await fetch(`${apiBase}/fan-bundles`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        title: bundle.title,
-        description: bundle.description,
-        itemIds: dedupeBundleItemIds(bundle.itemIds),
-      }),
-    });
-    if (response.ok) {
-      const payload = await response.json() as { url?: unknown };
-      if (typeof payload.url === 'string' && payload.url.startsWith('https://')) return payload.url;
-    }
-  } catch {
-    /* fall back to a self-contained snapshot URL */
-  }
-  return sharedBundleUrl(encodeSharedBundle(bundle));
-}

@@ -3,10 +3,11 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import { useStage1APlayer } from '../components/stage1APlayerContext';
 import {
   createBundle,
-  createSharedBundleUrl,
   decodeSharedBundle,
   deleteBundle,
+  encodeSharedBundle,
   getBundle,
+  sharedBundleUrl,
   updateBundle,
   type Bundle,
   type BundleVisibility,
@@ -211,15 +212,16 @@ function BundleDetail({ bundle, shared = false }: { bundle: Bundle | SharedBundl
       setMessage('Private Bundles cannot be shared. Change visibility to Unlisted or Public first.');
       return;
     }
-    const url = await createSharedBundleUrl(currentBundle);
+    const data = encodeSharedBundle(currentBundle);
+    const url = sharedBundleUrl(data);
     try {
       await navigator.clipboard.writeText(url);
-      setMessage('Short share link copied to clipboard.');
+      setMessage('Share link copied to clipboard. This link contains a snapshot of the Bundle.');
     } catch {
       try {
         if (!navigator.share) throw new Error('Share unavailable.');
         await navigator.share({ title: currentBundle.title, url });
-        setMessage('Share sheet opened.');
+        setMessage('Share sheet opened. This link contains a snapshot of the Bundle.');
       } catch {
         setMessage('Could not copy the share link.');
       }
