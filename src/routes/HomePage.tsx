@@ -20,7 +20,7 @@ import { creatorKey, useLocalLibrary, type LocalCreator } from '../lib/localLibr
 import { getCardThemeVars } from '../lib/profileTheme';
 import { contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
 import { canonicalCreatorProfileUrl, canonicalCreatorProfileUrlForItem } from '../lib/destinations';
-import { BUNDLES_EVENT, createBundle, encodeSharedBundle, listBundles, sharedBundleUrl, type Bundle, type BundleVisibility } from '../lib/bundleStore';
+import { BUNDLES_EVENT, createBundle, createSharedBundleUrl, listBundles, type Bundle, type BundleVisibility } from '../lib/bundleStore';
 import { itemIdFromDiscoverable, parseItemId } from '../lib/libraryStore';
 import { loadDiscoverableById } from '../lib/contentRuntime/discovery';
 import { hydrateCanonicalOfferForItem } from '../lib/contentRuntime/hydration';
@@ -1165,15 +1165,15 @@ function SavedLibrarySection({ works, creators }: { works: DiscoverableItem[]; c
       setBundleMessage('Private Bundles cannot be shared. Open the Bundle and change visibility to Unlisted or Public first.');
       return;
     }
-    const url = sharedBundleUrl(encodeSharedBundle(bundle));
+    const url = await createSharedBundleUrl(bundle);
     try {
       await navigator.clipboard.writeText(url);
-      setBundleMessage('Share link copied to clipboard. This link contains a snapshot of the Bundle.');
+      setBundleMessage('Short share link copied to clipboard.');
     } catch {
       try {
         if (navigator.share) {
           await navigator.share({ title: bundle.title, url });
-          setBundleMessage('Share sheet opened. This link contains a snapshot of the Bundle.');
+          setBundleMessage('Share sheet opened.');
           return;
         }
       } catch {
