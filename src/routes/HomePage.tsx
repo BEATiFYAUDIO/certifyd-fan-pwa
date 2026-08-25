@@ -2200,14 +2200,13 @@ export function HomePage() {
               <RailHeader title="Free Drops" subtitle="Open works fans can play while exploring creators" badge="Open" />
               <div className="shorts-card-layout rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
                 {freeItems.slice(0, 12).map((item) => {
-                  const shortsQueue = freeItems.slice(0, 12);
                   const watchParams = new URLSearchParams({
                     origin: item.publicOrigin,
                     topic,
                     free: '1',
                   }).toString();
                   return (
-                    <ShortsCard key={`shorts:${item.publicOrigin}:${item.contentId}`} item={item} watchParams={watchParams} queue={shortsQueue} />
+                    <ShortsCard key={`shorts:${item.publicOrigin}:${item.contentId}`} item={item} watchParams={watchParams} />
                   );
                 })}
               </div>
@@ -2223,14 +2222,13 @@ export function HomePage() {
               <RailHeader title="Premium Works" subtitle="Premium works to preview here and unlock on creator pages" badge="Preview" />
               <div className="shorts-card-layout rail-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
                 {boardUnlockableItems.slice(0, 12).map((item) => {
-                  const premiumQueue = boardUnlockableItems.slice(0, 12);
                   const watchParams = new URLSearchParams({
                     origin: item.publicOrigin,
                     topic,
                     premium: '1',
                   }).toString();
                   return (
-                    <ShortsCard key={`premium-shorts:${item.publicOrigin}:${item.contentId}`} item={item} watchParams={watchParams} queue={premiumQueue} />
+                    <ShortsCard key={`premium-shorts:${item.publicOrigin}:${item.contentId}`} item={item} watchParams={watchParams} />
                   );
                 })}
               </div>

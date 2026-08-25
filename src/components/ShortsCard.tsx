@@ -1,10 +1,9 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { memo, useMemo, useState, type MouseEvent } from 'react';
 import type { DiscoverableItem } from '../lib/types';
 import { displayStateFromItem } from '../lib/playbackDisplay';
 import { getCardThemeVars } from '../lib/profileTheme';
 import { canonicalCreatorProfileUrlForItem } from '../lib/destinations';
-import { useStage1APlayer, type Stage1AQueueSource } from './stage1APlayerContext';
 
 function avatarInitials(handle: string | null): string {
   const raw = String(handle || '').replace(/^@+/, '').trim();
@@ -14,13 +13,9 @@ function avatarInitials(handle: string | null): string {
   return raw.slice(0, 2).toUpperCase();
 }
 
-function shouldOpenMobilePlayerOnly(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches;
-}
-
-export const ShortsCard = memo(function ShortsCard({ item, watchParams, queue, queueSource = 'board' }: { item: DiscoverableItem; watchParams?: string; queue?: DiscoverableItem[]; queueSource?: Stage1AQueueSource }) {
+export const ShortsCard = memo(function ShortsCard({ item, watchParams }: { item: DiscoverableItem; watchParams?: string }) {
   const fallbackLogo = `${import.meta.env.BASE_URL}header-logo.svg`;
-  const { playItem, setMobilePlayerOpen } = useStage1APlayer();
+  const navigate = useNavigate();
   const [imageFailed, setImageFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
 
@@ -52,11 +47,10 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams, queue, q
     return gradients[seed % gradients.length];
   }, [creator]);
 
-  const playShortExplicitly = (event: MouseEvent<HTMLElement>) => {
+  const enterShorts = (event: MouseEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (shouldOpenMobilePlayerOnly()) setMobilePlayerOpen(true);
-    void playItem(item, { muted: true, mediaAspect: 'portrait', queueSource, ...(queue?.length ? { queue } : {}) });
+    navigate(watchHref, { state: { item } });
   };
 
   return (
@@ -92,7 +86,7 @@ export const ShortsCard = memo(function ShortsCard({ item, watchParams, queue, q
       <button
         type="button"
         className="absolute bottom-4 right-4 z-20 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-black opacity-0 shadow-lg transition group-hover:opacity-100 focus:opacity-100"
-        onClick={playShortExplicitly}
+        onClick={enterShorts}
         aria-label={`Play ${item.title || 'short'}`}
       >
         Play
