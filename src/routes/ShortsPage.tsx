@@ -34,6 +34,42 @@ function useShortsSession() {
   }, [getPlayerSnapshot, pausePlayback, restorePlayerSnapshot, setPlayerChromeHidden]);
 }
 
+function visibleSlideRatio(section: HTMLElement, scroller: HTMLElement) {
+  const sectionRect = section.getBoundingClientRect();
+  const scrollerRect = scroller.getBoundingClientRect();
+  const visibleTop = Math.max(sectionRect.top, scrollerRect.top);
+  const visibleBottom = Math.min(sectionRect.bottom, scrollerRect.bottom);
+  const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+  const height = Math.max(1, sectionRect.height);
+  const ratio = visibleHeight / height;
+  const sectionCenter = sectionRect.top + sectionRect.height / 2;
+  const scrollerCenter = scrollerRect.top + scrollerRect.height / 2;
+  return {
+    ratio,
+    centerDistance: Math.abs(sectionCenter - scrollerCenter),
+  };
+}
+
+function dominantSlideIndex(sections: Array<HTMLElement | null>, scroller: HTMLElement) {
+  let bestIndex = -1;
+  let bestRatio = 0;
+  let bestCenterDistance = Number.POSITIVE_INFINITY;
+
+  sections.forEach((section, index) => {
+    if (!section) return;
+    const { ratio, centerDistance } = visibleSlideRatio(section, scroller);
+    if (ratio <= 0) return;
+    const ratioImproved = ratio > bestRatio + 0.001;
+    const tieCloserToCenter = Math.abs(ratio - bestRatio) <= 0.001 && centerDistance < bestCenterDistance;
+    if (!ratioImproved && !tieCloserToCenter) return;
+    bestIndex = index;
+    bestRatio = ratio;
+    bestCenterDistance = centerDistance;
+  });
+
+  return bestIndex;
+}
+
 function ShortsSlide({
   item,
   active,
@@ -136,7 +172,29 @@ function ShortsSlide({
 
   useEffect(() => {
     activeRef.current = active;
-    if (active) generationRef.current = activeGeneration;
+    if (active) {
+      generationRef.current = activeGeneration;
+      return;
+    }
+
+    playAttemptRef.current += 1;
+    lastAutoPlaybackKeyRef.current = '';
+    loadedMediaSrcRef.current = '';
+    mediaErrorRefreshRef.current = '';
+
+    const media = mediaRef.current;
+    if (media) {
+      try { media.pause(); } catch { /* ignore */ }
+      media.removeAttribute('src');
+      try { media.load(); } catch { /* ignore */ }
+    }
+
+    queueMicrotask(() => {
+      if (activeRef.current) return;
+      setPaused(true);
+      setEnded(false);
+      setProgress(0);
+    });
   }, [active, activeGeneration]);
 
   useEffect(() => {
@@ -489,7 +547,7 @@ export function ShortsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useState(false);
   const [activeGeneration, setActiveGeneration] = useState(1);
   const activeIndexRef = useRef(0);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -533,24 +591,32 @@ export function ShortsPage() {
   useEffect(() => {
     const root = scrollerRef.current;
     if (!root) return;
+    let animationFrame = 0;
+    const updateDominantSlide = () => {
+      const nextIndex = dominantSlideIndex(sectionRefs.current, root);
+      if (nextIndex < 0 || nextIndex === activeIndexRef.current) return;
+      activeIndexRef.current = nextIndex;
+      setActiveGeneration((current) => current + 1);
+      setActiveIndex(nextIndex);
+    };
+    const scheduleUpdate = () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(updateDominantSlide);
+    };
     const observer = new IntersectionObserver(
-      (entries) => {
-        const best = entries
-          .filter((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.75)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (!best) return;
-        const nextIndex = Number((best.target as HTMLElement).dataset.index || 0);
-        if (Number.isNaN(nextIndex) || nextIndex === activeIndexRef.current) return;
-        activeIndexRef.current = nextIndex;
-        setActiveGeneration((current) => current + 1);
-        setActiveIndex(nextIndex);
-      },
-      { root, threshold: [0.25, 0.5, 0.75, 0.9] },
+      scheduleUpdate,
+      { root, threshold: [0, 0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 1] },
     );
     sectionRefs.current.forEach((section) => {
       if (section) observer.observe(section);
     });
-    return () => observer.disconnect();
+    root.addEventListener('scroll', scheduleUpdate, { passive: true });
+    scheduleUpdate();
+    return () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      root.removeEventListener('scroll', scheduleUpdate);
+      observer.disconnect();
+    };
   }, [items]);
 
   const activeItem = items[activeIndex] || null;
