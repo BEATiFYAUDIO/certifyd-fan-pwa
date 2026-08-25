@@ -29,11 +29,21 @@ export type CreateBundleInput = {
 export type UpdateBundleInput = Partial<Pick<Bundle, 'title' | 'description' | 'itemIds' | 'visibility'>>;
 
 export type SharedBundleManifest = {
-  version: 1;
+  version: 1 | 2;
   title: string;
   description?: string;
   itemIds: string[];
   createdAt: string;
+  recovered?: boolean;
+};
+
+type CompactSharedBundleManifest = {
+  v: 2;
+  t: string;
+  d?: string;
+  c?: string;
+  o: string | string[];
+  i: string[] | [number, string][];
 };
 
 function nowIso(): string {
@@ -166,35 +176,138 @@ export function deleteBundle(id: string): void {
 }
 
 export function encodeSharedBundle(bundle: Pick<Bundle, 'title' | 'description' | 'itemIds' | 'createdAt'>): string {
-  const manifest: SharedBundleManifest = {
-    version: 1,
-    title: bundle.title,
-    description: bundle.description,
-    itemIds: dedupeBundleItemIds(bundle.itemIds),
-    createdAt: bundle.createdAt,
-  };
+  const itemIds = dedupeBundleItemIds(bundle.itemIds);
+  const origins: string[] = [];
+  const originIndexes = new Map<string, number>();
+  const rows: [number, string][] = [];
+  for (const itemId of itemIds) {
+    const parsed = parseItemId(itemId);
+    if (!parsed) continue;
+    let originIndex = originIndexes.get(parsed.publicOrigin);
+    if (originIndex == null) {
+      originIndex = origins.length;
+      origins.push(parsed.publicOrigin);
+      originIndexes.set(parsed.publicOrigin, originIndex);
+    }
+    rows.push([originIndex, parsed.contentId]);
+  }
+  const manifest: CompactSharedBundleManifest = origins.length === 1
+    ? {
+        v: 2,
+        t: bundle.title,
+        d: bundle.description,
+        o: origins[0],
+        i: rows.map(([, contentId]) => contentId),
+      }
+    : {
+        v: 2,
+        t: bundle.title,
+        d: bundle.description,
+        o: origins,
+        i: rows,
+      };
   const json = JSON.stringify(manifest);
   return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export function decodeSharedBundle(data: string): SharedBundleManifest | null {
+function decodeSharedBundleText(data: string): string | null {
   if (!data || data.length > MAX_SHARED_DATA_CHARS) return null;
   try {
     const padded = data.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(data.length / 4) * 4, '=');
-    const parsed = JSON.parse(decodeURIComponent(escape(atob(padded)))) as Partial<SharedBundleManifest>;
-    if (parsed.version !== 1 || typeof parsed.title !== 'string' || !Array.isArray(parsed.itemIds)) return null;
-    const title = parsed.title.trim();
-    const itemIds = dedupeBundleItemIds(parsed.itemIds);
+    return decodeURIComponent(escape(atob(padded)));
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSharedManifest(parsed: unknown): SharedBundleManifest | null {
+  const row = parsed as Partial<SharedBundleManifest> | Partial<CompactSharedBundleManifest> | null;
+  if (!row || typeof row !== 'object') return null;
+
+  if ('version' in row) {
+    if (row.version !== 1 || typeof row.title !== 'string' || !Array.isArray(row.itemIds)) return null;
+    const title = row.title.trim();
+    const itemIds = dedupeBundleItemIds(row.itemIds);
     if (!title || !itemIds.length) return null;
     return {
       version: 1,
       title,
-      description: typeof parsed.description === 'string' && parsed.description.trim() ? parsed.description.trim() : undefined,
+      description: typeof row.description === 'string' && row.description.trim() ? row.description.trim() : undefined,
       itemIds,
-      createdAt: validDate(parsed.createdAt, nowIso()),
+      createdAt: validDate(row.createdAt, nowIso()),
     };
+  }
+
+  if ('v' in row) {
+    if (row.v !== 2 || typeof row.t !== 'string') return null;
+    const title = row.t.trim();
+    const compactOrigins = row.o;
+    const compactItems = row.i;
+    if (!title || !compactOrigins || !Array.isArray(compactItems)) return null;
+    const itemIds: string[] = [];
+    if (typeof compactOrigins === 'string') {
+      for (const contentId of compactItems) {
+        if (typeof contentId !== 'string') continue;
+        itemIds.push(`${compactOrigins.replace(/\/+$/, '')}::${contentId.trim()}`);
+      }
+    } else if (Array.isArray(compactOrigins)) {
+      for (const compactItem of compactItems) {
+        if (!Array.isArray(compactItem) || compactItem.length !== 2) continue;
+        const [originIndex, contentId] = compactItem;
+        const origin = compactOrigins[originIndex];
+        if (typeof origin !== 'string' || typeof contentId !== 'string') continue;
+        itemIds.push(`${origin.replace(/\/+$/, '')}::${contentId.trim()}`);
+      }
+    }
+    const normalizedItemIds = dedupeBundleItemIds(itemIds);
+    if (!normalizedItemIds.length) return null;
+    return {
+      version: 2,
+      title,
+      description: typeof row.d === 'string' && row.d.trim() ? row.d.trim() : undefined,
+      itemIds: normalizedItemIds,
+      createdAt: validDate(row.c, nowIso()),
+    };
+  }
+
+  return null;
+}
+
+function extractJsonString(source: string, key: string): string {
+  const match = source.match(new RegExp(`"${key}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`));
+  if (!match) return '';
+  try {
+    return JSON.parse(`"${match[1]}"`);
   } catch {
-    return null;
+    return match[1];
+  }
+}
+
+function recoverPartialSharedBundle(source: string): SharedBundleManifest | null {
+  const explicitMatches = source.match(/https?:\/\/[^"\\\s,[\]]+::[A-Za-z0-9._:-]+/g) || [];
+  const compactOrigin = extractJsonString(source, 'o');
+  const compactMatches = compactOrigin
+    ? Array.from(source.matchAll(/"(cm[a-z0-9]{10,})"/gi), (match) => `${compactOrigin.replace(/\/+$/, '')}::${match[1]}`)
+    : [];
+  const itemIds = dedupeBundleItemIds([...explicitMatches, ...compactMatches]);
+  if (!itemIds.length) return null;
+  return {
+    version: 1,
+    title: extractJsonString(source, 'title') || extractJsonString(source, 't') || 'Shared Bundle Preview',
+    description: extractJsonString(source, 'description') || extractJsonString(source, 'd') || undefined,
+    itemIds,
+    createdAt: nowIso(),
+    recovered: true,
+  };
+}
+
+export function decodeSharedBundle(data: string): SharedBundleManifest | null {
+  const text = decodeSharedBundleText(data);
+  if (!text) return null;
+  try {
+    return normalizeSharedManifest(JSON.parse(text));
+  } catch {
+    return recoverPartialSharedBundle(text);
   }
 }
 
