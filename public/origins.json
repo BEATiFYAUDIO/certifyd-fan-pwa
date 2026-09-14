@@ -5,6 +5,10 @@
     "https://public.certifyd.me",
     "https://certifyd2.inklinguy.pro",
     "https://certifyd.blessedrthe.fyi",
-    "https://certifyd.ansolas.com"
+    "https://certifyd.ansolas.com",
+    "https://creator.orangebydesign.com"
+  ],
+  "trustedContentUrls": [
+    "https://creator.orangebydesign.com/buy/cmu1m87ue0001jd8v5tb9ql8q"
   ]
 }

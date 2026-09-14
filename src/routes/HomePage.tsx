@@ -22,7 +22,7 @@ import { contentboxBuyUrlForItem } from '../lib/fanReturnUrl';
 import { canonicalCreatorProfileUrl, canonicalCreatorProfileUrlForItem } from '../lib/destinations';
 import { BUNDLES_EVENT, createBundle, encodeSharedBundle, listBundles, sharedBundleUrl, type Bundle, type BundleVisibility } from '../lib/bundleStore';
 import { itemIdFromDiscoverable, parseItemId } from '../lib/libraryStore';
-import { loadDiscoverableById } from '../lib/contentRuntime/discovery';
+import { loadDiscoverableById, loadTrustedContentItems } from '../lib/contentRuntime/discovery';
 import { hydrateCanonicalOfferForItem } from '../lib/contentRuntime/hydration';
 import { selectFastestMovingItems } from '../lib/fastestMoving';
 
@@ -1639,6 +1639,11 @@ export function HomePage() {
         }
       })
     );
+
+    if (isFirstPagePass) {
+      const trustedItems = await loadTrustedContentItems(topic).catch(() => []);
+      updates.push(...trustedItems);
+    }
 
     if (requestId !== requestIdRef.current) {
       loadingRef.current = false;

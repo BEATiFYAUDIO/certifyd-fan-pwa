@@ -48,6 +48,9 @@ Example:
   "origins": [
     "https://certifyd.beatifygroup.com",
     "https://certifyd.darrylhillock.com"
+  ],
+  "trustedContentUrls": [
+    "https://creator.example.com/buy/content-id"
   ]
 }
 ```
@@ -59,6 +62,7 @@ Behavior:
   2. `VITE_CERTIFYD_ORIGINS`
 - Both sources are merged and deduped.
 - Invalid/empty origins are ignored.
+- `trustedContentUrls` can list specific published, discoverable buy URLs when an older creator node does not expose the item through its discovery index yet.
 - Allowed origins:
   - `https://...`
   - `http://localhost...`
